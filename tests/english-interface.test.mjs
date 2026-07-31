@@ -13,11 +13,12 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /id="saved-fit-file"/);
   assert.match(files[1], /R reference signal/);
   assert.match(files[1], /id="add-layer"/);
-  assert.match(files[1], /id="substrate-extinction"/);
+  assert.match(files[1], /id="substrate-editor"/);
   assert.match(files[1], /id="substrate-thickness"/);
   assert.match(files[1], /micrometres \(µm\)/);
   assert.match(files[1], /id="stack-diagram"/);
   assert.match(files[1], /LAYERS N,K/);
+  for (const id of ["undo-button", "redo-button", "bootstrap-button", "print-report", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
   assert.match(files[2], /Independent dielectric components/);
   assert.match(files[2], /function renderStackDiagram/);
   assert.match(files[2], /Tauc–Lorentz oscillators/);
@@ -38,6 +39,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /substrateThicknessNm: 1000 \* substrateThicknessUm/);
   assert.match(files[2], /parseSavedFit/);
   assert.match(files[2], /SAVED_FIT_SCHEMA/);
+  assert.match(files[2], /function makeSubstrate/);
+  assert.match(files[2], /parameter-link/);
+  assert.match(files[4], /bootstrapFitUncertainty/);
   assert.match(files[2], /thicknessUm: Number\(elements\["substrate-thickness"\]\.value\)/);
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));

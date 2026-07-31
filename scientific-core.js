@@ -212,14 +212,15 @@ export function restrictToNkRange(data, nk) {
 }
 
 export function evaluateOpticalModel(data, nk, parameters, settings) {
-  validateModelInputs(parameters, settings);
-  if (settings.layers?.length) return evaluateMultilayerModel(data, parameters, settings);
-  const index = refractiveIndexModel(settings.model, data.wavelengthNm, parameters, nk);
+  const resolvedParameters = resolveParameterLinks(parameters, settings.parameterLinks);
+  validateModelInputs(resolvedParameters, settings);
+  if (settings.layers?.length) return evaluateMultilayerModel(data, resolvedParameters, settings);
+  const index = refractiveIndexModel(settings.model, data.wavelengthNm, resolvedParameters, nk);
   const optical = filmOnThickSubstrate(
     data.wavelengthNm,
     index.n,
     index.k,
-    parameters.thicknessNm,
+    resolvedParameters.thicknessNm,
     settings.substrateIndex,
     settings.incidence,
     settings.substrateExtinction ?? 0,
@@ -227,11 +228,19 @@ export function evaluateOpticalModel(data, nk, parameters, settings) {
   );
   return {
     ...optical,
-    reflectanceScaled: optical.reflectance.map((value) => value * parameters.rGain),
-    transmittanceScaled: optical.transmittance.map((value) => value * parameters.tGain),
+    reflectanceScaled: optical.reflectance.map((value) => value * resolvedParameters.rGain),
+    transmittanceScaled: optical.transmittance.map((value) => value * resolvedParameters.tGain),
     n: index.n,
     k: index.k,
   };
+}
+
+function resolveParameterLinks(parameters, links = {}) {
+  const resolved = { ...parameters };
+  for (let pass = 0; pass <= Object.keys(links).length; pass += 1) for (const [target, source] of Object.entries(links)) {
+    if (Number.isFinite(resolved[source])) resolved[target] = resolved[source];
+  }
+  return resolved;
 }
 
 export const evaluateTabulated = evaluateOpticalModel;
@@ -242,7 +251,10 @@ function evaluateMultilayerModel(data, parameters, settings) {
     const index = refractiveIndexModel(layer.model, data.wavelengthNm, layerParameters, layer.nk ?? null, { components: layer.components, ema: layer.ema });
     return { id: layer.id, name: layer.name, model: layer.model, thicknessNm: layerParameters.thicknessNm, n: index.n, k: index.k };
   });
-  const optical = filmStackOnThickSubstrate(data.wavelengthNm, layerIndices, settings.substrateIndex, settings.incidence, settings.substrateExtinction ?? 0, settings.substrateThicknessNm ?? 1e6);
+  const substrateIndex = settings.substrate
+    ? refractiveIndexModel(settings.substrate.model, data.wavelengthNm, parametersForLayer(parameters, "substrate"), settings.substrate.nk ?? null, { components: settings.substrate.components, ema: settings.substrate.ema })
+    : { n: data.wavelengthNm.map(() => settings.substrateIndex), k: data.wavelengthNm.map(() => settings.substrateExtinction ?? 0) };
+  const optical = filmStackOnThickSubstrate(data.wavelengthNm, layerIndices, substrateIndex.n, settings.incidence, substrateIndex.k, settings.substrateThicknessNm ?? 1e6);
   const active = layerIndices.find((layer) => layer.id === settings.activeLayerId) ?? layerIndices[0];
   return {
     ...optical,
@@ -252,6 +264,7 @@ function evaluateMultilayerModel(data, parameters, settings) {
     k: active.k,
     activeLayerId: active.id,
     layerIndices,
+    substrateIndex,
   };
 }
 
@@ -269,7 +282,8 @@ function validateModelInputs(parameters, settings) {
       if (!(parameters[`${layer.id}__thicknessNm`] > 0)) throw new Error(`Layer ${layer.name} must have a positive thickness.`);
     }
   } else if (!(parameters.thicknessNm > 0)) throw new Error("Film thickness must be positive.");
-  if (!(settings.substrateIndex > 0) || !((settings.substrateExtinction ?? 0) >= 0) || !((settings.substrateThicknessNm ?? 1e6) > 0)) throw new Error("The substrate must have n > 0, k ≥ 0, and positive thickness.");
+  if (!settings.substrate && (!(settings.substrateIndex > 0) || !((settings.substrateExtinction ?? 0) >= 0))) throw new Error("The substrate must have n > 0 and k ≥ 0.");
+  if (!((settings.substrateThicknessNm ?? 1e6) > 0)) throw new Error("The substrate must have positive thickness.");
   if (!new Set(["film", "substrate"]).has(settings.incidence)) throw new Error("Unsupported incidence geometry.");
 }
 
@@ -278,7 +292,9 @@ export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateI
 }
 
 export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, incidence = "film", substrateExtinction = 0, substrateThicknessNm = 1e6) {
-  if (!Array.isArray(layers) || !layers.length || layers.length > 12 || !(substrateIndex > 0) || !(substrateExtinction >= 0) || !(substrateThicknessNm > 0) || !new Set(["film", "substrate"]).has(incidence)) {
+  const substrateN = Array.isArray(substrateIndex) ? substrateIndex : wavelengthNm.map(() => substrateIndex);
+  const substrateK = Array.isArray(substrateExtinction) ? substrateExtinction : wavelengthNm.map(() => substrateExtinction);
+  if (!Array.isArray(layers) || !layers.length || layers.length > 12 || substrateN.length !== wavelengthNm.length || substrateK.length !== wavelengthNm.length || substrateN.some((value) => !(value > 0)) || substrateK.some((value) => !(value >= 0)) || !(substrateThicknessNm > 0) || !new Set(["film", "substrate"]).has(incidence)) {
     throw new Error("Invalid multilayer TMM stack or substrate.");
   }
   if (!wavelengthNm.length || wavelengthNm.some((value) => !(value > 0)) || substrateThicknessNm < 10 * Math.max(...wavelengthNm)) throw new Error("The phase-incoherent substrate thickness must be at least ten wavelengths.");
@@ -286,14 +302,14 @@ export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, 
     if (!(layer.thicknessNm > 0) || layer.n.length !== wavelengthNm.length || layer.k.length !== wavelengthNm.length) throw new Error("Every layer must define positive thickness and n,k on the calculation grid.");
   }
   const air = { re: 1, im: 0 };
-  const substrate = { re: substrateIndex, im: substrateExtinction };
-  const rear = interfacePower(substrate, air);
-  const entrance = interfacePower(air, substrate);
   const reflectance = [];
   const transmittance = [];
   for (let index = 0; index < wavelengthNm.length; index += 1) {
+    const substrate = { re: substrateN[index], im: substrateK[index] };
+    const rear = interfacePower(substrate, air);
+    const entrance = interfacePower(air, substrate);
     const slice = layers.map((layer) => ({ n: layer.n[index], k: layer.k[index], thicknessNm: layer.thicknessNm }));
-    const attenuation = Math.exp(-4 * Math.PI * substrateExtinction * substrateThicknessNm / wavelengthNm[index]);
+    const attenuation = Math.exp(-4 * Math.PI * substrateK[index] * substrateThicknessNm / wavelengthNm[index]);
     const roundTripAttenuation = attenuation ** 2;
     if (incidence === "film") {
       const forward = coherentFilmStack(wavelengthNm[index], slice, air, substrate);
@@ -483,6 +499,7 @@ export function fitEllipsometrySeed(nk, model, specifications) {
 
 export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const { settings, initial, bounds } = configuration;
+  const localOnly = Boolean(configuration.localOnly);
   const screeningPoints = configuration.screeningPoints ?? 512;
   const localRefinements = configuration.localRefinements ?? 16;
   if (!Number.isInteger(screeningPoints) || screeningPoints < 64 || screeningPoints > 4096 || (screeningPoints & (screeningPoints - 1))) {
@@ -508,7 +525,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   ]));
   const objective = (point) => {
     const variable = toPhysical(point);
-    const parameters = { ...initial, ...variable };
+    const parameters = resolveParameterLinks({ ...initial, ...variable }, settings.parameterLinks);
     const evaluated = evaluateOpticalModel(data, nk, parameters, settings);
     const residuals = fitResidualVector(data, nk, parameters, evaluated, settings);
     return { cost: softL1Cost(residuals), residuals, parameters, evaluated };
@@ -517,7 +534,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const initialPoint = names.map((name, index) => isLogParameter(name)
     ? (Math.log(initial[name]) - Math.log(lower[index])) / (Math.log(upper[index]) - Math.log(lower[index]))
     : (initial[name] - lower[index]) / (upper[index] - lower[index]));
-  const sampledCandidates = scrambledSobolPoints(names.length, screeningPoints).map((point, index) => {
+  const sampledCandidates = (localOnly ? [] : scrambledSobolPoints(names.length, screeningPoints)).map((point, index) => {
     let candidate;
     try { candidate = { point, sobolIndex: index, ...objective(point) }; }
     catch { candidate = { point, sobolIndex: index, cost: Number.POSITIVE_INFINITY }; }
@@ -526,7 +543,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   });
   const finiteCandidates = sampledCandidates.filter((candidate) => Number.isFinite(candidate.cost));
   if (localRefinements > 1 && !finiteCandidates.length) throw new Error("No finite Sobol screening point was found inside the parameter bounds.");
-  const starts = selectDiverseStarts(initialPoint, finiteCandidates, localRefinements);
+  const starts = localOnly ? [{ point: initialPoint, sobolIndex: null, cost: null }] : selectDiverseStarts(initialPoint, finiteCandidates, localRefinements);
   let best = { point: initialPoint, ...objective(initialPoint) };
   const refinementCount = starts.length;
   const refinedCandidates = [];
@@ -540,12 +557,12 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     } catch (error) {
       failedStarts.push({ localStart: index + 1, message: error instanceof Error ? error.message : String(error) });
     }
-    progress(50 + Math.round((index + 1) / refinementCount * 50));
+    progress(localOnly ? Math.round((index + 1) / refinementCount * 100) : 50 + Math.round((index + 1) / refinementCount * 50));
   }
   if (!refinedCandidates.some((candidate) => distance(candidate.point, best.point) < 1e-12)) refinedCandidates.push({ localStart: 0, ...best });
   const finiteScreeningCosts = finiteCandidates.map((candidate) => candidate.cost).sort((a, b) => a - b);
   const optimizer = {
-    method: "SciPy-compatible scrambled Sobol screening followed by bounded trust-region reflective least squares",
+    method: localOnly ? "bounded trust-region reflective least squares from the supplied optimum" : "SciPy-compatible scrambled Sobol screening followed by bounded trust-region reflective least squares",
     seed: 1729,
     screeningPoints,
     finiteScreeningPoints: finiteCandidates.length,
@@ -568,7 +585,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
       optimality: best.solver.optimality,
     } : { success: true, message: "The visible initial point had the lowest evaluated cost.", evaluations: 0, optimality: null },
   };
-  const diagnostics = diagnosticsOf(data, best.evaluated, settings, {
+  const diagnostics = configuration.skipDiagnostics ? diagnosticsOf(data, best.evaluated, settings) : diagnosticsOf(data, best.evaluated, settings, {
     nk,
     parameters: best.parameters,
     bounds,
@@ -579,6 +596,62 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     optimizer,
   });
   return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, optimizer, screeningPoints, localRefinements: refinementCount };
+}
+
+export function bootstrapFitUncertainty(data, nk, configuration, bestParameters, samples = 20, progress = () => {}) {
+  if (!Number.isInteger(samples) || samples < 5 || samples > 200) throw new Error("Bootstrap replicates must be an integer from 5 to 200.");
+  const fittedParameters = configuration.fittedParameters ?? [];
+  if (!fittedParameters.length) throw new Error("Bootstrap uncertainty requires fitted parameters.");
+  const baseline = evaluateOpticalModel(data, nk, bestParameters, configuration.settings);
+  const residualPools = {
+    reflectance: data.reflectance.map((value, index) => data.reflectanceValid[index] ? value - baseline.reflectanceScaled[index] : Number.NaN).filter(Number.isFinite),
+    transmittance: data.transmittance.map((value, index) => data.transmittanceValid[index] ? value - baseline.transmittanceScaled[index] : Number.NaN).filter(Number.isFinite),
+  };
+  let randomState = 0x6d2b79f5;
+  const random = () => { randomState |= 0; randomState = randomState + 0x6d2b79f5 | 0; let value = Math.imul(randomState ^ randomState >>> 15, 1 | randomState); value = value + Math.imul(value ^ value >>> 7, 61 | value) ^ value; return ((value ^ value >>> 14) >>> 0) / 4294967296; };
+  const sampleResidual = (pool) => pool[Math.floor(random() * pool.length)] ?? 0;
+  const replicates = [];
+  for (let replicate = 0; replicate < samples; replicate += 1) {
+    const bootstrapData = {
+      ...data,
+      reflectance: data.reflectance.map((value, index) => data.reflectanceValid[index] ? baseline.reflectanceScaled[index] + sampleResidual(residualPools.reflectance) : value),
+      transmittance: data.transmittance.map((value, index) => data.transmittanceValid[index] ? baseline.transmittanceScaled[index] + sampleResidual(residualPools.transmittance) : value),
+    };
+    try {
+      replicates.push(fitOpticalModel(bootstrapData, nk, { ...configuration, initial: bestParameters, screeningPoints: 64, localRefinements: 1, localOnly: true, skipDiagnostics: true }));
+    } catch { /* failed bootstrap fits are reported through the success count */ }
+    progress(Math.round((replicate + 1) / samples * 100));
+  }
+  if (replicates.length < Math.ceil(0.7 * samples)) throw new Error(`Only ${replicates.length} of ${samples} bootstrap fits converged.`);
+  const quantile = (values, probability) => { const sorted = [...values].sort((a, b) => a - b); const position = (sorted.length - 1) * probability; const lower = Math.floor(position); const fraction = position - lower; return sorted[lower] + fraction * ((sorted[lower + 1] ?? sorted[lower]) - sorted[lower]); };
+  const interval = (values) => ({ lower95: quantile(values, 0.025), median: quantile(values, 0.5), upper95: quantile(values, 0.975) });
+  const parameterIntervals = Object.fromEntries(fittedParameters.map((name) => [name, interval(replicates.map((result) => result.parameters[name]))]));
+  const parameterRows = replicates.map((result) => fittedParameters.map((name) => result.parameters[name]));
+  const parameterCorrelation = correlationOfRows(parameterRows, fittedParameters);
+  const spectralInterval = (getter) => data.wavelengthNm.map((_, index) => interval(replicates.map((result) => getter(result.evaluation)[index])));
+  const activeLayerId = configuration.settings.activeLayerId;
+  const activeIndex = (evaluation) => evaluation.layerIndices?.find((layer) => layer.id === activeLayerId) ?? evaluation.layerIndices?.[0] ?? { n: evaluation.n, k: evaluation.k };
+  const layerBands = Object.fromEntries((configuration.settings.layers ?? []).map((layer) => [layer.id, {
+    n: spectralInterval((evaluation) => evaluation.layerIndices.find((candidate) => candidate.id === layer.id).n),
+    k: spectralInterval((evaluation) => evaluation.layerIndices.find((candidate) => candidate.id === layer.id).k),
+  }]));
+  return {
+    requestedSamples: samples,
+    successfulSamples: replicates.length,
+    seed: 0x6d2b79f5,
+    method: "residual bootstrap with local bounded refits",
+    parameterIntervals,
+    parameterCorrelation,
+    bands: {
+      wavelengthNm: data.wavelengthNm,
+      reflectance: spectralInterval((evaluation) => evaluation.reflectanceScaled),
+      transmittance: spectralInterval((evaluation) => evaluation.transmittanceScaled),
+      layerId: activeLayerId,
+      n: spectralInterval((evaluation) => activeIndex(evaluation).n),
+      k: spectralInterval((evaluation) => activeIndex(evaluation).k),
+      layers: layerBands,
+    },
+  };
 }
 
 export const fitTabulated = fitOpticalModel;
@@ -604,10 +677,12 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
     nearEqualAlternativeMinima: null,
     alternativeSolutions: [],
     parameterStandardErrorsApproximate: {},
+    parameterConfidenceIntervals95Approximate: {},
+    parameterCorrelation: { names: [], matrix: [] },
     shapeAfterAffineAlignment: {},
     indexVsEllipsometry: {},
     regularizedTowardEllipsometry: settings.layers?.length
-      ? settings.layers.some((layer) => layer.regularize && layer.nk && layer.model !== "fixed")
+      ? settings.layers.some((layer) => layer.regularize && layer.nk && layer.model !== "fixed") || Boolean(settings.substrate?.regularize && settings.substrate.nk && settings.substrate.model !== "fixed")
       : Boolean(settings.regularizeEllipsometry && settings.model !== "fixed"),
   };
   for (const [channel, enabled, measured, modeled, valid] of [
@@ -642,6 +717,8 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
   const sensitivity = localSensitivity(data, fit.nk, fit.parameters, settings, fit.bounds, fit.fittedParameters);
   result.normalizedJacobianCondition = sensitivity.condition;
   result.parameterStandardErrorsApproximate = sensitivity.standardErrors;
+  result.parameterConfidenceIntervals95Approximate = sensitivity.confidenceIntervals95;
+  result.parameterCorrelation = sensitivity.parameterCorrelation;
   result.optimizer = fit.optimizer;
   return result;
 }
@@ -678,6 +755,11 @@ export function fitResidualVector(data, nk, parameters, evaluation, settings) {
       if (!comparison) throw new Error(`Layer ${layer.name}: regularization requires an n,k table with at least 10 points from 300 to 1100 nm.`);
       residuals.push(...comparison.deltaN.map((value) => value / settings.sigmaN));
       residuals.push(...comparison.deltaK.map((value) => value / settings.sigmaK));
+    }
+    if (settings.substrate?.regularize) {
+      const comparison = indexComparisonForModel(settings.substrate.nk, parametersForLayer(parameters, "substrate"), settings.substrate.model, { components: settings.substrate.components, ema: settings.substrate.ema });
+      if (!comparison) throw new Error("Substrate: regularization requires an n,k table with at least 10 points from 300 to 1100 nm.");
+      residuals.push(...comparison.deltaN.map((value) => value / settings.sigmaN), ...comparison.deltaK.map((value) => value / settings.sigmaK));
     }
   } else if (settings.regularizeEllipsometry && settings.model !== "fixed") {
     const comparison = indexComparison(nk, parameters, settings);
@@ -750,7 +832,7 @@ function localSensitivity(data, nk, parameters, settings, bounds, fittedParamete
       jacobian[row].push((high[row] - low[row]) / (above - below) * softL1JacobianWeight);
     });
   }
-  if (!jacobian.length || !jacobian[0]?.length) return { condition: null, standardErrors: {} };
+  if (!jacobian.length || !jacobian[0]?.length) return { condition: null, standardErrors: {}, confidenceIntervals95: {}, parameterCorrelation: { names: [], matrix: [] } };
   const columns = jacobian[0].length;
   const gram = Array.from({ length: columns }, (_, row) => Array.from({ length: columns }, (_, column) => (
     jacobian.reduce((sum, values) => sum + values[row] * values[column], 0)
@@ -769,7 +851,24 @@ function localSensitivity(data, nk, parameters, settings, bounds, fittedParamete
     name,
     inverse && Number.isFinite(variance) ? Math.sqrt(Math.max(0, inverse[index][index] * variance)) : null,
   ]));
-  return { condition, standardErrors };
+  const covariance = inverse && Number.isFinite(variance) ? inverse.map((row) => row.map((value) => value * variance)) : null;
+  const parameterCorrelation = covariance ? correlationOfCovariance(covariance, fittedParameters) : { names: fittedParameters, matrix: [] };
+  const confidenceIntervals95 = Object.fromEntries(fittedParameters.map((name) => {
+    const error = standardErrors[name]; const [lower, upper] = bounds[name];
+    return [name, Number.isFinite(error) ? { lower95: Math.max(lower, parameters[name] - 1.96 * error), upper95: Math.min(upper, parameters[name] + 1.96 * error) } : null];
+  }));
+  return { condition, standardErrors, confidenceIntervals95, parameterCorrelation };
+}
+
+function correlationOfCovariance(covariance, names) {
+  const deviations = covariance.map((row, index) => Math.sqrt(Math.max(0, row[index])));
+  return { names, matrix: covariance.map((row, i) => row.map((value, j) => deviations[i] && deviations[j] ? Math.max(-1, Math.min(1, value / (deviations[i] * deviations[j]))) : 0)) };
+}
+
+function correlationOfRows(rows, names) {
+  const means = names.map((_, column) => rows.reduce((sum, row) => sum + row[column], 0) / rows.length);
+  const covariance = names.map((_, i) => names.map((__, j) => rows.reduce((sum, row) => sum + (row[i] - means[i]) * (row[j] - means[j]), 0) / Math.max(1, rows.length - 1)));
+  return correlationOfCovariance(covariance, names);
 }
 
 function rankAlternativeMinima(data, settings, fit) {

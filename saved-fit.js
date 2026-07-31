@@ -1,12 +1,12 @@
 import { MODEL_LABELS } from "./dielectric-models.js";
 
-export const SAVED_FIT_SCHEMA = "reflectometry-browser-fit/v7";
-const SUPPORTED_SCHEMAS = new Set(["reflectometry-browser-fit/v5", "reflectometry-browser-fit/v6", SAVED_FIT_SCHEMA]);
+export const SAVED_FIT_SCHEMA = "reflectometry-browser-fit/v8";
+const SUPPORTED_SCHEMAS = new Set(["reflectometry-browser-fit/v5", "reflectometry-browser-fit/v6", "reflectometry-browser-fit/v7", SAVED_FIT_SCHEMA]);
 const BOOLEAN_CONTROLS = new Set(["subtract-background", "use-r", "use-t", "prefer-shape", "fit-r-gain", "fit-t-gain"]);
 const CONTROL_RANGES = {
   "wavelength-min": [195, 3000], "wavelength-max": [196, 3000], "reference-threshold": [0, 99], "bin-width": [0.1, 100], "sample-snr": [0, 100],
   "sigma-r": [0.0001, 1], "sigma-t": [0.0001, 1], "sigma-n": [0.0001, 10], "sigma-k": [0.0001, 10], "r-gain": [0.1, 10], "t-gain": [0.1, 10],
-  "screening-points": [64, 4096], "local-refinements": [1, 50],
+  "screening-points": [64, 4096], "local-refinements": [1, 50], "bootstrap-samples": [5, 200],
 };
 
 function object(value, name) {
@@ -34,7 +34,7 @@ function table(value, name) {
   const n = numericArray(source.n, `${name}.n`);
   const k = numericArray(source.k, `${name}.k`);
   if (wavelengthNm.length < 2 || n.length !== wavelengthNm.length || k.length !== wavelengthNm.length) throw new Error(`${name} arrays must have the same length.`);
-  if (wavelengthNm.some((entry, index) => index && entry <= wavelengthNm[index - 1]) || k.some((entry) => entry < 0)) throw new Error(`${name} must contain increasing wavelengths and non-negative k values.`);
+  if (wavelengthNm.some((entry, index) => index && entry <= wavelengthNm[index - 1]) || n.some((entry) => entry <= 0) || k.some((entry) => entry < 0)) throw new Error(`${name} must contain increasing wavelengths, positive n, and non-negative k values.`);
   return { wavelengthNm, n, k };
 }
 
@@ -79,7 +79,7 @@ function controlRecord(value) {
   for (const [name, [minimum, maximum]] of Object.entries(CONTROL_RANGES)) if (Object.hasOwn(source, name)) {
     const number = Number(source[name]);
     if (!Number.isFinite(number) || number < minimum || number > maximum) throw new Error(`controls.${name} is outside the supported range.`);
-    if ((name === "screening-points" && (!Number.isInteger(number) || (number & (number - 1)))) || (name === "local-refinements" && !Number.isInteger(number))) throw new Error(`controls.${name} is invalid.`);
+    if ((name === "screening-points" && (!Number.isInteger(number) || (number & (number - 1)))) || (["local-refinements", "bootstrap-samples"].includes(name) && !Number.isInteger(number))) throw new Error(`controls.${name} is invalid.`);
     result[name] = String(source[name]);
   }
   if (Number(result["wavelength-min"]) >= Number(result["wavelength-max"])) throw new Error("The saved wavelength range is invalid.");
@@ -91,7 +91,7 @@ export function parseSavedFit(text) {
   let payload;
   try { payload = JSON.parse(text); } catch { throw new Error("The selected file is not valid JSON."); }
   object(payload, "Saved fit");
-  if (!SUPPORTED_SCHEMAS.has(payload.schema)) throw new Error("Unsupported saved-fit schema. Expected reflectometry-browser-fit/v5, v6, or v7.");
+  if (!SUPPORTED_SCHEMAS.has(payload.schema)) throw new Error("Unsupported saved-fit schema. Expected reflectometry-browser-fit/v5 through v8.");
   if (!Array.isArray(payload.stack) || !payload.stack.length || payload.stack.length > 12) throw new Error("The saved stack must contain 1 to 12 layers.");
   const ids = new Set();
   const stack = payload.stack.map((entry, index) => {
@@ -121,6 +121,7 @@ export function parseSavedFit(text) {
       regularizedToNk: Boolean(layer.regularizedToNk),
       parameters,
       parameterSettings: settings,
+      parameterLinks: layer.parameterLinks && typeof layer.parameterLinks === "object" ? Object.fromEntries(Object.entries(layer.parameterLinks).filter(([name, source]) => Object.hasOwn(parameters, name) && typeof source === "string" && source.includes("__"))) : {},
     };
   });
   const substrate = object(payload.substrate, "substrate");
@@ -131,11 +132,31 @@ export function parseSavedFit(text) {
   const parsedSubstrate = { n: finite(substrateIndex.n, "substrate.refractiveIndex.n"), k: finite(substrateIndex.k ?? 0, "substrate.refractiveIndex.k"), thicknessUm: finite(thicknessUm, "substrate.thicknessUm"), incidence: substrate.incidence === "substrate" ? "substrate" : "film" };
   const parsedGains = { reflectance: finite(gains.reflectance, "gains.reflectance"), transmittance: finite(gains.transmittance, "gains.transmittance") };
   if (!(parsedSubstrate.n > 0) || parsedSubstrate.k < 0 || parsedSubstrate.thicknessUm < 10 || !Object.values(parsedGains).every((value) => value >= 0.1 && value <= 10)) throw new Error("Saved substrate or gain values are outside the supported range.");
+  if (payload.schema === SAVED_FIT_SCHEMA && !Object.hasOwn(MODEL_LABELS, substrate.opticalModel)) throw new Error("substrate uses an unsupported optical model.");
+  const substrateParameters = payload.schema === SAVED_FIT_SCHEMA && substrate.parameters ? numberRecord(substrate.parameters, "substrate.parameters") : { n: parsedSubstrate.n, k: parsedSubstrate.k };
+  const substrateParameterSettings = payload.schema === SAVED_FIT_SCHEMA ? parameterSettings(substrate.parameterSettings) : {};
+  for (const [name, setting] of Object.entries(substrateParameterSettings)) if (Number.isFinite(substrateParameters[name]) && (substrateParameters[name] < setting.minimum || substrateParameters[name] > setting.maximum)) throw new Error(`substrate.parameters.${name} lies outside its saved bounds.`);
   return {
     schema: payload.schema,
     stack,
     activeLayerId: ids.has(payload.activeLayerId) ? payload.activeLayerId : stack[0].id,
     substrate: parsedSubstrate,
+    substrateMaterial: payload.schema === SAVED_FIT_SCHEMA ? {
+      opticalModel: substrate.opticalModel,
+      dielectricComponents: substrate.dielectricComponents && object(substrate.dielectricComponents, "substrate.dielectricComponents"),
+      effectiveMedium: substrate.effectiveMedium ? {
+        method: substrate.effectiveMedium.method === "maxwell-garnett" ? "maxwell-garnett" : "bruggeman",
+        hostSource: typeof substrate.effectiveMedium.hostSource === "string" ? substrate.effectiveMedium.hostSource : null,
+        inclusionSource: typeof substrate.effectiveMedium.inclusionSource === "string" ? substrate.effectiveMedium.inclusionSource : null,
+        hostNk: table(substrate.effectiveMedium.hostNk, "substrate.effectiveMedium.hostNk"),
+        inclusionNk: table(substrate.effectiveMedium.inclusionNk, "substrate.effectiveMedium.inclusionNk"),
+      } : null,
+      nkSource: typeof substrate.nkSource === "string" ? substrate.nkSource : null,
+      nkTable: table(substrate.nkTable, "substrate.nkTable"),
+      regularizedToNk: Boolean(substrate.regularizedToNk),
+      parameters: substrateParameters,
+      parameterSettings: substrateParameterSettings,
+    } : null,
     gains: parsedGains,
     spectrum: spectrum(payload.measurement?.spectrum),
     controls,

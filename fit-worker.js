@@ -1,7 +1,12 @@
-import { calibrateSharedGains, fitEllipsometrySeed, fitOpticalModel } from "./scientific-core.js";
+import { bootstrapFitUncertainty, calibrateSharedGains, fitEllipsometrySeed, fitOpticalModel } from "./scientific-core.js";
 
 self.addEventListener("message", ({ data }) => {
   try {
+    if (data.operation === "bootstrap") {
+      const result = bootstrapFitUncertainty(data.fitData, data.nk, data.configuration, data.bestParameters, data.samples, (progress) => self.postMessage({ type: "bootstrap-progress", progress }));
+      self.postMessage({ type: "bootstrap-result", result });
+      return;
+    }
     if (data.operation === "shared-gains") {
       self.postMessage({ type: "progress", progress: 10 });
       const result = calibrateSharedGains(data.records, data.settings);

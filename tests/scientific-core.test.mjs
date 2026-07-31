@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   affineShapeResidual,
+  bootstrapFitUncertainty,
   calibrateSharedGains,
   createSpectrum,
   createSyntheticSpectrum,
@@ -71,6 +72,20 @@ test("complex substrates include incoherent Beer–Lambert absorption", () => {
   assert.throws(() => filmStackOnThickSubstrate(wavelengthNm, airLayer, 1.5, "film", 0.1, 1000), /at least ten wavelengths/);
 });
 
+test("supports wavelength-dependent substrates and linked layer parameters", () => {
+  const wavelengthNm = [400, 550, 700];
+  const layers = [{ n: wavelengthNm.map(() => 2), k: wavelengthNm.map(() => 0.05), thicknessNm: 120 }];
+  const dispersive = filmStackOnThickSubstrate(wavelengthNm, layers, [1.42, 1.5, 1.61], "film", [0, 0.01, 0.03], 1e6);
+  assert.ok(dispersive.reflectance.every(Number.isFinite));
+  assert.ok(new Set(dispersive.reflectance.map((value) => value.toFixed(8))).size > 1);
+  const settings = { incidence: "film", activeLayerId: "top", substrateThicknessNm: 1e6, substrate: { model: "constant" }, parameterLinks: { "bottom__n": "top__n" }, layers: [{ id: "top", name: "Top", model: "constant" }, { id: "bottom", name: "Bottom", model: "constant" }] };
+  const parameters = { top__thicknessNm: 80, top__n: 1.7, top__k: 0, bottom__thicknessNm: 90, bottom__n: 4, bottom__k: 0, substrate__n: 1.5, substrate__k: 0, rGain: 1, tGain: 1 };
+  const linked = evaluateOpticalModel({ wavelengthNm }, null, parameters, settings);
+  const explicit = evaluateOpticalModel({ wavelengthNm }, null, { ...parameters, bottom__n: 1.7 }, { ...settings, parameterLinks: {} });
+  assertArrayClose(linked.reflectance, explicit.reflectance, 1e-14);
+  assertArrayClose(linked.transmittance, explicit.transmittance, 1e-14);
+});
+
 test("evaluates independently parameterized layers", () => {
   const wavelengthNm = [450, 550, 650];
   const data = { wavelengthNm };
@@ -134,6 +149,23 @@ test("recovers a synthetic multilayer thickness with namespaced parameters", () 
     localRefinements: 3,
   });
   assert.ok(Math.abs(result.parameters.top__thicknessNm - truth.top__thicknessNm) < 1e-5);
+  assert.deepEqual(result.diagnostics.parameterCorrelation.names, ["top__thicknessNm"]);
+  assert.ok(result.diagnostics.parameterConfidenceIntervals95Approximate.top__thicknessNm);
+});
+
+test("produces deterministic residual-bootstrap intervals and spectral bands", () => {
+  const wavelengthNm = Array.from({ length: 21 }, (_, index) => 400 + 20 * index); const valid = wavelengthNm.map(() => true);
+  const settings = { substrateIndex: 1.5, incidence: "film", activeLayerId: "film", useReflectance: true, useTransmittance: true, sigmaReflectance: 0.01, sigmaTransmittance: 0.01, preferSpectralShape: false, layers: [{ id: "film", name: "Film", model: "constant" }] };
+  const truth = { film__thicknessNm: 120, film__n: 2, film__k: 0.05, rGain: 1, tGain: 1 };
+  const optical = evaluateOpticalModel({ wavelengthNm }, null, truth, settings);
+  const data = { wavelengthNm, reflectance: optical.reflectance.map((value, index) => value + 0.001 * ((index % 3) - 1)), transmittance: optical.transmittance.map((value, index) => value + 0.001 * (((index + 1) % 3) - 1)), reflectanceValid: valid, transmittanceValid: valid };
+  const configuration = { settings, initial: truth, bounds: { film__thicknessNm: [80, 160] }, fittedParameters: ["film__thicknessNm"] };
+  const first = bootstrapFitUncertainty(data, null, configuration, truth, 5);
+  const second = bootstrapFitUncertainty(data, null, configuration, truth, 5);
+  assert.deepEqual(first, second);
+  assert.equal(first.successfulSamples, 5);
+  assert.equal(first.bands.reflectance.length, wavelengthNm.length);
+  assert.ok(first.parameterIntervals.film__thicknessNm.lower95 <= first.parameterIntervals.film__thicknessNm.upper95);
 });
 
 test("fits an independently composed layer through the multilayer worker contract", () => {
