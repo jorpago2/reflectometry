@@ -13,5 +13,7 @@ test("ships an English-only application interface", async () => {
   assert.match(files[0], /id="download-nk-csv"/);
   assert.match(files[0], /Ranked distinct local solutions/);
   assert.match(files[0], /Frequently asked questions/);
+  assert.match(files[1], /bounded trust-region reflective least squares/);
+  assert.doesNotMatch(files.join("\n"), /robust Gauss.Newton/i);
   assert.doesNotMatch(files.join("\n"), /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

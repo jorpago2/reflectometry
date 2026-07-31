@@ -292,7 +292,7 @@ export function calibrateSharedGains(records, settings) {
     return !usable[index - 2].useTransmittance ? 0 : value;
   });
   const starts = [normalizedInitial, informedStart];
-  const normalizedSolution = starts.map((start) => boundedRobustLeastSquares(start, residualFunction))
+  const normalizedSolution = starts.map((start) => boundedTrustRegionReflective(start, residualFunction))
     .map((point) => ({ point, cost: softL1Cost(residualFunction(point)) }))
     .sort((a, b) => a.cost - b.cost)[0];
   const solution = physical(normalizedSolution.point);
@@ -383,7 +383,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const refinementCount = starts.length;
   const refinedCandidates = [];
   for (let index = 0; index < refinementCount; index += 1) {
-    const refinedPoint = boundedRobustLeastSquares(starts[index], (point) => objective(point).residuals);
+    const refinedPoint = boundedTrustRegionReflective(starts[index], (point) => objective(point).residuals);
     const refined = { localStart: index + 1, point: refinedPoint, ...objective(refinedPoint) };
     refinedCandidates.push(refined);
     if (refined.cost < best.cost) best = refined;
@@ -653,50 +653,227 @@ function selectDiverseStarts(initialPoint, candidates, count) {
   return selected;
 }
 
-function boundedRobustLeastSquares(start, residualFunction) {
-  const clamp = (point) => point.map((value) => Math.max(0, Math.min(1, value)));
-  let point = clamp(start);
-  let residuals = residualFunction(point);
-  let cost = softL1Cost(residuals);
-  let damping = 1e-3;
-  for (let iteration = 0; iteration < 120; iteration += 1) {
-    const jacobian = residuals.map(() => []);
-    for (let axis = 0; axis < point.length; axis += 1) {
-      const below = Math.max(0, point[axis] - 1e-5);
-      const above = Math.min(1, point[axis] + 1e-5);
-      const low = residualFunction(point.map((value, index) => index === axis ? below : value));
-      const high = residualFunction(point.map((value, index) => index === axis ? above : value));
-      residuals.forEach((_, row) => jacobian[row].push((high[row] - low[row]) / (above - below)));
+function boundedTrustRegionReflective(start, residualFunction) {
+  const tolerance = 1e-8;
+  const maximumEvaluations = 3000;
+  let evaluations = 0;
+  const evaluate = (point) => {
+    const residuals = residualFunction(point);
+    evaluations += 1;
+    if (!residuals.length || !residuals.every(Number.isFinite)) throw new Error("The optimizer produced non-finite residuals.");
+    return residuals;
+  };
+  let point = makeStrictlyFeasible(start);
+  let trueResiduals = evaluate(point);
+  let jacobian = finiteDifferenceJacobian(point, trueResiduals, evaluate);
+  let scaled = scaleSoftL1(jacobian, trueResiduals);
+  let gradient = jacobianGradient(scaled.jacobian, scaled.residuals);
+  let scaleInverse = jacobianColumnNorms(scaled.jacobian);
+  let scale = scaleInverse.map((value) => 1 / value);
+  let { v, derivative } = colemanLiScaling(point, gradient);
+  const scaledV = v.map((value, index) => derivative[index] === 0 ? value : value * scaleInverse[index]);
+  let trustRadius = vectorNorm(point.map((value, index) => value * scaleInverse[index] / Math.sqrt(scaledV[index])));
+  if (!(trustRadius > 0)) trustRadius = 1;
+  let cost = softL1Cost(trueResiduals);
+
+  while (evaluations < maximumEvaluations) {
+    ({ v, derivative } = colemanLiScaling(point, gradient));
+    const optimality = Math.max(...gradient.map((value, index) => Math.abs(value * v[index])));
+    if (optimality < tolerance) break;
+    const transformedV = v.map((value, index) => derivative[index] === 0 ? value : value * scaleInverse[index]);
+    const transform = transformedV.map((value, index) => Math.sqrt(value) * scale[index]);
+    const diagonal = gradient.map((value, index) => Math.max(0, value * derivative[index] * scale[index]));
+    const transformedGradient = gradient.map((value, index) => value * transform[index]);
+    const transformedJacobian = scaled.jacobian.map((row) => row.map((value, index) => value * transform[index]));
+    const hessian = gramMatrix(transformedJacobian, diagonal);
+    const theta = Math.max(0.995, 1 - optimality);
+    let actualReduction = -1;
+    let accepted = null;
+    let terminate = false;
+
+    while (actualReduction <= 0 && evaluations < maximumEvaluations) {
+      const trustStep = solveTrustRegionSubproblem(hessian, transformedGradient, trustRadius);
+      const physicalStep = trustStep.map((value, index) => value * transform[index]);
+      const selected = selectReflectiveStep(point, hessian, transformedGradient, physicalStep, trustStep, transform, trustRadius, theta);
+      const candidate = makeStrictlyFeasible(point.map((value, index) => value + selected.step[index]));
+      const candidateResiduals = evaluate(candidate);
+      const candidateCost = softL1Cost(candidateResiduals);
+      actualReduction = cost - candidateCost;
+      const transformedStepNorm = vectorNorm(selected.transformedStep);
+      const ratio = selected.predictedReduction > 0 ? actualReduction / selected.predictedReduction : actualReduction === 0 ? 1 : 0;
+      const nextRadius = ratio < 0.25 ? 0.25 * transformedStepNorm
+        : ratio > 0.75 && transformedStepNorm > 0.95 * trustRadius ? 2 * trustRadius : trustRadius;
+      const stepNorm = vectorNorm(selected.step);
+      terminate = (actualReduction < tolerance * cost && ratio > 0.25)
+        || stepNorm < tolerance * (tolerance + vectorNorm(point));
+      trustRadius = nextRadius;
+      if (actualReduction > 0) accepted = { point: candidate, residuals: candidateResiduals, cost: candidateCost };
+      if (terminate || !(transformedStepNorm > 0) || !(trustRadius > 0)) break;
     }
-    const dimension = point.length;
-    const gradient = Array(dimension).fill(0);
-    const hessian = Array.from({ length: dimension }, () => Array(dimension).fill(0));
-    residuals.forEach((residual, row) => {
-      const gradientWeight = (1 + residual ** 2) ** -0.5;
-      const hessianWeight = (1 + residual ** 2) ** -1.5;
-      for (let i = 0; i < dimension; i += 1) {
-        gradient[i] += jacobian[row][i] * residual * gradientWeight;
-        for (let j = 0; j <= i; j += 1) hessian[i][j] += jacobian[row][i] * jacobian[row][j] * hessianWeight;
-      }
-    });
-    for (let i = 0; i < dimension; i += 1) for (let j = 0; j < i; j += 1) hessian[j][i] = hessian[i][j];
-    if (Math.max(...gradient.map(Math.abs)) < 1e-8) break;
-    for (let axis = 0; axis < dimension; axis += 1) hessian[axis][axis] += damping * Math.max(hessian[axis][axis], 1);
-    const step = solveLinearSystem(hessian, gradient.map((value) => -value));
-    if (!step) break;
-    const candidate = clamp(point.map((value, axis) => value + step[axis]));
-    if (distance(candidate, point) < 1e-9) break;
-    const candidateResiduals = residualFunction(candidate);
-    const candidateCost = softL1Cost(candidateResiduals);
-    if (candidateCost < cost) {
-      point = candidate; residuals = candidateResiduals; cost = candidateCost; damping = Math.max(1e-12, damping / 3);
-    } else {
-      damping *= 10;
-      if (damping > 1e12) break;
-    }
+
+    if (!accepted) break;
+    point = accepted.point;
+    trueResiduals = accepted.residuals;
+    cost = accepted.cost;
+    jacobian = finiteDifferenceJacobian(point, trueResiduals, evaluate);
+    scaled = scaleSoftL1(jacobian, trueResiduals);
+    gradient = jacobianGradient(scaled.jacobian, scaled.residuals);
+    const currentScaleInverse = jacobianColumnNorms(scaled.jacobian);
+    scaleInverse = scaleInverse.map((value, index) => Math.max(value, currentScaleInverse[index]));
+    scale = scaleInverse.map((value) => 1 / value);
+    if (terminate) break;
   }
   return point;
 }
+
+function finiteDifferenceJacobian(point, residuals, evaluate) {
+  const jacobian = residuals.map(() => Array(point.length).fill(0));
+  const relativeStep = Math.sqrt(Number.EPSILON);
+  for (let axis = 0; axis < point.length; axis += 1) {
+    let step = relativeStep * Math.max(1, Math.abs(point[axis]));
+    if (point[axis] + step > 1) step = -step;
+    const trial = point.map((value, index) => index === axis ? value + step : value);
+    const shifted = evaluate(trial);
+    residuals.forEach((value, row) => { jacobian[row][axis] = (shifted[row] - value) / step; });
+  }
+  return jacobian;
+}
+
+function scaleSoftL1(jacobian, residuals) {
+  const weights = residuals.map((value) => (1 + value ** 2) ** -0.75);
+  return {
+    jacobian: jacobian.map((row, index) => row.map((value) => value * weights[index])),
+    residuals: residuals.map((value) => value * (1 + value ** 2) ** 0.25),
+  };
+}
+
+function jacobianGradient(jacobian, residuals) {
+  return jacobian[0].map((_, column) => jacobian.reduce((sum, row, index) => sum + row[column] * residuals[index], 0));
+}
+
+function jacobianColumnNorms(jacobian) {
+  return jacobian[0].map((_, column) => Math.sqrt(jacobian.reduce((sum, row) => sum + row[column] ** 2, 0)) || 1);
+}
+
+function colemanLiScaling(point, gradient) {
+  const v = Array(point.length).fill(1);
+  const derivative = Array(point.length).fill(0);
+  gradient.forEach((value, index) => {
+    if (value < 0) { v[index] = 1 - point[index]; derivative[index] = -1; }
+    else if (value > 0) { v[index] = point[index]; derivative[index] = 1; }
+  });
+  return { v, derivative };
+}
+
+function gramMatrix(jacobian, diagonal = []) {
+  const size = jacobian[0].length;
+  return Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, column) => (
+    jacobian.reduce((sum, values) => sum + values[row] * values[column], 0) + (row === column ? diagonal[row] ?? 0 : 0)
+  )));
+}
+
+function solveTrustRegionSubproblem(hessian, gradient, radius) {
+  const solve = (regularization) => {
+    const matrix = hessian.map((row, index) => row.map((value, column) => value + (index === column ? regularization : 0)));
+    return solveLinearSystem(matrix, gradient.map((value) => -value));
+  };
+  const gaussNewton = solve(0);
+  if (gaussNewton && vectorNorm(gaussNewton) <= radius) return gaussNewton;
+  let lower = 0;
+  let upper = Math.max(1e-12, vectorNorm(gradient) / radius);
+  let step = solve(upper);
+  while ((!step || vectorNorm(step) > radius) && upper < 1e30) { lower = upper; upper *= 2; step = solve(upper); }
+  for (let iteration = 0; iteration < 60; iteration += 1) {
+    const regularization = 0.5 * (lower + upper);
+    const candidate = solve(regularization);
+    if (!candidate || vectorNorm(candidate) > radius) lower = regularization;
+    else { upper = regularization; step = candidate; }
+  }
+  return step ?? gradient.map(() => 0);
+}
+
+function selectReflectiveStep(point, hessian, gradient, step, transformedStep, transform, radius, theta) {
+  const quadratic = (value) => 0.5 * dot(value, matrixVector(hessian, value)) + dot(gradient, value);
+  if (inUnitBounds(point.map((value, index) => value + step[index]))) {
+    return { step, transformedStep, predictedReduction: -quadratic(transformedStep) };
+  }
+  const { stride: boundStride, hits } = stepSizeToBounds(point, step);
+  const reflectedTransformed = transformedStep.map((value, index) => hits[index] ? -value : value);
+  const reflected = reflectedTransformed.map((value, index) => value * transform[index]);
+  const boundedStep = step.map((value) => value * boundStride);
+  const boundedTransformed = transformedStep.map((value) => value * boundStride);
+  const onBound = point.map((value, index) => value + boundedStep[index]);
+  const trustStride = positiveTrustIntersection(boundedTransformed, reflectedTransformed, radius);
+  const reflectedBoundStride = stepSizeToBounds(onBound, reflected).stride;
+  const reflectedLimit = Math.min(reflectedBoundStride, trustStride);
+  let reflectedValue = Number.POSITIVE_INFINITY;
+  let reflectedCandidate = null;
+  if (reflectedLimit > 0) {
+    const lower = (1 - theta) * boundStride / reflectedLimit;
+    const upper = reflectedLimit === reflectedBoundStride ? theta * reflectedBoundStride : trustStride;
+    if (lower <= upper) {
+      const stride = minimizeQuadraticAlong(hessian, gradient, boundedTransformed, reflectedTransformed, lower, upper);
+      reflectedCandidate = boundedTransformed.map((value, index) => value + stride * reflectedTransformed[index]);
+      reflectedValue = quadratic(reflectedCandidate);
+    }
+  }
+  const interiorTransformed = boundedTransformed.map((value) => value * theta);
+  const interiorValue = quadratic(interiorTransformed);
+  const antiGradient = gradient.map((value) => -value);
+  const antiGradientNorm = vectorNorm(antiGradient);
+  let gradientCandidate = antiGradient.map(() => 0);
+  let gradientValue = Number.POSITIVE_INFINITY;
+  if (antiGradientNorm > 0) {
+    const antiGradientStep = antiGradient.map((value, index) => value * transform[index]);
+    const maximumStride = Math.min(radius / antiGradientNorm, theta * stepSizeToBounds(point, antiGradientStep).stride);
+    const stride = minimizeQuadraticAlong(hessian, gradient, antiGradient.map(() => 0), antiGradient, 0, maximumStride);
+    gradientCandidate = antiGradient.map((value) => value * stride);
+    gradientValue = quadratic(gradientCandidate);
+  }
+  const candidates = [
+    { transformedStep: interiorTransformed, value: interiorValue },
+    { transformedStep: reflectedCandidate, value: reflectedValue },
+    { transformedStep: gradientCandidate, value: gradientValue },
+  ].filter((candidate) => candidate.transformedStep);
+  const selected = candidates.sort((a, b) => a.value - b.value)[0];
+  return {
+    transformedStep: selected.transformedStep,
+    step: selected.transformedStep.map((value, index) => value * transform[index]),
+    predictedReduction: -selected.value,
+  };
+}
+
+function stepSizeToBounds(point, step) {
+  const strides = step.map((value, index) => value > 0 ? (1 - point[index]) / value : value < 0 ? -point[index] / value : Number.POSITIVE_INFINITY);
+  const stride = Math.min(...strides);
+  const tolerance = 1e-12 * Math.max(1, Math.abs(stride));
+  return { stride, hits: strides.map((value) => Math.abs(value - stride) <= tolerance) };
+}
+
+function positiveTrustIntersection(point, direction, radius) {
+  const a = dot(direction, direction);
+  const b = dot(point, direction);
+  const c = dot(point, point) - radius ** 2;
+  return (-b + Math.sqrt(Math.max(0, b ** 2 - a * c))) / a;
+}
+
+function minimizeQuadraticAlong(hessian, gradient, origin, direction, lower, upper) {
+  const hessianDirection = matrixVector(hessian, direction);
+  const a = 0.5 * dot(direction, hessianDirection);
+  const b = dot(direction, matrixVector(hessian, origin)) + dot(gradient, direction);
+  const candidates = [lower, upper];
+  if (a !== 0) {
+    const stationary = -b / (2 * a);
+    if (stationary > lower && stationary < upper) candidates.push(stationary);
+  }
+  return candidates.sort((left, right) => (a * left ** 2 + b * left) - (a * right ** 2 + b * right))[0];
+}
+
+function makeStrictlyFeasible(point) { return point.map((value) => Math.max(1e-10, Math.min(1 - 1e-10, value))); }
+function inUnitBounds(point) { return point.every((value) => value >= 0 && value <= 1); }
+function dot(left, right) { return left.reduce((sum, value, index) => sum + value * right[index], 0); }
+function vectorNorm(vector) { return Math.sqrt(dot(vector, vector)); }
+function matrixVector(matrix, vector) { return matrix.map((row) => dot(row, vector)); }
 
 function solveLinearSystem(matrix, vector) {
   const size = vector.length;

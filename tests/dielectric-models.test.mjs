@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   codyLorentzDielectric,
@@ -11,7 +12,7 @@ import {
   taucGaussianDielectric,
   taucLorentzDielectric,
 } from "../dielectric-models.js";
-import { filmOnThickSubstrate, fitOpticalModel } from "../scientific-core.js";
+import { createSpectrum, filmOnThickSubstrate, fitOpticalModel, loadNkTable, prepareFitData } from "../scientific-core.js";
 
 const wavelengthNm = [300, 400, 700, 1064];
 
@@ -65,6 +66,33 @@ test("recovers synthetic Tauc–Lorentz thickness and amplitude", () => {
   });
   assert.ok(Math.abs(result.parameters.thicknessNm - 237) < 1e-3);
   assert.ok(Math.abs(result.parameters.amplitudeEv - 70) < 1e-3);
+});
+
+test("matches SciPy TRF for a regularized real aGST fit", () => {
+  const read = (name) => readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
+  const data = prepareFitData(createSpectrum({
+    sampleName: "agst", sampleR: read("agst-ref.txt"), sampleT: read("agst-tr.txt"),
+    silicon: read("si-ref.txt"), openBeam: read("referencitrx.txt"), siliconModel: read("si_reflectance.txt"),
+  }), { wavelengthMinNm: 300, wavelengthMaxNm: 1100, referenceThresholdFraction: 0.05, binWidthNm: 2, sampleSnrMinimum: 5, subtractBackground: true });
+  const nk = loadNkTable(read("aGST.txt"));
+  const specs = modelParameterSpecs("tl1", "agst");
+  const initial = Object.fromEntries(Object.entries(specs).map(([name, specification]) => [name, specification.value]));
+  const bounds = Object.fromEntries(Object.entries(specs).map(([name, specification]) => [name, [specification.minimum, specification.maximum]]));
+  const result = fitOpticalModel(data, nk, {
+    settings: {
+      model: "tl1", substrateIndex: 1.46, incidence: "film", useReflectance: true, useTransmittance: true,
+      sigmaReflectance: 0.02, sigmaTransmittance: 0.02, preferSpectralShape: true,
+      regularizeEllipsometry: true, sigmaN: 0.5, sigmaK: 0.25,
+    },
+    initial,
+    bounds,
+    fittedParameters: ["thicknessNm", "amplitudeEv", "rGain", "tGain"],
+  });
+  assert.ok(Math.abs(result.cost - 179.6607108388253) < 1e-5);
+  assert.ok(Math.abs(result.parameters.thicknessNm - 234.04307727) < 2e-3);
+  assert.ok(Math.abs(result.parameters.amplitudeEv - 158.23209488) < 1e-3);
+  assert.ok(Math.abs(result.parameters.rGain - 1.39417205) < 2e-5);
+  assert.ok(Math.abs(result.parameters.tGain - 0.710485) < 2e-5);
 });
 
 function assertArrayClose(actual, expected, tolerance = 1e-12) {

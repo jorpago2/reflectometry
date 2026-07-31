@@ -556,7 +556,7 @@ function exportPayload() {
   if (!state.fitResult || !state.fitData) throw new Error("No results are available for export.");
   return {
     schema: "reflectometry-browser-fit/v1",
-    application: { name: "Reflectometry", version: "0.7.0", url: "https://jorpago2.github.io/reflectometry/" },
+    application: { name: "Reflectometry", version: "0.8.0", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {
@@ -577,7 +577,7 @@ function exportPayload() {
     },
     diagnostics: state.fitResult.diagnostics,
     sharedGainCalibration: state.sharedCalibration,
-    optimizer: state.fitResult.preview ? null : { method: "SciPy-compatible scrambled Sobol screening + bounded robust Gauss-Newton", seed: 1729, screeningPoints: state.fitResult.screeningPoints, localRefinements: state.fitResult.localRefinements },
+    optimizer: state.fitResult.preview ? null : { method: "SciPy-compatible scrambled Sobol screening + bounded trust-region reflective least squares", seed: 1729, screeningPoints: state.fitResult.screeningPoints, localRefinements: state.fitResult.localRefinements },
     assumptions: ["normal incidence", "single coherent homogeneous isotropic film", "optically thick incoherent substrate", "shared gains require unchanged detector settings and geometry across samples"],
   };
 }
