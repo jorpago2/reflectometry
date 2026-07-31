@@ -390,18 +390,18 @@ function drawAll() {
   if (!state.fitData || !state.evaluation) return;
   const x = state.fitData.wavelengthNm;
   drawChart(elements["rt-chart"], x, [
-    { values: state.fitData.reflectance.map((value, index) => state.fitData.reflectanceValid[index] ? value : NaN), color: "#a8bbb4", points: true },
-    { values: state.evaluation.reflectanceScaled, color: "#cbf36b" },
-    { values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : NaN), color: "#718d84", points: true },
-    { values: state.evaluation.transmittanceScaled, color: "#ff8a57" },
+    { values: state.fitData.reflectance.map((value, index) => state.fitData.reflectanceValid[index] ? value : NaN), color: "#a8b3ae", points: true },
+    { values: state.evaluation.reflectanceScaled, color: "#d9ff43" },
+    { values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : NaN), color: "#78827d", points: true },
+    { values: state.evaluation.transmittanceScaled, color: "#ff5a1f" },
   ], { minimumY: 0, yLabel: "R, T" });
   drawChart(elements["residual-chart"], x, [
-    { values: state.evaluation.reflectanceScaled.map((value, index) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : NaN), color: "#cbf36b" },
-    { values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : NaN), color: "#ff8a57" },
+    { values: state.evaluation.reflectanceScaled.map((value, index) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : NaN), color: "#d9ff43" },
+    { values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : NaN), color: "#ff5a1f" },
   ], { symmetricY: true, yLabel: "Model − data" });
   const active = state.evaluation.layerIndices.find((layer) => layer.id === state.activeLayerId) ?? state.evaluation.layerIndices[0];
   elements["nk-layer-label"].textContent = `${active.name.toUpperCase()} / ${MODEL_LABELS[active.model].toUpperCase()}`;
-  drawChart(elements["nk-chart"], x, [{ values: active.n, color: "#cbf36b" }, { values: active.k, color: "#ff8a57" }], { minimumY: 0, yLabel: "n, k" });
+  drawChart(elements["nk-chart"], x, [{ values: active.n, color: "#d9ff43" }, { values: active.k, color: "#ff5a1f" }], { minimumY: 0, yLabel: "n, k" });
 }
 
 function drawChart(canvas, x, series, options) {
@@ -412,7 +412,7 @@ function drawChart(canvas, x, series, options) {
   const maximumAbsolute = Math.max(...values.map(Math.abs)); const yMinimum = options.symmetricY ? -(maximumAbsolute || 1) * 1.08 : options.minimumY ?? Math.min(...values);
   const rawMaximum = options.symmetricY ? maximumAbsolute || 1 : Math.max(...values); const yMaximum = rawMaximum > yMinimum ? rawMaximum * 1.08 : yMinimum + 1;
   const xPixel = (value) => margin.left + (value - xMinimum) / (xMaximum - xMinimum) * plotWidth; const yPixel = (value) => margin.top + (yMaximum - value) / (yMaximum - yMinimum) * plotHeight;
-  context.fillStyle = "#102720"; context.fillRect(0, 0, width, height); context.font = "11px ui-monospace, monospace"; context.fillStyle = "#6f8a81"; context.strokeStyle = "#25473d";
+  context.fillStyle = "#07100d"; context.fillRect(0, 0, width, height); context.font = "11px ui-monospace, monospace"; context.fillStyle = "#91a39c"; context.strokeStyle = "#294039";
   for (let step = 0; step <= 4; step += 1) { const y = margin.top + step / 4 * plotHeight; const value = yMaximum - step / 4 * (yMaximum - yMinimum); context.beginPath(); context.moveTo(margin.left, y); context.lineTo(width - margin.right, y); context.stroke(); context.fillText(format(value, yMaximum < 2 ? 2 : 1), 5, y + 4); }
   for (let step = 0; step <= 4; step += 1) { const value = xMinimum + step / 4 * (xMaximum - xMinimum); context.fillText(String(Math.round(value)), xPixel(value) - 14, height - 10); }
   context.fillText("λ / nm", width - 50, height - 10); context.save(); context.translate(14, margin.top + 12); context.rotate(-Math.PI / 2); context.fillText(options.yLabel, 0, 0); context.restore();
@@ -422,7 +422,7 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-fit/v4", application: { name: "Reflectometry", version: "3.0.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-fit/v4", application: { name: "Reflectometry", version: "3.1.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: Number(elements["substrate-index"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,

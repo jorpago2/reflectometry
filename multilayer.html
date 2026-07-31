@@ -4,31 +4,35 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer.">
-  <meta name="theme-color" content="#071512">
+  <meta name="theme-color" content="#f3f0e8">
   <title>Reflectometry · Generic multilayer fitting</title>
-  <link rel="stylesheet" href="styles.css?v=3.0.0">
+  <link rel="stylesheet" href="styles.css?v=3.1.0">
 </head>
 <body>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Reflectometry home">
-      <span class="brand-mark" aria-hidden="true">Rλ</span>
-      <span><strong>Reflectometry</strong><small>Generic multilayer fitting</small></span>
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      REFLECTO<span>METRY</span>
     </a>
-    <p class="privacy"><span aria-hidden="true">●</span> Local computation · files never leave your device</p>
+    <p class="masthead-context">Multilayer optical modelling · local fitting</p>
+    <p class="privacy"><span aria-hidden="true"></span> Local processing</p>
   </header>
 
   <main>
     <section class="hero multilayer-hero" aria-labelledby="page-title">
-      <div>
-        <p class="eyebrow">GENERIC STACK / BROWSER LAB</p>
-        <h1 id="page-title">Build the stack. <em>Fit each layer.</em></h1>
-        <p class="lede">Assign an independent tabulated, dispersion, oscillator, free-carrier, Kramers–Kronig spline, or effective-medium model to every coherent layer.</p>
+      <div class="hero-title">
+        <p class="eyebrow">OPTICAL MODELLING / REFLECTOMETRY</p>
+        <h1 id="page-title"><span>Build the stack.</span> <em>Fit every layer.</em></h1>
       </div>
-      <dl class="profile">
-        <div><dt>STACK</dt><dd>Up to 12 coherent layers</dd></div>
-        <div><dt>GEOMETRY</dt><dd>Normal incidence</dd></div>
-        <div><dt>SUBSTRATE</dt><dd>Optically thick</dd></div>
-      </dl>
+      <div class="hero-summary">
+        <p class="hero-flow">SPECTRA <span>→</span> STACK <span>→</span> OPTICAL CONSTANTS</p>
+        <p class="lede">Assign an independent tabulated, dispersion, oscillator, free-carrier, Kramers–Kronig spline, or effective-medium model to every coherent layer.</p>
+        <dl class="profile">
+          <div><dt>STACK</dt><dd>Up to 12 coherent layers</dd></div>
+          <div><dt>GEOMETRY</dt><dd>Normal incidence</dd></div>
+          <div><dt>SUBSTRATE</dt><dd>Optically thick</dd></div>
+        </dl>
+      </div>
     </section>
 
     <div class="workspace multilayer-workspace">
@@ -127,7 +131,7 @@
       </section>
     </div>
   </main>
-  <footer><span>Reflectometry · v3.0.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
-  <script type="module" src="multilayer-app.js?v=3.0.0"></script>
+  <footer><span>Reflectometry · v3.1.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js?v=3.1.0"></script>
 </body>
 </html>
