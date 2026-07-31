@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("ships an English-only application interface", async () => {
-  const files = await Promise.all(["index.html", "app.js", "scientific-core.js"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
+  const files = await Promise.all(["index.html", "app.js", "scientific-core.js", "multilayer.html", "multilayer-app.js"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
   assert.match(files[0], /<html lang="en">/);
   assert.match(files[0], /From spectral signals to/);
   assert.match(files[0], /Tauc–Lorentz \(2 oscillators, causal\)/);
@@ -18,6 +18,10 @@ test("ships an English-only application interface", async () => {
   assert.match(files[0], /id="screening-points"/);
   assert.match(files[0], /Frequently asked questions/);
   assert.match(files[2], /bounded trust-region reflective least squares/);
+  assert.match(files[3], /Build the stack/);
+  assert.match(files[3], /id="add-layer"/);
+  assert.match(files[3], /LAYERS N,K/);
+  assert.match(files[4], /Select at most 11 fitted parameters/);
   assert.doesNotMatch(files.join("\n"), /robust Gauss.Newton/i);
   assert.doesNotMatch(files.join("\n"), /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

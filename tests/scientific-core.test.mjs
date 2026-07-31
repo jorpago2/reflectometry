@@ -7,6 +7,7 @@ import {
   createSpectrum,
   evaluateOpticalModel,
   filmOnThickSubstrate,
+  filmStackOnThickSubstrate,
   fitResidualVector,
   fitTabulated,
   loadNkTable,
@@ -14,6 +15,78 @@ import {
   restrictToNkRange,
   robustBackground,
 } from "../scientific-core.js";
+
+test("multilayer TMM reproduces the single-film solver and conserves lossless power", () => {
+  const wavelengthNm = [400, 550, 800, 1050];
+  const n = [2, 2.2, 2.4, 2.6];
+  const k = [0.1, 0.2, 0.3, 0.4];
+  for (const incidence of ["film", "substrate"]) {
+    const single = filmOnThickSubstrate(wavelengthNm, n, k, 210, 1.46, incidence);
+    const stack = filmStackOnThickSubstrate(wavelengthNm, [{ n, k, thicknessNm: 210 }], 1.46, incidence);
+    assertArrayClose(stack.reflectance, single.reflectance, 5e-15);
+    assertArrayClose(stack.transmittance, single.transmittance, 5e-15);
+  }
+
+  const lossless = filmStackOnThickSubstrate(wavelengthNm, [
+    { n: wavelengthNm.map(() => 1.45), k: wavelengthNm.map(() => 0), thicknessNm: 90 },
+    { n: wavelengthNm.map(() => 2.1), k: wavelengthNm.map(() => 0), thicknessNm: 130 },
+  ], 1.52, "film");
+  lossless.reflectance.forEach((reflectance, index) => assert.ok(Math.abs(reflectance + lossless.transmittance[index] - 1) < 2e-14));
+
+  const opaque = filmStackOnThickSubstrate([500], [{ n: [2], k: [5], thicknessNm: 100000 }], 1.52, "film");
+  assert.ok(Number.isFinite(opaque.reflectance[0]) && Number.isFinite(opaque.transmittance[0]));
+});
+
+test("evaluates independently parameterized layers", () => {
+  const wavelengthNm = [450, 550, 650];
+  const data = { wavelengthNm };
+  const settings = {
+    substrateIndex: 1.5,
+    incidence: "film",
+    activeLayerId: "top",
+    layers: [
+      { id: "top", name: "Top", model: "constant" },
+      { id: "bottom", name: "Bottom", model: "constant" },
+    ],
+  };
+  const parameters = {
+    top__thicknessNm: 80, top__n: 1.8, top__k: 0,
+    bottom__thicknessNm: 120, bottom__n: 2.4, bottom__k: 0.1,
+    rGain: 1, tGain: 1,
+  };
+  const evaluated = evaluateOpticalModel(data, null, parameters, settings);
+  assert.deepEqual(evaluated.n, wavelengthNm.map(() => 1.8));
+  assert.deepEqual(evaluated.k, wavelengthNm.map(() => 0));
+  assert.equal(evaluated.layerIndices.length, 2);
+  assert.ok(evaluated.reflectance.every((value) => value >= 0 && value <= 1));
+  assert.ok(evaluated.transmittance.every((value) => value >= 0 && value <= 1));
+});
+
+test("recovers a synthetic multilayer thickness with namespaced parameters", () => {
+  const wavelengthNm = Array.from({ length: 41 }, (_, index) => 420 + 15 * index);
+  const valid = wavelengthNm.map(() => true);
+  const settings = {
+    substrateIndex: 1.52, incidence: "film", activeLayerId: "top", useReflectance: true, useTransmittance: true,
+    sigmaReflectance: 0.01, sigmaTransmittance: 0.01, preferSpectralShape: true, sigmaN: 0.5, sigmaK: 0.25,
+    layers: [
+      { id: "top", name: "Top", model: "constant" },
+      { id: "bottom", name: "Bottom", model: "constant" },
+    ],
+  };
+  const truth = { top__thicknessNm: 83, top__n: 1.72, top__k: 0, bottom__thicknessNm: 137, bottom__n: 2.35, bottom__k: 0.08, rGain: 1, tGain: 1 };
+  const empty = { wavelengthNm };
+  const synthetic = evaluateOpticalModel(empty, null, truth, settings);
+  const data = { wavelengthNm, reflectance: synthetic.reflectance, transmittance: synthetic.transmittance, reflectanceValid: valid, transmittanceValid: valid };
+  const result = fitTabulated(data, null, {
+    settings,
+    initial: { ...truth, top__thicknessNm: 65 },
+    bounds: { top__thicknessNm: [50, 110] },
+    fittedParameters: ["top__thicknessNm"],
+    screeningPoints: 64,
+    localRefinements: 3,
+  });
+  assert.ok(Math.abs(result.parameters.top__thicknessNm - truth.top__thicknessNm) < 1e-5);
+});
 
 test("recovers shared R/T gains across samples", () => {
   const wavelengthNm = Array.from({ length: 41 }, (_, index) => 350 + index * 20);

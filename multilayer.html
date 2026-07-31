@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browser-based multilayer reflectometry fitting with independent optical models for each layer.">
+  <meta name="theme-color" content="#071512">
+  <title>Reflectometry · Multilayer optical fitting</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./" aria-label="Reflectometry home">
+      <span class="brand-mark" aria-hidden="true">Rλ</span>
+      <span><strong>Reflectometry</strong><small>Multilayer optical fitting</small></span>
+    </a>
+    <nav class="tool-nav" aria-label="Tool versions"><a href="./">Single layer</a><a href="multilayer.html" aria-current="page">Multilayer</a></nav>
+    <p class="privacy"><span aria-hidden="true">●</span> Local computation · files never leave your device</p>
+  </header>
+
+  <main>
+    <section class="hero multilayer-hero" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">GENERIC STACK / BROWSER LAB</p>
+        <h1 id="page-title">Build the stack. <em>Fit each layer.</em></h1>
+        <p class="lede">Assign an independent tabulated, constant, Tauc–Lorentz, Gaussian, Cody–Lorentz, or Drude model to every coherent layer.</p>
+      </div>
+      <dl class="profile">
+        <div><dt>STACK</dt><dd>Up to 12 coherent layers</dd></div>
+        <div><dt>GEOMETRY</dt><dd>Normal incidence</dd></div>
+        <div><dt>SUBSTRATE</dt><dd>Optically thick</dd></div>
+      </dl>
+    </section>
+
+    <div class="workspace multilayer-workspace">
+      <aside class="controls" aria-label="Data, stack, and fit controls">
+        <section class="control-section">
+          <div class="section-heading"><span>01</span><h2>Measurement</h2></div>
+          <label for="demo-sample">Included example</label>
+          <div class="inline-control">
+            <select id="demo-sample">
+              <option value="agst">aGST · 250 nm</option><option value="cgst">cGST · 250 nm</option>
+              <option value="asb2sb3">aSb₂Se₃ · 200 nm</option><option value="csb2sb3">cSb₂Se₃ · 200 nm</option>
+              <option value="vo2">VO₂ · 150 nm</option>
+            </select>
+            <button id="load-demo" class="secondary" type="button">Load</button>
+          </div>
+          <details>
+            <summary>Load my measurement files</summary>
+            <div class="file-grid">
+              <label>Sample name<input id="sample-name" type="text" maxlength="80" placeholder="My stack"></label>
+              <label>Sample R<input id="file-sample-r" type="file" accept=".txt,text/plain"></label>
+              <label>Sample T<input id="file-sample-t" type="file" accept=".txt,text/plain"></label>
+              <label>Si reference<input id="file-silicon" type="file" accept=".txt,text/plain"></label>
+              <label>Open beam<input id="file-open" type="file" accept=".txt,text/plain"></label>
+              <label>Tabulated Si R<input id="file-si-model" type="file" accept=".txt,text/plain"></label>
+            </div>
+            <button id="load-files" class="secondary full" type="button">Process local files</button>
+          </details>
+          <p id="source-name" class="source-name">Preparing the example…</p>
+          <div class="field-pair">
+            <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" value="300" min="195" max="2500" step="10"></label>
+            <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" value="1100" min="200" max="3000" step="10"></label>
+            <label>Reference threshold <span>%</span><input id="reference-threshold" type="number" value="5" min="0" max="99" step="1"></label>
+            <label>Median bin <span>nm</span><input id="bin-width" type="number" value="2" min="0.1" max="100" step="0.5"></label>
+          </div>
+          <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" value="5" min="0" max="100" step="0.5"></label>
+          <label class="check"><input id="subtract-background" type="checkbox" checked><span>Subtract 195–250 nm background</span></label>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading"><span>02</span><h2>Layer stack</h2></div>
+          <p class="model-note">Order: incident medium at the top, substrate at the bottom. Every layer is homogeneous, isotropic, and coherent.</p>
+          <div class="field-pair compact-pair">
+            <label>Substrate index<input id="substrate-index" type="number" value="1.46" min="1.001" max="5" step="0.01"></label>
+            <label>Incidence<select id="incidence"><option value="film">Stack side</option><option value="substrate">Substrate side</option></select></label>
+          </div>
+          <div id="layers" class="layer-list"></div>
+          <button id="add-layer" class="secondary full" type="button">+ Add layer</button>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading"><span>03</span><h2>Fit</h2></div>
+          <div class="channel-row">
+            <label class="check"><input id="use-r" type="checkbox" checked><span>Fit R</span></label>
+            <label class="check"><input id="use-t" type="checkbox" checked><span>Fit T</span></label>
+            <label class="check"><input id="prefer-shape" type="checkbox" checked><span>Shape residual</span></label>
+          </div>
+          <div class="field-pair">
+            <label>σR<input id="sigma-r" type="number" value="0.02" min="0.0001" max="1" step="0.005"></label>
+            <label>σT<input id="sigma-t" type="number" value="0.02" min="0.0001" max="1" step="0.005"></label>
+            <label>σn<input id="sigma-n" type="number" value="0.5" min="0.0001" max="10" step="0.05"></label>
+            <label>σk<input id="sigma-k" type="number" value="0.25" min="0.0001" max="10" step="0.05"></label>
+          </div>
+          <div class="global-parameter-grid">
+            <label class="check"><input id="fit-r-gain" type="checkbox"><span>Fit R gain</span></label><input id="r-gain" type="number" value="1" min="0.1" max="10" step="0.01">
+            <label class="check"><input id="fit-t-gain" type="checkbox"><span>Fit T gain</span></label><input id="t-gain" type="number" value="1" min="0.1" max="10" step="0.01">
+          </div>
+          <div class="field-pair">
+            <label>Sobol points<select id="screening-points"><option>64</option><option>128</option><option>256</option><option selected>512</option><option>1024</option><option>2048</option></select></label>
+            <label>Local refinements<input id="local-refinements" type="number" value="16" min="1" max="50" step="1"></label>
+          </div>
+          <p id="fit-count" class="model-note">0 / 11 fitted parameters selected.</p>
+        </section>
+
+        <div class="actions"><button id="preview-button" class="secondary" type="button">Update model</button><button id="fit-button" class="primary" type="button">Fit parameters <span aria-hidden="true">→</span></button></div>
+      </aside>
+
+      <section class="results" aria-label="Fit results">
+        <div class="status-row">
+          <p id="status" role="status" aria-live="polite">Loading demonstration data…</p>
+          <progress id="fit-progress" max="100" value="0" hidden aria-label="Fit progress"></progress>
+          <div class="export-actions"><button id="download-json" class="text-button" disabled type="button">JSON</button><button id="download-csv" class="text-button" disabled type="button">SPECTRA CSV</button><button id="download-nk" class="text-button" disabled type="button">LAYERS N,K</button></div>
+        </div>
+        <div class="metrics">
+          <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
+          <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
+          <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
+          <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
+        </div>
+        <section class="diagnostics">
+          <div class="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
+          <div class="diagnostic-grid">
+            <article><span>CONVERGENCE</span><strong id="diagnostic-convergence">Preview</strong><small id="diagnostic-evaluations">No optimizer run</small></article>
+            <article><span>JACOBIAN CONDITION</span><strong id="diagnostic-condition">—</strong><small>large means non-identifiable</small></article>
+            <article><span>BOUND HITS</span><strong id="diagnostic-bounds">—</strong><small>fitted parameters</small></article>
+            <article><span>MAX R + T</span><strong id="diagnostic-power">—</strong><small>physical model</small></article>
+          </div>
+          <p id="diagnostic-note">Preview the stack before fitting. Multilayer inverse problems can have several nearly equivalent solutions.</p>
+        </section>
+        <section class="plot-card"><div class="plot-heading"><div><p>MEASUREMENT / MODEL</p><h2>Reflectance and transmittance</h2></div><div class="legend"><span class="r-data">R data</span><span class="r-model">R model</span><span class="t-data">T data</span><span class="t-model">T model</span></div></div><canvas id="rt-chart" role="img" aria-label="Reflectance and transmittance spectra"></canvas></section>
+        <section class="plot-card"><div class="plot-heading"><div><p>MODEL − DATA</p><h2>Spectral residuals</h2></div></div><canvas id="residual-chart" role="img" aria-label="Spectral residuals"></canvas></section>
+        <section class="plot-card"><div class="plot-heading"><div><p id="nk-layer-label">ACTIVE LAYER</p><h2>Complex refractive index</h2></div><div class="legend"><span class="n-line">n</span><span class="k-line">k</span></div></div><canvas id="nk-chart" role="img" aria-label="Active-layer refractive index"></canvas></section>
+        <section class="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic layers; coherent propagation inside the stack; optically thick substrate with incoherent rear-surface returns; constant real substrate index. Surface roughness, gradients, anisotropy, scattering, oblique incidence, and finite substrate absorption are not included.</p></details></section>
+      </section>
+    </div>
+  </main>
+  <footer><span>Reflectometry · multilayer v1.0.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js"></script>
+</body>
+</html>

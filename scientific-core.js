@@ -4,6 +4,8 @@ import { scrambledSobolPoints } from "./sobol.js";
 const EPSILON = Number.EPSILON;
 const LOG_PARAMETERS = new Set(["amplitudeEv", "amplitude1Ev", "amplitude2Ev", "broadeningEv", "broadening1Ev", "broadening2Ev", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
 const CAUSAL_ELLIPSOMETRY_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
+const baseParameterName = (name) => name.includes("__") ? name.slice(name.lastIndexOf("__") + 2) : name;
+const isLogParameter = (name) => LOG_PARAMETERS.has(baseParameterName(name));
 
 export function parseNumericTable(text, minimumColumns = 2) {
   const rows = String(text)
@@ -194,6 +196,7 @@ export function restrictToNkRange(data, nk) {
 
 export function evaluateOpticalModel(data, nk, parameters, settings) {
   validateModelInputs(parameters, settings);
+  if (settings.layers?.length) return evaluateMultilayerModel(data, parameters, settings);
   const index = refractiveIndexModel(settings.model, data.wavelengthNm, parameters, nk);
   const optical = filmOnThickSubstrate(
     data.wavelengthNm,
@@ -214,9 +217,39 @@ export function evaluateOpticalModel(data, nk, parameters, settings) {
 
 export const evaluateTabulated = evaluateOpticalModel;
 
+function evaluateMultilayerModel(data, parameters, settings) {
+  const layerIndices = settings.layers.map((layer) => {
+    const layerParameters = parametersForLayer(parameters, layer.id);
+    const index = refractiveIndexModel(layer.model, data.wavelengthNm, layerParameters, layer.nk ?? null);
+    return { id: layer.id, name: layer.name, model: layer.model, thicknessNm: layerParameters.thicknessNm, n: index.n, k: index.k };
+  });
+  const optical = filmStackOnThickSubstrate(data.wavelengthNm, layerIndices, settings.substrateIndex, settings.incidence);
+  const active = layerIndices.find((layer) => layer.id === settings.activeLayerId) ?? layerIndices[0];
+  return {
+    ...optical,
+    reflectanceScaled: optical.reflectance.map((value) => value * parameters.rGain),
+    transmittanceScaled: optical.transmittance.map((value) => value * parameters.tGain),
+    n: active.n,
+    k: active.k,
+    activeLayerId: active.id,
+    layerIndices,
+  };
+}
+
+function parametersForLayer(parameters, layerId) {
+  const prefix = `${layerId}__`;
+  return Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(prefix)).map(([name, value]) => [name.slice(prefix.length), value]));
+}
+
 function validateModelInputs(parameters, settings) {
   if (Object.values(parameters).some((value) => !Number.isFinite(value))) throw new Error("Optical parameters must be finite.");
-  if (!(parameters.thicknessNm > 0) || !(parameters.rGain > 0) || !(parameters.tGain > 0)) throw new Error("Thickness and channel gains must be positive.");
+  if (!(parameters.rGain > 0) || !(parameters.tGain > 0)) throw new Error("Channel gains must be positive.");
+  if (settings.layers?.length) {
+    if (settings.layers.length > 12) throw new Error("The coherent stack is limited to 12 layers.");
+    for (const layer of settings.layers) {
+      if (!(parameters[`${layer.id}__thicknessNm`] > 0)) throw new Error(`Layer ${layer.name} must have a positive thickness.`);
+    }
+  } else if (!(parameters.thicknessNm > 0)) throw new Error("Film thickness must be positive.");
   if (settings.substrateIndex <= 1) throw new Error("The substrate refractive index must be greater than 1.");
   if (!new Set(["film", "substrate"]).has(settings.incidence)) throw new Error("Unsupported incidence geometry.");
 }
@@ -238,6 +271,35 @@ export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateI
       transmittance.push(forward.transmittance * rearTransmittance / denominator);
     } else {
       const stack = coherentSingleFilm(wavelengthNm[index], n[index], k[index], thicknessNm, substrateIndex, 1);
+      const denominator = 1 - rearReflectance * stack.reflectance;
+      reflectance.push(rearReflectance + rearTransmittance ** 2 * stack.reflectance / denominator);
+      transmittance.push(rearTransmittance * stack.transmittance / denominator);
+    }
+  }
+  return { reflectance, transmittance };
+}
+
+export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, incidence = "film") {
+  if (!Array.isArray(layers) || !layers.length || layers.length > 12 || !(substrateIndex > 1) || !new Set(["film", "substrate"]).has(incidence)) {
+    throw new Error("Invalid multilayer TMM stack or substrate.");
+  }
+  for (const layer of layers) {
+    if (!(layer.thicknessNm > 0) || layer.n.length !== wavelengthNm.length || layer.k.length !== wavelengthNm.length) throw new Error("Every layer must define positive thickness and n,k on the calculation grid.");
+  }
+  const rearReflectance = ((substrateIndex - 1) / (substrateIndex + 1)) ** 2;
+  const rearTransmittance = 1 - rearReflectance;
+  const reflectance = [];
+  const transmittance = [];
+  for (let index = 0; index < wavelengthNm.length; index += 1) {
+    const slice = layers.map((layer) => ({ n: layer.n[index], k: layer.k[index], thicknessNm: layer.thicknessNm }));
+    if (incidence === "film") {
+      const forward = coherentFilmStack(wavelengthNm[index], slice, 1, substrateIndex);
+      const reverse = coherentFilmStack(wavelengthNm[index], [...slice].reverse(), substrateIndex, 1);
+      const denominator = 1 - rearReflectance * reverse.reflectance;
+      reflectance.push(forward.reflectance + forward.transmittance * reverse.transmittance * rearReflectance / denominator);
+      transmittance.push(forward.transmittance * rearTransmittance / denominator);
+    } else {
+      const stack = coherentFilmStack(wavelengthNm[index], [...slice].reverse(), substrateIndex, 1);
       const denominator = 1 - rearReflectance * stack.reflectance;
       reflectance.push(rearReflectance + rearTransmittance ** 2 * stack.reflectance / denominator);
       transmittance.push(rearTransmittance * stack.transmittance / denominator);
@@ -338,6 +400,32 @@ function coherentSingleFilm(wavelengthNm, n, k, thicknessNm, incidentIndex, exit
   };
 }
 
+function coherentFilmStack(wavelengthNm, layers, incidentIndex, exitIndex) {
+  if (!(wavelengthNm > 0) || !(incidentIndex > 0) || !(exitIndex > 0)) throw new Error("Non-physical multilayer boundary conditions.");
+  for (const layer of layers) {
+    if (!(layer.n > 0) || layer.k < 0 || !(layer.thicknessNm > 0)) throw new Error("Non-physical multilayer optical constants.");
+  }
+  const media = [{ re: incidentIndex, im: 0 }, ...layers.map((layer) => ({ re: layer.n, im: layer.k })), { re: exitIndex, im: 0 }];
+  const last = media.length - 2;
+  let reflectionAmplitude = fresnelReflection(media[last], media[last + 1]);
+  let transmissionAmplitude = fresnelTransmission(media[last], media[last + 1]);
+  for (let interfaceIndex = last - 1; interfaceIndex >= 0; interfaceIndex -= 1) {
+    const propagation = complexExpI(complexScale(media[interfaceIndex + 1], 2 * Math.PI * layers[interfaceIndex].thicknessNm / wavelengthNm));
+    const roundTrip = complexMul(propagation, propagation);
+    const reflection = fresnelReflection(media[interfaceIndex], media[interfaceIndex + 1]);
+    const denominator = complexAdd({ re: 1, im: 0 }, complexMul(complexMul(reflection, reflectionAmplitude), roundTrip));
+    transmissionAmplitude = complexDiv(complexMul(complexMul(fresnelTransmission(media[interfaceIndex], media[interfaceIndex + 1]), transmissionAmplitude), propagation), denominator);
+    reflectionAmplitude = complexDiv(complexAdd(reflection, complexMul(reflectionAmplitude, roundTrip)), denominator);
+  }
+  return {
+    reflectance: complexAbs2(reflectionAmplitude),
+    transmittance: (exitIndex / incidentIndex) * complexAbs2(transmissionAmplitude),
+  };
+}
+
+function fresnelReflection(left, right) { return complexDiv(complexSub(left, right), complexAdd(left, right)); }
+function fresnelTransmission(left, right) { return complexDiv(complexScale(left, 2), complexAdd(left, right)); }
+
 function complexAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
 function complexSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
 function complexMul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
@@ -426,7 +514,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const upper = names.map((name) => bounds[name][1]);
   const toPhysical = (point) => Object.fromEntries(names.map((name, index) => [
     name,
-    LOG_PARAMETERS.has(name)
+    isLogParameter(name)
       ? Math.exp(Math.log(lower[index]) + point[index] * (Math.log(upper[index]) - Math.log(lower[index])))
       : lower[index] + point[index] * (upper[index] - lower[index]),
   ]));
@@ -438,7 +526,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     return { cost: softL1Cost(residuals), residuals, parameters, evaluated };
   };
 
-  const initialPoint = names.map((name, index) => LOG_PARAMETERS.has(name)
+  const initialPoint = names.map((name, index) => isLogParameter(name)
     ? (Math.log(initial[name]) - Math.log(lower[index])) / (Math.log(upper[index]) - Math.log(lower[index]))
     : (initial[name] - lower[index]) / (upper[index] - lower[index]));
   const sampledCandidates = scrambledSobolPoints(names.length, screeningPoints).map((point, index) => {
@@ -483,7 +571,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
       median: median(finiteScreeningCosts),
       maximum: finiteScreeningCosts.at(-1),
     } : { minimum: null, median: null, maximum: null },
-    logarithmicallySampledParameters: names.filter((name) => LOG_PARAMETERS.has(name)),
+    logarithmicallySampledParameters: names.filter(isLogParameter),
     failedStarts,
     selectedSolver: best.solver ? {
       success: best.solver.success,
@@ -530,7 +618,9 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
     parameterStandardErrorsApproximate: {},
     shapeAfterAffineAlignment: {},
     indexVsEllipsometry: {},
-    regularizedTowardEllipsometry: Boolean(settings.regularizeEllipsometry && settings.model !== "fixed"),
+    regularizedTowardEllipsometry: settings.layers?.length
+      ? settings.layers.some((layer) => layer.regularize && layer.nk && layer.model !== "fixed")
+      : Boolean(settings.regularizeEllipsometry && settings.model !== "fixed"),
   };
   for (const [channel, enabled, measured, modeled, valid] of [
     ["R", settings.useReflectance, data.reflectance, evaluation.reflectanceScaled, data.reflectanceValid],
@@ -594,7 +684,15 @@ export function fitResidualVector(data, nk, parameters, evaluation, settings) {
     residuals.push(...modeledValid.map((value, index) => (value - measuredValid[index]) / sigma));
     if (settings.preferSpectralShape) residuals.push(...affineShapeResidual(modeledValid, measuredValid).residuals.map((value) => value / sigma));
   }
-  if (settings.regularizeEllipsometry && settings.model !== "fixed") {
+  if (settings.layers?.length) {
+    for (const layer of settings.layers.filter((candidate) => candidate.regularize)) {
+      if (layer.model === "drude-tl") throw new Error(`Layer ${layer.name}: a Drude model cannot be regularized toward an insulating n,k table.`);
+      const comparison = indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model);
+      if (!comparison) throw new Error(`Layer ${layer.name}: regularization requires an n,k table with at least 10 points from 300 to 1100 nm.`);
+      residuals.push(...comparison.deltaN.map((value) => value / settings.sigmaN));
+      residuals.push(...comparison.deltaK.map((value) => value / settings.sigmaK));
+    }
+  } else if (settings.regularizeEllipsometry && settings.model !== "fixed") {
     if (settings.model === "drude-tl") throw new Error("The metallic VO₂ model cannot be regularized toward the 22 °C insulating n,k table.");
     const comparison = indexComparison(nk, parameters, settings);
     if (!comparison) throw new Error("Ellipsometry regularization requires a matching n,k table from 300 to 1100 nm.");
@@ -605,12 +703,21 @@ export function fitResidualVector(data, nk, parameters, evaluation, settings) {
 }
 
 function indexComparison(nk, parameters, settings) {
+  if (settings.layers?.length) {
+    const layer = settings.layers.find((candidate) => candidate.id === settings.activeLayerId && candidate.nk)
+      ?? settings.layers.find((candidate) => candidate.nk);
+    return layer ? indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model) : null;
+  }
+  return indexComparisonForModel(nk, parameters, settings.model);
+}
+
+function indexComparisonForModel(nk, parameters, model) {
   if (!nk) return null;
   const selected = nk.wavelengthNm.map((value) => value >= 300 && value <= 1100);
   const wavelengthNm = nk.wavelengthNm.filter((_, index) => selected[index]);
   if (wavelengthNm.length < 10) return null;
   const reference = { n: nk.n.filter((_, index) => selected[index]), k: nk.k.filter((_, index) => selected[index]) };
-  const modeled = refractiveIndexModel(settings.model, wavelengthNm, parameters, nk);
+  const modeled = refractiveIndexModel(model, wavelengthNm, parameters, nk);
   const deltaN = modeled.n.map((value, index) => value - reference.n[index]);
   const deltaK = modeled.k.map((value, index) => value - reference.k[index]);
   return { wavelengthNm, reference, modeled, deltaN, deltaK, diagnostics: indexDiagnostics(wavelengthNm, deltaN, deltaK) };

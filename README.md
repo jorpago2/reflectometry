@@ -1,6 +1,6 @@
 # Reflectometry
 
-Static browser tool for calibrated reflectance/transmittance fitting of a coherent thin film on an optically thick substrate.
+Static browser tool for calibrated reflectance/transmittance fitting of coherent single-film and multilayer stacks on an optically thick substrate.
 
 ## Run locally
 
@@ -8,7 +8,7 @@ Static browser tool for calibrated reflectance/transmittance fitting of a cohere
 npm run dev
 ```
 
-Open `http://localhost:4173`. Run the numerical checks with `npm test`.
+Open `http://localhost:4173` for the validated single-layer workflow or `http://localhost:4173/multilayer.html` for the generic layer-stack editor. Run the numerical checks with `npm test`.
 
 ## Current scope
 
@@ -16,7 +16,9 @@ Open `http://localhost:4173`. Run the numerical checks with `npm test`.
 - Background/SNR filtering and non-overlapping median binning of raw counts before R/T normalization.
 - Fixed, independently scaled, or constant n,k models.
 - Causal one/two-oscillator Tauc–Lorentz, Tauc–Lorentz + Gaussian, Cody–Lorentz, and Drude + Tauc–Lorentz models.
-- Coherent single-film TMM with incoherent substrate returns.
+- Coherent transfer-matrix solver for up to 12 layers, with incoherent rear-surface substrate returns and single-film equivalence checks.
+- Independent optical model, material preset, n,k table, thickness, bounds, and fit selection for every layer; layers can be added, removed, and reordered.
+- Generic multilayer JSON, spectra CSV, and layer-resolved n,k CSV exports.
 - Configurable SciPy-compatible scrambled Sobol screening (seed 1729, 64–4096 points) and 1–50 bounded robust trust-region reflective refinements in a Web Worker, with Jacobian scaling and logarithmic screening for broad positive parameters.
 - Dynamic causal-model seeding from any loaded 300–1100 nm ellipsometry table; bundled Python/SciPy seeds remain reproducible references.
 - Optional affine spectral-shape residuals and n,k regularization toward local ellipsometry, matching the Python objective definition.
