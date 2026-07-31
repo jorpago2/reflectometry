@@ -16,8 +16,8 @@ const DEMOS = {
   vo2: { label: "VO₂", thickness: 150, sampleR: "vo2-ref.txt", sampleT: "vo2-tr.txt", nk: "VO2_22C.txt" },
 };
 const PRESET_LABELS = { custom: "Custom", agst: "aGST", cgst: "cGST", asb2sb3: "aSb₂Se₃", csb2sb3: "cSb₂Se₃", vo2: "VO₂" };
-const COMPONENT_LABELS = { tl1: "Tauc–Lorentz 1", tl2: "Tauc–Lorentz 2", gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude" };
-const DEFAULT_COMPONENTS = { tl1: true, tl2: false, gaussian: false, cody: false, drude: false };
+const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude" };
+const DEFAULT_COMPONENTS = { taucLorentz: 1, gaussian: false, cody: false, drude: false };
 const CAUSAL_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -128,6 +128,10 @@ function renderLayers() {
     selectors.append(selectControl("Material preset", "preset", PRESET_LABELS, layer.preset), selectControl("Optical model", "model", MODEL_LABELS, layer.model));
     const components = document.createElement("fieldset"); components.className = "component-selector"; components.hidden = layer.model !== "composite";
     const legend = document.createElement("legend"); legend.textContent = "Additive dielectric components"; components.append(legend);
+    const oscillatorControl = document.createElement("label"); oscillatorControl.className = "oscillator-count"; oscillatorControl.textContent = "Tauc–Lorentz oscillators";
+    const oscillatorCount = document.createElement("select"); oscillatorCount.dataset.field = "tl-count";
+    for (let count = 0; count <= 5; count += 1) { const option = document.createElement("option"); option.value = String(count); option.textContent = String(count); option.selected = count === layer.components.taucLorentz; oscillatorCount.append(option); }
+    oscillatorControl.append(oscillatorCount); components.append(oscillatorControl);
     for (const [component, label] of Object.entries(COMPONENT_LABELS)) {
       const control = checkControl(label, "component", layer.components[component], false); control.querySelector("input").dataset.component = component; components.append(control);
     }
@@ -189,6 +193,9 @@ async function handleLayerChange(event) {
   if (field === "regularize") { layer.regularize = event.target.checked; return; }
   if (field === "component") {
     captureLayerInputs(); layer.components[event.target.dataset.component] = event.target.checked; rebuildLayerSpecs(layer); renderLayers(); previewModel(); return;
+  }
+  if (field === "tl-count") {
+    captureLayerInputs(); layer.components.taucLorentz = Number(event.target.value); rebuildLayerSpecs(layer); renderLayers(); previewModel(); return;
   }
   if (field === "nk-file") {
     if (!event.target.files[0]) return;
@@ -256,7 +263,7 @@ function configuration() {
   if (elements["fit-t-gain"].checked && useTransmittance) fittedParameters.push("tGain");
   for (const layer of state.layers) {
     if (TABLE_MODELS.has(layer.model) && !layer.nk) throw new Error(`${layer.name}: ${MODEL_LABELS[layer.model]} requires an n,k table.`);
-    if (layer.model === "composite" && !Object.values(layer.components).some(Boolean)) throw new Error(`${layer.name}: select at least one dielectric component.`);
+    if (layer.model === "composite" && !layer.components.taucLorentz && !["gaussian", "cody", "drude"].some((name) => layer.components[name])) throw new Error(`${layer.name}: select at least one dielectric component.`);
     for (const [name, specification] of Object.entries(layer.specs)) {
       const key = `${layer.id}__${name}`; const { value, minimum, maximum } = specification;
       if (![value, minimum, maximum].every(Number.isFinite) || minimum >= maximum || value < minimum || value > maximum) throw new Error(`${layer.name}: ${specification.label} must have a finite value inside valid bounds.`);
@@ -385,8 +392,8 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-multilayer-fit/v1", application: { name: "Reflectometry Multilayer", version: "1.1.0", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
-    stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, materialPreset: layer.preset, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? Object.keys(layer.components).filter((name) => layer.components[name]) : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
+    schema: "reflectometry-browser-multilayer-fit/v2", application: { name: "Reflectometry Multilayer", version: "1.2.0", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
+    stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, materialPreset: layer.preset, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: Number(elements["substrate-index"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
     assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "optically thick substrate with incoherent rear returns", "constant real substrate refractive index"],

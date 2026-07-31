@@ -94,7 +94,7 @@ test("fits an independently composed layer through the multilayer worker contrac
   const settings = {
     substrateIndex: 1.5, incidence: "film", activeLayerId: "film", useReflectance: true, useTransmittance: true,
     sigmaReflectance: 0.01, sigmaTransmittance: 0.01, preferSpectralShape: true, sigmaN: 0.5, sigmaK: 0.25,
-    layers: [{ id: "film", name: "Composite film", model: "composite", components: { tl1: true, gaussian: true } }],
+    layers: [{ id: "film", name: "Composite film", model: "composite", components: { taucLorentz: 1, gaussian: true } }],
   };
   const truth = {
     film__thicknessNm: 180, film__epsilonInf: 3,

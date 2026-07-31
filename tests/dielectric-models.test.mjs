@@ -55,7 +55,7 @@ test("combines dielectric components independently without duplicating epsilon i
     tl1__bandgapEv: 0.4,
   };
   const tl = taucLorentzDielectric(wavelengthNm, 4, 80, 3, 1, 0.4);
-  const tlComposite = compositeDielectric(wavelengthNm, tlParameters, { tl1: true });
+  const tlComposite = compositeDielectric(wavelengthNm, tlParameters, { taucLorentz: 1 });
   assertArrayClose(tlComposite.epsilon1, tl.epsilon1);
   assertArrayClose(tlComposite.epsilon2, tl.epsilon2);
 
@@ -67,7 +67,7 @@ test("combines dielectric components independently without duplicating epsilon i
   assertArrayClose(independent.epsilon1, gaussian.epsilon1.map((value, index) => 4 + value + drude.epsilon1[index]));
   assertArrayClose(independent.epsilon2, gaussian.epsilon2.map((value, index) => value + drude.epsilon2[index]));
 
-  const combined = compositeDielectric(wavelengthNm, { ...tlParameters, ...gaussianParameters, ...drudeParameters }, { tl1: true, gaussian: true, drude: true });
+  const combined = compositeDielectric(wavelengthNm, { ...tlParameters, ...gaussianParameters, ...drudeParameters }, { taucLorentz: 1, gaussian: true, drude: true });
   const legacy = drudeTaucLorentzDielectric(wavelengthNm, { epsilonInf: 4, plasmaEnergyEv: 4.16, drudeGammaEv: 0.67, amplitudeEv: 80, resonanceEv: 3, broadeningEv: 1, bandgapEv: 0.4 });
   assertArrayClose(combined.epsilon1, legacy.epsilon1.map((value, index) => value + gaussian.epsilon1[index]));
   assertArrayClose(combined.epsilon2, legacy.epsilon2.map((value, index) => value + gaussian.epsilon2[index]));
@@ -82,9 +82,15 @@ test("uses the Python-derived ellipsometry seeds for bundled samples", () => {
   const custom = modelParameterSpecs("tl1", "custom", { n: 3, k: 0.1 }, 333);
   assert.equal(custom.thicknessNm.value, 333);
   assert.equal(custom.thicknessNm.minimum, 166.5);
-  const composite = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { tl1: true, gaussian: true, drude: false });
+  const composite = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 1, gaussian: true, drude: false });
   assert.ok(composite["tl1__amplitudeEv"] && composite["gaussian__amplitude"]);
   assert.equal(composite["drude__plasmaEnergyEv"], undefined);
+  const fiveOscillators = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 5 });
+  assert.ok(fiveOscillators["tl5__amplitudeEv"]);
+  const fiveParameters = Object.fromEntries(Object.entries(fiveOscillators).filter(([name]) => name !== "thicknessNm").map(([name, specification]) => [name, specification.value]));
+  const dielectric = compositeDielectric(wavelengthNm, fiveParameters, { taucLorentz: 5 });
+  assert.ok(dielectric.epsilon1.every(Number.isFinite) && dielectric.epsilon2.every(Number.isFinite));
+  assert.throws(() => modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 6 }), /0 to 5/);
 });
 
 test("fits a dynamic ellipsometry seed from the loaded n,k table", () => {

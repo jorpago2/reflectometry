@@ -9,7 +9,7 @@ export const MODEL_LABELS = {
   "tl-gaussian": "Tauc–Lorentz + Gaussian (causal)",
   cody: "Cody–Lorentz (amorphous, causal)",
   "drude-tl": "Drude + Tauc–Lorentz (VO₂ metal)",
-  composite: "Independent dielectric components",
+  composite: "Independent components / 0–5 TL oscillators",
 };
 
 export const NOMINAL_THICKNESS_NM = {
@@ -81,18 +81,27 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
       epsilonInf: parameter("ε∞", "", preset.epsilonInf),
     };
     const add = (prefix, entries) => Object.entries(entries).forEach(([name, specification]) => { specifications[`${prefix}__${name}`] = specification; });
-    if (components.tl1) add("tl1", {
-      amplitudeEv: parameter("TL1 · A", "eV", preset.amplitudeEv, true),
-      resonanceEv: parameter("TL1 · E₀", "eV", preset.resonanceEv),
-      broadeningEv: parameter("TL1 · C", "eV", preset.broadeningEv),
-      bandgapEv: parameter("TL1 · E_g", "eV", preset.bandgapEv),
-    });
-    if (components.tl2) add("tl2", {
-      amplitudeEv: parameter("TL2 · A", "eV", [0.3 * preset.amplitudeEv[0], 1, preset.amplitudeEv[2]], true),
-      resonanceEv: parameter("TL2 · E₀", "eV", [Math.max(3.4, preset.resonanceEv[0] + 0.8), 3.2, 6]),
-      broadeningEv: parameter("TL2 · C", "eV", [1.5, 0.1, 5]),
-      bandgapEv: parameter("TL2 · E_g", "eV", preset.bandgapEv),
-    });
+    const taucLorentzCount = components.taucLorentz ?? Number(Boolean(components.tl1)) + Number(Boolean(components.tl2));
+    if (!Number.isInteger(taucLorentzCount) || taucLorentzCount < 0 || taucLorentzCount > 5) throw new Error("Select from 0 to 5 Tauc–Lorentz oscillators.");
+    for (let oscillator = 1; oscillator <= taucLorentzCount; oscillator += 1) {
+      if (oscillator === 1) add("tl1", {
+        amplitudeEv: parameter("TL1 · A", "eV", preset.amplitudeEv, true),
+        resonanceEv: parameter("TL1 · E₀", "eV", preset.resonanceEv),
+        broadeningEv: parameter("TL1 · C", "eV", preset.broadeningEv),
+        bandgapEv: parameter("TL1 · E_g", "eV", preset.bandgapEv),
+      });
+      else {
+        const resonance = Math.min(10, Math.max(preset.bandgapEv[2] + 0.4, preset.resonanceEv[0] + 0.8 * (oscillator - 1)));
+        const resonanceMinimum = Math.max(preset.bandgapEv[2] + 0.05, resonance - 0.8);
+        const broadeningMaximum = Math.min(5, 1.8 * resonanceMinimum);
+        add(`tl${oscillator}`, {
+          amplitudeEv: parameter(`TL${oscillator} · A`, "eV", [preset.amplitudeEv[0] / oscillator, 1e-4, preset.amplitudeEv[2]], true),
+          resonanceEv: parameter(`TL${oscillator} · E₀`, "eV", [resonance, resonanceMinimum, Math.min(12, resonance + 2)]),
+          broadeningEv: parameter(`TL${oscillator} · C`, "eV", [Math.min(1.5, 0.7 * broadeningMaximum), 0.05, broadeningMaximum]),
+          bandgapEv: parameter(`TL${oscillator} · E_g`, "eV", preset.bandgapEv),
+        });
+      }
+    }
     if (components.gaussian) add("gaussian", {
       amplitude: parameter("Gaussian · amplitude", "", [5, 1e-4, 150], true),
       centerEnergyEv: parameter("Gaussian · center", "eV", [3.8, 0.2, 10]),
@@ -229,8 +238,10 @@ export function refractiveIndexModel(model, wavelengthNm, parameters, nk, option
 export function compositeDielectric(wavelengthNm, parameters, components = {}) {
   validatePositiveWavelengths(wavelengthNm);
   if (!(parameters.epsilonInf > 0)) throw new Error("The composite model requires a finite positive ε∞.");
-  const enabled = Object.entries(components).filter(([, value]) => value).map(([name]) => name);
-  if (!enabled.length) throw new Error("Select at least one dielectric component.");
+  const taucLorentzCount = components.taucLorentz ?? Number(Boolean(components.tl1)) + Number(Boolean(components.tl2));
+  if (!Number.isInteger(taucLorentzCount) || taucLorentzCount < 0 || taucLorentzCount > 5) throw new Error("Select from 0 to 5 Tauc–Lorentz oscillators.");
+  const enabled = ["gaussian", "cody", "drude"].filter((name) => components[name]);
+  if (!taucLorentzCount && !enabled.length) throw new Error("Select at least one dielectric component.");
   const epsilon1 = wavelengthNm.map(() => parameters.epsilonInf);
   const epsilon2 = wavelengthNm.map(() => 0);
   const values = (prefix) => Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(`${prefix}__`)).map(([name, value]) => [name.slice(prefix.length + 2), value]));
@@ -238,10 +249,13 @@ export function compositeDielectric(wavelengthNm, parameters, components = {}) {
     epsilon1[index] += value - Number(subtractBackground);
     epsilon2[index] += dielectric.epsilon2[index];
   });
+  for (let oscillator = 1; oscillator <= taucLorentzCount; oscillator += 1) {
+    const componentParameters = values(`tl${oscillator}`);
+    add(taucLorentzDielectric(wavelengthNm, 1, componentParameters.amplitudeEv, componentParameters.resonanceEv, componentParameters.broadeningEv, componentParameters.bandgapEv), true);
+  }
   for (const component of enabled) {
     const componentParameters = values(component);
-    if (component === "tl1" || component === "tl2") add(taucLorentzDielectric(wavelengthNm, 1, componentParameters.amplitudeEv, componentParameters.resonanceEv, componentParameters.broadeningEv, componentParameters.bandgapEv), true);
-    else if (component === "gaussian") add(gaussianOscillatorDielectric(wavelengthNm, componentParameters.amplitude, componentParameters.centerEnergyEv, componentParameters.fwhmEv));
+    if (component === "gaussian") add(gaussianOscillatorDielectric(wavelengthNm, componentParameters.amplitude, componentParameters.centerEnergyEv, componentParameters.fwhmEv));
     else if (component === "cody") add(codyLorentzDielectric(wavelengthNm, { ...componentParameters, epsilonInf: 1 }), true);
     else if (component === "drude") add(drudeDielectric(wavelengthNm, componentParameters.plasmaEnergyEv, componentParameters.gammaEv));
     else throw new Error(`Unsupported dielectric component: ${component}.`);

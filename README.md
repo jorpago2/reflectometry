@@ -18,7 +18,7 @@ Open `http://localhost:4173` for the validated single-layer workflow or `http://
 - Causal one/two-oscillator Tauc–Lorentz, Tauc–Lorentz + Gaussian, Cody–Lorentz, and Drude + Tauc–Lorentz models.
 - Coherent transfer-matrix solver for up to 12 layers, with incoherent rear-surface substrate returns and single-film equivalence checks.
 - Independent optical model, material preset, n,k table, thickness, bounds, and fit selection for every layer; layers can be added, removed, and reordered.
-- Independent additive dielectric components per layer: up to two Tauc–Lorentz oscillators plus Gaussian, Cody–Lorentz, and Drude terms sharing one ε∞ without double counting.
+- Independent additive dielectric components per layer: 0–5 Tauc–Lorentz oscillators plus Gaussian, Cody–Lorentz, and Drude terms sharing one ε∞ without double counting.
 - Generic multilayer JSON, spectra CSV, and layer-resolved n,k CSV exports.
 - Configurable SciPy-compatible scrambled Sobol screening (seed 1729, 64–4096 points) and 1–50 bounded robust trust-region reflective refinements in a Web Worker, with Jacobian scaling and logarithmic screening for broad positive parameters.
 - Dynamic causal-model seeding from any loaded 300–1100 nm ellipsometry table; bundled Python/SciPy seeds remain reproducible references.
