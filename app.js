@@ -418,7 +418,7 @@ function exportPayload() {
   if (!state.fitResult || !state.fitData) throw new Error("No results are available for export.");
   return {
     schema: "reflectometry-browser-fit/v1",
-    application: { name: "Reflectometry", version: "0.3.0", url: "https://jorpago2.github.io/reflectometry/" },
+    application: { name: "Reflectometry", version: "0.4.0", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {
@@ -438,7 +438,7 @@ function exportPayload() {
       }])),
     },
     diagnostics: state.fitResult.diagnostics,
-    optimizer: state.fitResult.preview ? null : { method: "Halton screening + bounded Nelder-Mead", screeningPoints: state.fitResult.screeningPoints, localRefinements: state.fitResult.localRefinements },
+    optimizer: state.fitResult.preview ? null : { method: "SciPy-compatible scrambled Sobol screening + bounded robust Gauss-Newton", seed: 1729, screeningPoints: state.fitResult.screeningPoints, localRefinements: state.fitResult.localRefinements },
     assumptions: ["normal incidence", "single coherent homogeneous isotropic film", "optically thick incoherent substrate"],
   };
 }

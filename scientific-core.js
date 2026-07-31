@@ -1,4 +1,5 @@
 import { refractiveIndexModel } from "./dielectric-models.js";
+import { scrambledSobolPoints } from "./sobol.js";
 
 const EPSILON = Number.EPSILON;
 const LOG_PARAMETERS = new Set(["amplitudeEv", "amplitude1Ev", "amplitude2Ev", "broadeningEv", "broadening1Ev", "broadening2Ev", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
@@ -287,7 +288,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     !(name === "rGain" && !settings.useReflectance) && !(name === "tGain" && !settings.useTransmittance)
   ));
   if (!fittedParameters.length) throw new Error("Select at least one parameter to fit.");
-  const names = fittedParameters.filter((name) => name !== "rGain" && name !== "tGain");
+  const names = fittedParameters;
   const lower = names.map((name) => bounds[name][0]);
   const upper = names.map((name) => bounds[name][1]);
   const toPhysical = (point) => Object.fromEntries(names.map((name, index) => [
@@ -300,34 +301,25 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     const variable = toPhysical(point);
     const parameters = { ...initial, ...variable };
     const evaluated = evaluateOpticalModel(data, nk, parameters, settings);
-    parameters.rGain = settings.useReflectance && fittedParameters.includes("rGain")
-      ? robustOptimalGain(evaluated.reflectance, data.reflectance, data.reflectanceValid, bounds.rGain, settings.sigmaReflectance)
-      : parameters.rGain;
-    parameters.tGain = settings.useTransmittance && fittedParameters.includes("tGain")
-      ? robustOptimalGain(evaluated.transmittance, data.transmittance, data.transmittanceValid, bounds.tGain, settings.sigmaTransmittance)
-      : parameters.tGain;
-    const scaled = evaluateOpticalModel(data, nk, parameters, settings);
-    return { cost: robustCost(data, scaled, settings), parameters, evaluated: scaled };
+    const residuals = residualVector(data, evaluated, settings);
+    return { cost: softL1Cost(residuals), residuals, parameters, evaluated };
   };
 
   const initialPoint = names.map((name, index) => LOG_PARAMETERS.has(name)
     ? (Math.log(initial[name]) - Math.log(lower[index])) / (Math.log(upper[index]) - Math.log(lower[index]))
     : (initial[name] - lower[index]) / (upper[index] - lower[index]));
-  // ponytail: Halton keeps this dependency-free; port the Python Sobol sequence if identical screening paths become necessary.
-  const screeningPoints = names.length <= 1 ? 192 : 384;
-  const candidates = [{ point: initialPoint, ...objective(initialPoint) }];
-  const primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
-  for (let index = 1; index < screeningPoints && names.length; index += 1) {
-    const point = names.map((_, dimension) => halton(index, primes[dimension]));
-    candidates.push({ point, ...objective(point) });
+  const screeningPoints = 512;
+  const sampledCandidates = scrambledSobolPoints(names.length, screeningPoints).map((point, index) => {
+    const candidate = { point, ...objective(point) };
     if (index % 48 === 0) progress(Math.round(index / screeningPoints * 45));
-  }
-  candidates.sort((a, b) => a.cost - b.cost);
-  let best = candidates[0];
-  const refinementCount = Math.min(6, candidates.length);
+    return candidate;
+  });
+  const starts = selectDiverseStarts(initialPoint, sampledCandidates, 16);
+  let best = { point: initialPoint, ...objective(initialPoint) };
+  const refinementCount = starts.length;
   const refinedCandidates = [];
   for (let index = 0; index < refinementCount; index += 1) {
-    const refinedPoint = nelderMead(candidates[index].point, (point) => objective(point).cost);
+    const refinedPoint = boundedRobustLeastSquares(starts[index], (point) => objective(point).residuals);
     const refined = { point: refinedPoint, ...objective(refinedPoint) };
     refinedCandidates.push(refined);
     if (refined.cost < best.cost) best = refined;
@@ -346,39 +338,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
 
 export const fitTabulated = fitOpticalModel;
 
-function robustOptimalGain(modeled, measured, valid, [minimum, maximum], sigma) {
-  const derivative = (gain) => modeled.reduce((sum, value, index) => {
-    if (!valid[index]) return sum;
-    const residual = (gain * value - measured[index]) / sigma;
-    return sum + residual * value / sigma / Math.sqrt(1 + residual ** 2);
-  }, 0);
-  if (derivative(minimum) >= 0) return minimum;
-  if (derivative(maximum) <= 0) return maximum;
-  let lower = minimum;
-  let upper = maximum;
-  for (let iteration = 0; iteration < 60; iteration += 1) {
-    const middle = (lower + upper) / 2;
-    if (derivative(middle) < 0) lower = middle;
-    else upper = middle;
-  }
-  return (lower + upper) / 2;
-}
-
-function robustCost(data, evaluation, settings) {
-  const residuals = [];
-  if (settings.useReflectance) {
-    data.reflectance.forEach((value, index) => {
-      if (data.reflectanceValid[index]) residuals.push((evaluation.reflectanceScaled[index] - value) / settings.sigmaReflectance);
-    });
-  }
-  if (settings.useTransmittance) {
-    data.transmittance.forEach((value, index) => {
-      if (data.transmittanceValid[index]) residuals.push((evaluation.transmittanceScaled[index] - value) / settings.sigmaTransmittance);
-    });
-  }
-  if (!residuals.length) throw new Error("Select reflectance, transmittance, or both.");
-  return residuals.reduce((sum, value) => sum + 2 * (Math.sqrt(1 + value ** 2) - 1), 0);
-}
+function softL1Cost(residuals) { return residuals.reduce((sum, value) => sum + Math.sqrt(1 + value ** 2) - 1, 0); }
 
 export function diagnosticsOf(data, evaluation, settings, fit = null) {
   const rmse = (modeled, measured, valid) => {
@@ -518,47 +478,86 @@ function invertMatrix(matrix) {
   return rows.map((row) => row.slice(size));
 }
 
-function halton(index, base) {
-  let fraction = 1;
-  let result = 0;
-  let value = index;
-  while (value > 0) {
-    fraction /= base;
-    result += fraction * (value % base);
-    value = Math.floor(value / base);
+function selectDiverseStarts(initialPoint, candidates, count) {
+  const ranked = [...candidates].sort((a, b) => a.cost - b.cost);
+  const selected = [initialPoint];
+  const used = new Set();
+  for (const candidate of ranked) {
+    if (selected.every((point) => distance(candidate.point, point) / Math.sqrt(initialPoint.length) >= 0.05)) {
+      selected.push(candidate.point); used.add(candidate);
+    }
+    if (selected.length === count) return selected;
   }
-  return result;
+  for (const candidate of ranked) {
+    if (!used.has(candidate)) selected.push(candidate.point);
+    if (selected.length === count) break;
+  }
+  return selected;
 }
 
-function nelderMead(start, objective) {
-  const dimension = start.length;
+function boundedRobustLeastSquares(start, residualFunction) {
   const clamp = (point) => point.map((value) => Math.max(0, Math.min(1, value)));
-  let simplex = [start, ...start.map((_, index) => clamp(start.map((value, axis) => value + (axis === index ? 0.06 : 0))))]
-    .map((point) => ({ point, value: objective(point) }));
-  for (let iteration = 0; iteration < 140; iteration += 1) {
-    simplex.sort((a, b) => a.value - b.value);
-    if (Math.max(...simplex.slice(1).map((entry) => distance(entry.point, simplex[0].point))) < 1e-6) break;
-    const centroid = Array.from({ length: dimension }, (_, axis) => simplex.slice(0, dimension).reduce((sum, entry) => sum + entry.point[axis], 0) / dimension);
-    const reflected = clamp(centroid.map((value, axis) => value + (value - simplex[dimension].point[axis])));
-    const reflectedValue = objective(reflected);
-    if (reflectedValue < simplex[0].value) {
-      const expanded = clamp(centroid.map((value, axis) => value + 2 * (reflected[axis] - value)));
-      const expandedValue = objective(expanded);
-      simplex[dimension] = expandedValue < reflectedValue ? { point: expanded, value: expandedValue } : { point: reflected, value: reflectedValue };
-    } else if (reflectedValue < simplex[dimension - 1].value) {
-      simplex[dimension] = { point: reflected, value: reflectedValue };
+  let point = clamp(start);
+  let residuals = residualFunction(point);
+  let cost = softL1Cost(residuals);
+  let damping = 1e-3;
+  for (let iteration = 0; iteration < 120; iteration += 1) {
+    const jacobian = residuals.map(() => []);
+    for (let axis = 0; axis < point.length; axis += 1) {
+      const below = Math.max(0, point[axis] - 1e-5);
+      const above = Math.min(1, point[axis] + 1e-5);
+      const low = residualFunction(point.map((value, index) => index === axis ? below : value));
+      const high = residualFunction(point.map((value, index) => index === axis ? above : value));
+      residuals.forEach((_, row) => jacobian[row].push((high[row] - low[row]) / (above - below)));
+    }
+    const dimension = point.length;
+    const gradient = Array(dimension).fill(0);
+    const hessian = Array.from({ length: dimension }, () => Array(dimension).fill(0));
+    residuals.forEach((residual, row) => {
+      const gradientWeight = (1 + residual ** 2) ** -0.5;
+      const hessianWeight = (1 + residual ** 2) ** -1.5;
+      for (let i = 0; i < dimension; i += 1) {
+        gradient[i] += jacobian[row][i] * residual * gradientWeight;
+        for (let j = 0; j <= i; j += 1) hessian[i][j] += jacobian[row][i] * jacobian[row][j] * hessianWeight;
+      }
+    });
+    for (let i = 0; i < dimension; i += 1) for (let j = 0; j < i; j += 1) hessian[j][i] = hessian[i][j];
+    if (Math.max(...gradient.map(Math.abs)) < 1e-8) break;
+    for (let axis = 0; axis < dimension; axis += 1) hessian[axis][axis] += damping * Math.max(hessian[axis][axis], 1);
+    const step = solveLinearSystem(hessian, gradient.map((value) => -value));
+    if (!step) break;
+    const candidate = clamp(point.map((value, axis) => value + step[axis]));
+    if (distance(candidate, point) < 1e-9) break;
+    const candidateResiduals = residualFunction(candidate);
+    const candidateCost = softL1Cost(candidateResiduals);
+    if (candidateCost < cost) {
+      point = candidate; residuals = candidateResiduals; cost = candidateCost; damping = Math.max(1e-12, damping / 3);
     } else {
-      const contracted = clamp(centroid.map((value, axis) => value + 0.5 * (simplex[dimension].point[axis] - value)));
-      const contractedValue = objective(contracted);
-      if (contractedValue < simplex[dimension].value) simplex[dimension] = { point: contracted, value: contractedValue };
-      else simplex = [simplex[0], ...simplex.slice(1).map((entry) => {
-        const point = clamp(entry.point.map((value, axis) => simplex[0].point[axis] + 0.5 * (value - simplex[0].point[axis])));
-        return { point, value: objective(point) };
-      })];
+      damping *= 10;
+      if (damping > 1e12) break;
     }
   }
-  simplex.sort((a, b) => a.value - b.value);
-  return simplex[0].point;
+  return point;
+}
+
+function solveLinearSystem(matrix, vector) {
+  const size = vector.length;
+  const rows = matrix.map((row, index) => [...row, vector[index]]);
+  for (let column = 0; column < size; column += 1) {
+    let pivot = column;
+    for (let row = column + 1; row < size; row += 1) if (Math.abs(rows[row][column]) > Math.abs(rows[pivot][column])) pivot = row;
+    if (Math.abs(rows[pivot][column]) <= Number.EPSILON) return null;
+    [rows[column], rows[pivot]] = [rows[pivot], rows[column]];
+    for (let row = column + 1; row < size; row += 1) {
+      const factor = rows[row][column] / rows[column][column];
+      for (let index = column; index <= size; index += 1) rows[row][index] -= factor * rows[column][index];
+    }
+  }
+  const solution = Array(size).fill(0);
+  for (let row = size - 1; row >= 0; row -= 1) {
+    solution[row] = (rows[row][size] - rows[row].slice(row + 1, size).reduce((sum, value, index) => sum + value * solution[row + 1 + index], 0)) / rows[row][row];
+  }
+  return solution;
 }
 
 function distance(a, b) {
