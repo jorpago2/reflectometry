@@ -1,20 +1,35 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   affineShapeResidual,
   calibrateSharedGains,
   createSpectrum,
+  createSyntheticSpectrum,
   evaluateOpticalModel,
   filmOnThickSubstrate,
   filmStackOnThickSubstrate,
   fitResidualVector,
   fitTabulated,
-  loadNkTable,
   prepareFitData,
-  restrictToNkRange,
   robustBackground,
 } from "../scientific-core.js";
+
+test("loads generic reference spectra with nm or µm wavelength tables", () => {
+  const signal = "400 10\n500 20";
+  const common = { sampleName: "Synthetic", sampleR: signal, sampleT: signal, reflectanceReference: signal, transmittanceReference: signal };
+  const micrometers = createSpectrum({ ...common, referenceReflectance: "0.4 0.25\n0.5 0.36" });
+  const nanometers = createSpectrum({ ...common, referenceReflectance: "400 0.25\n500 0.36" });
+  assert.deepEqual(micrometers.referenceReflectance, [0.25, 0.36]);
+  assert.deepEqual(nanometers.referenceReflectance, micrometers.referenceReflectance);
+});
+
+test("generates a reproducible neutral stack example", () => {
+  const data = prepareFitData(createSyntheticSpectrum(), { wavelengthMinNm: 300, wavelengthMaxNm: 1100, referenceThresholdFraction: 0.05, binWidthNm: 2, sampleSnrMinimum: 5, subtractBackground: true });
+  const modeled = filmStackOnThickSubstrate(data.wavelengthNm, [{ thicknessNm: 150, n: data.wavelengthNm.map(() => 2), k: data.wavelengthNm.map(() => 0.05) }], 1.46, "film");
+  const rmse = (actual, expected) => Math.sqrt(actual.reduce((sum, value, index) => sum + (value - expected[index]) ** 2, 0) / actual.length);
+  assert.ok(rmse(data.reflectance, modeled.reflectance) < 1e-3);
+  assert.ok(rmse(data.transmittance, modeled.transmittance) < 1e-3);
+});
 
 test("multilayer TMM reproduces the single-film solver and conserves lossless power", () => {
   const wavelengthNm = [400, 550, 800, 1050];
@@ -203,9 +218,9 @@ test("matches Python background, calibration order and TMM references", () => {
     wavelengthNm,
     sampleReflectanceCounts: [...dark, ...tiled([1, 10, 100])],
     sampleTransmittanceCounts: [...dark, ...tiled([1, 20, 100])],
-    siliconCounts: [...dark, ...tiled([1, 2, 100])],
-    openBeamCounts: [...dark, ...tiled([1, 4, 100])],
-    siliconReflectance: wavelengthNm.map(() => 0.4),
+    reflectanceReferenceCounts: [...dark, ...tiled([1, 2, 100])],
+    transmittanceReferenceCounts: [...dark, ...tiled([1, 4, 100])],
+    referenceReflectance: wavelengthNm.map(() => 0.4),
   }, {
     wavelengthMinNm: 500,
     wavelengthMaxNm: 520,
@@ -272,44 +287,6 @@ test("recovers synthetic thickness and n,k scales", () => {
   assert.ok(Math.abs(result.parameters.thicknessNm - 237) < 1e-3);
   assert.ok(Math.abs(result.parameters.nScale - 1.05) < 1e-5);
   assert.ok(Math.abs(result.parameters.kScale - 1.2) < 1e-5);
-});
-
-test("reproduces Python/SciPy fixed-table fits for every bundled material", () => {
-  const read = (name) => readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
-  const references = {
-    agst: { files: ["agst-ref.txt", "agst-tr.txt", "aGST.txt"], nominal: 250, useT: true, thickness: 234.21543802, rGain: 1.3981671261, tGain: 0.6977925667, bins: [289, 79] },
-    asb2sb3: { files: ["asb2sb3-ref.txt", "asb2sb3-tr.txt", "aSb2Se3.txt"], nominal: 200, useT: true, thickness: 215.53910555, rGain: 1.3549330249, tGain: 1.0707410972, bins: [289, 267] },
-    cgst: { files: ["cgst-ref.txt", "cgst-tr.txt", "cGST.txt"], nominal: 250, useT: false, thickness: 125, rGain: 1.4623690113, tGain: 1, bins: [289, 0] },
-    csb2sb3: { files: ["csb2sb3-ref.txt", "csb2sb3-tr.txt", "cSb2Se3.txt"], nominal: 200, useT: true, thickness: 181.56175835, rGain: 1.0070495334, tGain: 0.8921679150, bins: [289, 182] },
-    vo2: { files: ["vo2-ref.txt", "vo2-tr.txt", "VO2_22C.txt"], nominal: 150, useT: true, thickness: 115.94348973, rGain: 0.8790394080, tGain: 1.2718703539, bins: [289, 282] },
-  };
-  const sharedRecords = [];
-  for (const [sample, reference] of Object.entries(references)) {
-    const [sampleR, sampleT, nkFile] = reference.files;
-    const spectrum = createSpectrum({ sampleName: sample, sampleR: read(sampleR), sampleT: read(sampleT), silicon: read("si-ref.txt"), openBeam: read("referencitrx.txt"), siliconModel: read("si_reflectance.txt") });
-    const nk = loadNkTable(read(nkFile));
-    const data = restrictToNkRange(prepareFitData(spectrum, { wavelengthMinNm: 300, wavelengthMaxNm: 1100, referenceThresholdFraction: 0.05, binWidthNm: 2, sampleSnrMinimum: 5, subtractBackground: true }), nk);
-    sharedRecords.push({ sampleId: sample, nominalThicknessNm: reference.nominal, data, nk });
-    const result = fitTabulated(data, nk, {
-      settings: { model: "fixed", substrateIndex: 1.46, incidence: "film", useReflectance: true, useTransmittance: reference.useT, sigmaReflectance: 0.02, sigmaTransmittance: 0.02 },
-      initial: { thicknessNm: reference.nominal, nScale: 1, kScale: 1, rGain: 1, tGain: 1 },
-      bounds: { thicknessNm: [0.5 * reference.nominal, 1.5 * reference.nominal], nScale: [0.85, 1.15], kScale: [0.5, 2], rGain: [0.1, 10], tGain: [0.1, 10] },
-      fittedParameters: ["thicknessNm", "rGain", "tGain"],
-    });
-    assert.equal(result.diagnostics.reflectanceBins, reference.bins[0], sample);
-    assert.equal(result.diagnostics.transmittanceBins, reference.bins[1], sample);
-    assert.ok(Math.abs(result.parameters.thicknessNm - reference.thickness) < 2e-3, sample);
-    assert.ok(Math.abs(result.parameters.rGain - reference.rGain) < 2e-5, sample);
-    assert.ok(Math.abs(result.parameters.tGain - reference.tGain) < 2e-5, sample);
-    assert.ok(result.diagnostics.maximumPowerBalance <= 1 + 1e-10, sample);
-    assert.ok(result.diagnostics.normalizedJacobianCondition >= 1, sample);
-    assert.ok(Object.values(result.diagnostics.parameterStandardErrorsApproximate).every(Number.isFinite), sample);
-    if (!reference.useT) assert.ok(!("tGain" in result.diagnostics.parameterStandardErrorsApproximate));
-  }
-  const shared = calibrateSharedGains(sharedRecords, { substrateIndex: 1.46, incidence: "film", sigmaReflectance: 0.02, sigmaTransmittance: 0.02 });
-  assert.ok(Math.abs(shared.gains.rGain - 1.34441394) < 2e-3);
-  assert.ok(Math.abs(shared.gains.tGain - 1.11359892) < 5e-4);
-  assert.ok(Math.abs(shared.fittedThicknessNm.cgst - 125) < 1e-6);
 });
 
 function assertArrayClose(actual, expected, tolerance = 1e-12) {

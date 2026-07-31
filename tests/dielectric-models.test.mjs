@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   brendelBormannDielectric,
@@ -23,7 +22,7 @@ import {
   taucGaussianDielectric,
   taucLorentzDielectric,
 } from "../dielectric-models.js";
-import { createSpectrum, filmOnThickSubstrate, fitEllipsometrySeed, fitOpticalModel, loadNkTable, prepareFitData } from "../scientific-core.js";
+import { filmOnThickSubstrate, fitEllipsometrySeed, fitOpticalModel } from "../scientific-core.js";
 
 const wavelengthNm = [300, 400, 700, 1064];
 
@@ -82,24 +81,22 @@ test("combines dielectric components independently without duplicating epsilon i
   assertArrayClose(combined.epsilon2, legacy.epsilon2.map((value, index) => value + gaussian.epsilon2[index]));
 });
 
-test("uses the Python-derived ellipsometry seeds for bundled samples", () => {
-  const tl = modelParameterSpecs("tl1", "agst");
-  assert.ok(Math.abs(tl.epsilonInf.value - 1.1859581695838666) < 1e-9);
-  assert.ok(Math.abs(tl.amplitudeEv.value - 156.97968523911194) < 1e-9);
-  const cody = modelParameterSpecs("cody", "asb2sb3");
-  assert.ok(Math.abs(cody.bandgapEv.value - 1.2565694074958578) < 1e-9);
-  const custom = modelParameterSpecs("tl1", "custom", { n: 3, k: 0.1 }, 333);
+test("creates material-agnostic parameter specifications", () => {
+  const tl = modelParameterSpecs("tl1");
+  assert.equal(tl.epsilonInf.value, 4);
+  assert.equal(tl.amplitudeEv.value, 80);
+  const custom = modelParameterSpecs("tl1", { n: 3, k: 0.1 }, 333);
   assert.equal(custom.thicknessNm.value, 333);
   assert.equal(custom.thicknessNm.minimum, 166.5);
-  const composite = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 1, gaussian: true, drude: false });
+  const composite = modelParameterSpecs("composite", { n: 3, k: 0.1 }, 250, { taucLorentz: 1, gaussian: true, drude: false });
   assert.ok(composite["tl1__amplitudeEv"] && composite["gaussian__amplitude"]);
   assert.equal(composite["drude__plasmaEnergyEv"], undefined);
-  const fiveOscillators = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 5 });
+  const fiveOscillators = modelParameterSpecs("composite", { n: 3, k: 0.1 }, 250, { taucLorentz: 5 });
   assert.ok(fiveOscillators["tl5__amplitudeEv"]);
   const fiveParameters = Object.fromEntries(Object.entries(fiveOscillators).filter(([name]) => name !== "thicknessNm").map(([name, specification]) => [name, specification.value]));
   const dielectric = compositeDielectric(wavelengthNm, fiveParameters, { taucLorentz: 5 });
   assert.ok(dielectric.epsilon1.every(Number.isFinite) && dielectric.epsilon2.every(Number.isFinite));
-  assert.throws(() => modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 6 }), /0 to 5/);
+  assert.throws(() => modelParameterSpecs("composite", { n: 3, k: 0.1 }, 250, { taucLorentz: 6 }), /0 to 5/);
 });
 
 test("evaluates every generic optical model with passive finite results", () => {
@@ -135,22 +132,22 @@ test("evaluates every generic optical model with passive finite results", () => 
     assertArrayClose(inclusion.n, wavelengthNm.map(() => 2.5));
     assertArrayClose(inclusion.k, wavelengthNm.map(() => 0.2));
   }
-  const realHost = loadNkTable(readFileSync(new URL("../examples/aGST.txt", import.meta.url), "utf8"));
-  const realInclusion = loadNkTable(readFileSync(new URL("../examples/cGST.txt", import.meta.url), "utf8"));
-  const absorbingMixture = effectiveMediumRefractiveIndex(wavelengthNm, { volumeFraction: 0.5 }, { method: "bruggeman", hostNk: realHost, inclusionNk: realInclusion });
+  const absorbingMixture = effectiveMediumRefractiveIndex(wavelengthNm, { volumeFraction: 0.5 }, { method: "bruggeman", hostNk, inclusionNk });
   assert.ok(absorbingMixture.k.every((value) => Number.isFinite(value) && value >= 0));
 
-  const lorentzSpecs = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 0, lorentz: 5 });
+  const lorentzSpecs = modelParameterSpecs("composite", { n: 3, k: 0.1 }, 250, { taucLorentz: 0, lorentz: 5 });
   assert.ok(lorentzSpecs["lorentz5__strength"]);
-  assert.throws(() => modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { lorentz: 6 }), /0 to 5 Lorentz/);
+  assert.throws(() => modelParameterSpecs("composite", { n: 3, k: 0.1 }, 250, { lorentz: 6 }), /0 to 5 Lorentz/);
 });
 
 test("fits a dynamic ellipsometry seed from the loaded n,k table", () => {
-  const text = readFileSync(new URL("../examples/aGST.txt", import.meta.url), "utf8");
-  const result = fitEllipsometrySeed(loadNkTable(text), "tl1", modelParameterSpecs("tl1", "agst"));
-  assert.ok(Math.abs(result.parameters.epsilonInf - 1.1859581695838666) < 1e-7);
-  assert.ok(Math.abs(result.parameters.amplitudeEv - 156.97968523911194) < 1e-5);
-  assert.ok(result.diagnostics.rmseDeltaN < 0.011);
+  const grid = Array.from({ length: 81 }, (_, index) => 300 + 10 * index);
+  const truth = { epsilonInf: 4, amplitudeEv: 80, resonanceEv: 3, broadeningEv: 1, bandgapEv: 1 };
+  const nk = refractiveIndexModel("tl1", grid, truth, null);
+  const result = fitEllipsometrySeed({ wavelengthNm: grid, ...nk }, "tl1", modelParameterSpecs("tl1"));
+  assert.ok(Math.abs(result.parameters.epsilonInf - truth.epsilonInf) < 1e-8);
+  assert.ok(Math.abs(result.parameters.amplitudeEv - truth.amplitudeEv) < 1e-8);
+  assert.ok(result.diagnostics.rmseDeltaN < 1e-8);
   assert.ok(result.diagnostics.solver.success);
 });
 
@@ -173,33 +170,6 @@ test("recovers synthetic Tauc–Lorentz thickness and amplitude", () => {
   assert.equal(result.optimizer.screeningPoints, 64);
   assert.equal(result.optimizer.localRefinementsRequested, 1);
   assert.equal(result.optimizer.failedStarts.length, 0);
-});
-
-test("matches SciPy TRF for a regularized real aGST fit", () => {
-  const read = (name) => readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
-  const data = prepareFitData(createSpectrum({
-    sampleName: "agst", sampleR: read("agst-ref.txt"), sampleT: read("agst-tr.txt"),
-    silicon: read("si-ref.txt"), openBeam: read("referencitrx.txt"), siliconModel: read("si_reflectance.txt"),
-  }), { wavelengthMinNm: 300, wavelengthMaxNm: 1100, referenceThresholdFraction: 0.05, binWidthNm: 2, sampleSnrMinimum: 5, subtractBackground: true });
-  const nk = loadNkTable(read("aGST.txt"));
-  const specs = modelParameterSpecs("tl1", "agst");
-  const initial = Object.fromEntries(Object.entries(specs).map(([name, specification]) => [name, specification.value]));
-  const bounds = Object.fromEntries(Object.entries(specs).map(([name, specification]) => [name, [specification.minimum, specification.maximum]]));
-  const result = fitOpticalModel(data, nk, {
-    settings: {
-      model: "tl1", substrateIndex: 1.46, incidence: "film", useReflectance: true, useTransmittance: true,
-      sigmaReflectance: 0.02, sigmaTransmittance: 0.02, preferSpectralShape: true,
-      regularizeEllipsometry: true, sigmaN: 0.5, sigmaK: 0.25,
-    },
-    initial,
-    bounds,
-    fittedParameters: ["thicknessNm", "amplitudeEv", "rGain", "tGain"],
-  });
-  assert.ok(Math.abs(result.cost - 179.6607108388253) < 1e-5);
-  assert.ok(Math.abs(result.parameters.thicknessNm - 234.04307727) < 2e-3);
-  assert.ok(Math.abs(result.parameters.amplitudeEv - 158.23209488) < 1e-3);
-  assert.ok(Math.abs(result.parameters.rGain - 1.39417205) < 2e-5);
-  assert.ok(Math.abs(result.parameters.tGain - 0.710485) < 2e-5);
 });
 
 function assertArrayClose(actual, expected, tolerance = 1e-12) {

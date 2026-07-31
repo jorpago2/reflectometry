@@ -1,6 +1,6 @@
 # Reflectometry
 
-Static browser tool for calibrated reflectance/transmittance fitting of coherent single-film and multilayer stacks on an optically thick substrate.
+Material-agnostic static browser tool for calibrated reflectance/transmittance fitting of coherent multilayer stacks on an optically thick substrate.
 
 ## Run locally
 
@@ -8,27 +8,21 @@ Static browser tool for calibrated reflectance/transmittance fitting of coherent
 npm run dev
 ```
 
-Open `http://localhost:4173` for the validated single-layer workflow or `http://localhost:4173/multilayer.html` for the generic layer-stack editor. Run the numerical checks with `npm test`.
+Open `http://localhost:4173`; it redirects to the only application, the generic multilayer editor. Run the numerical checks with `npm test`.
 
 ## Current scope
 
-- Local TXT parsing and SHA-256 provenance.
-- Background/SNR filtering and non-overlapping median binning of raw counts before R/T normalization.
-- Fixed, independently scaled, or constant n,k models.
-- Causal one/two-oscillator Tauc–Lorentz, Tauc–Lorentz + Gaussian, Cody–Lorentz, and Drude + Tauc–Lorentz models.
-- Coherent transfer-matrix solver for up to 12 layers, with incoherent rear-surface substrate returns and single-film equivalence checks.
-- Independent optical model, material preset, n,k table, thickness, bounds, and fit selection for every layer; layers can be added, removed, and reordered.
-- Independent additive dielectric components per layer: 0–5 Tauc–Lorentz and 0–5 Lorentz oscillators plus Gaussian, Cody–Lorentz, Drude, Drude–Smith, Brendel–Bormann, and critical-point terms sharing one ε∞ without double counting.
-- Cauchy–Urbach, three-pole Sellmeier, Forouhi–Bloomer, five-knot Kramers–Kronig B-spline, and Bruggeman or Maxwell–Garnett effective-medium models.
-- Generic multilayer JSON, spectra CSV, and layer-resolved n,k CSV exports.
-- Configurable SciPy-compatible scrambled Sobol screening (seed 1729, 64–4096 points) and 1–50 bounded robust trust-region reflective refinements in a Web Worker, with Jacobian scaling and logarithmic screening for broad positive parameters.
-- Dynamic causal-model seeding from any loaded 300–1100 nm ellipsometry table; bundled Python/SciPy seeds remain reproducible references.
-- Optional affine spectral-shape residuals and n,k regularization toward local ellipsometry, matching the Python objective definition.
-- Measured/model n,k overlays and wavelength-resolved R/T residual plots.
-- Joint R/T gain calibration across bundled samples or multiple local samples stored in the current browser session, with one independent film thickness per material.
-- Local identifiability, per-parameter approximate uncertainty, bound, gain, energy-balance, wavelength-band, convergence, and ranked distinct-minimum diagnostics.
-- Keyboard/pointer wavelength zoom and pan, reset controls, and PNG export for every chart.
-- Reproducible JSON, full spectra CSV, and dedicated optical-constants CSV export.
-- Integrated scientific FAQ covering assumptions, priors, non-uniqueness, and reproducibility.
+- Local TXT parsing, background/SNR filtering, and non-overlapping median binning before R/T normalization.
+- Generic reflectance and transmittance reference signals plus a tabulated reference-reflectance spectrum.
+- Up to 12 coherent homogeneous isotropic layers with independent model, n,k table, thickness, bounds, and fit selection.
+- Fixed, independently scaled, constant, Cauchy–Urbach, Sellmeier, Forouhi–Bloomer, and five-knot Kramers–Kronig B-spline models.
+- Independent additive dielectric components: 0–5 Tauc–Lorentz and 0–5 Lorentz oscillators plus Gaussian, Cody–Lorentz, Drude, Drude–Smith, Brendel–Bormann, and critical-point terms.
+- Bruggeman and Maxwell–Garnett effective-medium models using two user-supplied n,k tables.
+- Coherent transfer-matrix solver with incoherent rear-surface substrate returns and either-side illumination.
+- Optional affine spectral-shape residuals and n,k regularization.
+- Scrambled Sobol screening followed by bounded robust trust-region reflective refinement in a Web Worker.
+- Local identifiability, approximate uncertainty, bound, convergence, alternative-minimum, and energy-balance diagnostics.
+- Reproducible JSON, spectra CSV, and layer-resolved n,k CSV exports.
+- A deterministic browser-generated synthetic stack for immediate testing; no material-specific presets or bundled measurement datasets.
 
-Every dielectric model and every bundled fixed-table dataset are checked against fixed values produced by the Python/SciPy reference implementation. The browser fit remains a diagnostic estimator: finite-difference uncertainties are local approximations and do not replace experimental uncertainty propagation.
+The inverse fit is a diagnostic estimator. Approximate local uncertainties do not replace experimental uncertainty propagation, and model parameters may remain non-identifiable from R/T data alone.

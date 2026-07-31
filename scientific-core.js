@@ -34,29 +34,46 @@ export function loadNkTable(text) {
   };
 }
 
-export function createSpectrum({ sampleName, sampleR, sampleT, silicon, openBeam, siliconModel }) {
+export function createSpectrum({ sampleName, sampleR, sampleT, reflectanceReference, transmittanceReference, referenceReflectance }) {
   const r = parseNumericTable(sampleR).map((row) => row.slice(0, 2));
   const t = parseNumericTable(sampleT).map((row) => row.slice(0, 2));
-  const si = parseNumericTable(silicon).map((row) => row.slice(0, 2));
-  const open = parseNumericTable(openBeam).map((row) => row.slice(0, 2));
-  if (![t, si, open].every((table) => sameGrid(r, table))) {
+  const rReference = parseNumericTable(reflectanceReference).map((row) => row.slice(0, 2));
+  const tReference = parseNumericTable(transmittanceReference).map((row) => row.slice(0, 2));
+  if (![t, rReference, tReference].every((table) => sameGrid(r, table))) {
     throw new Error("The sample and reference spectra do not share the same wavelength grid.");
   }
-  const model = parseNumericTable(siliconModel).map((row) => row.slice(0, 2)).sort((a, b) => a[0] - b[0]);
+  const model = parseNumericTable(referenceReflectance).map((row) => row.slice(0, 2)).sort((a, b) => a[0] - b[0]);
+  const referenceWavelengthFactor = median(model.map((row) => row[0])) < 10 ? 1000 : 1;
   const wavelengthNm = r.map((row) => row[0]);
   return {
     sampleName,
     wavelengthNm,
     sampleReflectanceCounts: r.map((row) => row[1]),
     sampleTransmittanceCounts: t.map((row) => row[1]),
-    siliconCounts: si.map((row) => row[1]),
-    openBeamCounts: open.map((row) => row[1]),
-    siliconReflectance: interpolate(
-      model.map((row) => row[0]),
+    reflectanceReferenceCounts: rReference.map((row) => row[1]),
+    transmittanceReferenceCounts: tReference.map((row) => row[1]),
+    referenceReflectance: interpolate(
+      model.map((row) => row[0] * referenceWavelengthFactor),
       model.map((row) => row[1]),
-      wavelengthNm.map((value) => value / 1000),
+      wavelengthNm,
       Number.NaN,
     ),
+  };
+}
+
+export function createSyntheticSpectrum() {
+  const wavelengthNm = Array.from({ length: 906 }, (_, index) => 195 + index);
+  const optical = filmStackOnThickSubstrate(wavelengthNm, [{ thicknessNm: 150, n: wavelengthNm.map(() => 2), k: wavelengthNm.map(() => 0.05) }], 1.46, "film");
+  const gate = wavelengthNm.map((wavelength) => Math.max(0, Math.min(1, (wavelength - 250) / 50)));
+  const background = (index, phase) => 100 + (((17 * index + phase) % 11) - 5) * 0.4;
+  return {
+    sampleName: "Synthetic stack",
+    wavelengthNm,
+    sampleReflectanceCounts: wavelengthNm.map((_, index) => background(index, 1) + gate[index] * 8000 * optical.reflectance[index] / 0.3),
+    sampleTransmittanceCounts: wavelengthNm.map((_, index) => background(index, 3) + gate[index] * 10000 * optical.transmittance[index]),
+    reflectanceReferenceCounts: wavelengthNm.map((_, index) => background(index, 5) + gate[index] * 8000),
+    transmittanceReferenceCounts: wavelengthNm.map((_, index) => background(index, 7) + gate[index] * 10000),
+    referenceReflectance: wavelengthNm.map(() => 0.3),
   };
 }
 
@@ -107,8 +124,8 @@ export function prepareFitData(spectrum, options) {
   const channels = {
     sampleR: spectrum.sampleReflectanceCounts,
     sampleT: spectrum.sampleTransmittanceCounts,
-    silicon: spectrum.siliconCounts,
-    openBeam: spectrum.openBeamCounts,
+    reflectanceReference: spectrum.reflectanceReferenceCounts,
+    transmittanceReference: spectrum.transmittanceReferenceCounts,
   };
   const background = Object.fromEntries(
     Object.entries(channels).map(([name, counts]) => [name, robustBackground(spectrum.wavelengthNm, counts)]),
@@ -120,25 +137,25 @@ export function prepareFitData(spectrum, options) {
     ]),
   );
   const finiteMax = (values) => Math.max(...values.filter(Number.isFinite));
-  const siliconThreshold = referenceThresholdFraction * finiteMax(corrected.silicon);
-  const openThreshold = referenceThresholdFraction * finiteMax(corrected.openBeam);
+  const reflectanceReferenceThreshold = referenceThresholdFraction * finiteMax(corrected.reflectanceReference);
+  const transmittanceReferenceThreshold = referenceThresholdFraction * finiteMax(corrected.transmittanceReference);
   const reflectanceMask = spectrum.wavelengthNm.map((wavelength, index) => (
     wavelength >= wavelengthMinNm
     && wavelength <= wavelengthMaxNm
-    && Number.isFinite(spectrum.siliconReflectance[index])
+    && Number.isFinite(spectrum.referenceReflectance[index])
     && Number.isFinite(corrected.sampleR[index])
-    && Number.isFinite(corrected.silicon[index])
+    && Number.isFinite(corrected.reflectanceReference[index])
     && corrected.sampleR[index] >= 0
-    && corrected.silicon[index] > siliconThreshold
+    && corrected.reflectanceReference[index] > reflectanceReferenceThreshold
     && corrected.sampleR[index] - (subtractBackground ? 0 : background.sampleR.level) >= sampleSnrMinimum * background.sampleR.sigma
   ));
   const transmittanceMask = spectrum.wavelengthNm.map((wavelength, index) => (
     wavelength >= wavelengthMinNm
     && wavelength <= wavelengthMaxNm
     && Number.isFinite(corrected.sampleT[index])
-    && Number.isFinite(corrected.openBeam[index])
+    && Number.isFinite(corrected.transmittanceReference[index])
     && corrected.sampleT[index] >= 0
-    && corrected.openBeam[index] > openThreshold
+    && corrected.transmittanceReference[index] > transmittanceReferenceThreshold
     && corrected.sampleT[index] - (subtractBackground ? 0 : background.sampleT.level) >= sampleSnrMinimum * background.sampleT.sigma
   ));
   const validIndices = spectrum.wavelengthNm.map((_, index) => index).filter((index) => reflectanceMask[index] || transmittanceMask[index]);
@@ -161,12 +178,12 @@ export function prepareFitData(spectrum, options) {
     wavelengthNm.push(median(indices.map((index) => spectrum.wavelengthNm[index])));
     reflectance.push(rIndices.length
       ? median(rIndices.map((index) => corrected.sampleR[index]))
-        / median(rIndices.map((index) => corrected.silicon[index]))
-        * median(rIndices.map((index) => spectrum.siliconReflectance[index]))
+        / median(rIndices.map((index) => corrected.reflectanceReference[index]))
+        * median(rIndices.map((index) => spectrum.referenceReflectance[index]))
       : Number.NaN);
     transmittance.push(tIndices.length
       ? median(tIndices.map((index) => corrected.sampleT[index]))
-        / median(tIndices.map((index) => corrected.openBeam[index]))
+        / median(tIndices.map((index) => corrected.transmittanceReference[index]))
       : Number.NaN);
     reflectanceValid.push(Boolean(rIndices.length));
     transmittanceValid.push(Boolean(tIndices.length));
@@ -686,14 +703,12 @@ export function fitResidualVector(data, nk, parameters, evaluation, settings) {
   }
   if (settings.layers?.length) {
     for (const layer of settings.layers.filter((candidate) => candidate.regularize)) {
-      if (layer.model === "drude-tl") throw new Error(`Layer ${layer.name}: a Drude model cannot be regularized toward an insulating n,k table.`);
       const comparison = indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model, { components: layer.components, ema: layer.ema });
       if (!comparison) throw new Error(`Layer ${layer.name}: regularization requires an n,k table with at least 10 points from 300 to 1100 nm.`);
       residuals.push(...comparison.deltaN.map((value) => value / settings.sigmaN));
       residuals.push(...comparison.deltaK.map((value) => value / settings.sigmaK));
     }
   } else if (settings.regularizeEllipsometry && settings.model !== "fixed") {
-    if (settings.model === "drude-tl") throw new Error("The metallic VO₂ model cannot be regularized toward the 22 °C insulating n,k table.");
     const comparison = indexComparison(nk, parameters, settings);
     if (!comparison) throw new Error("Ellipsometry regularization requires a matching n,k table from 300 to 1100 nm.");
     residuals.push(...comparison.deltaN.map((value) => value / settings.sigmaN));

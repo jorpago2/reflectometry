@@ -8,7 +8,7 @@ export const MODEL_LABELS = {
   tl2: "Tauc–Lorentz (2 oscillators, causal)",
   "tl-gaussian": "Tauc–Lorentz + Gaussian (causal)",
   cody: "Cody–Lorentz (amorphous, causal)",
-  "drude-tl": "Drude + Tauc–Lorentz (VO₂ metal)",
+  "drude-tl": "Drude + Tauc–Lorentz",
   composite: "Independent dielectric components",
   cauchy: "Cauchy + optional Urbach absorption",
   sellmeier: "Sellmeier (3 resonances, transparent)",
@@ -17,61 +17,16 @@ export const MODEL_LABELS = {
   ema: "Effective-medium mixture",
 };
 
-export const NOMINAL_THICKNESS_NM = {
-  agst: 250,
-  cgst: 250,
-  asb2sb3: 200,
-  csb2sb3: 200,
-  vo2: 150,
+const GENERIC_TL = {
+  epsilonInf: [4, 0.5, 20],
+  amplitudeEv: [80, 1e-4, 600],
+  resonanceEv: [3, 2.3, 6],
+  broadeningEv: [1, 0.05, 4],
+  bandgapEv: [1, 0, 2.2],
 };
 
-const TL_PRESETS = {
-  agst: { epsilonInf: [1.53, 0.5, 5], amplitudeEv: [114, 30, 250], resonanceEv: [2.55, 2.3, 4.5], broadeningEv: [3.91, 0.2, 4.5], bandgapEv: [0.65, 0.35, 1] },
-  cgst: { epsilonInf: [2.36, 0.5, 8], amplitudeEv: [181, 30, 400], resonanceEv: [1.32, 1.2, 2.5], broadeningEv: [2.13, 0.2, 2.3], bandgapEv: [0.53, 0.25, 0.9] },
-  asb2sb3: { epsilonInf: [4, 1, 15], amplitudeEv: [80, 10, 500], resonanceEv: [3, 1.8, 5.5], broadeningEv: [1, 0.1, 3.5], bandgapEv: [1.16, 0.9, 1.4] },
-  csb2sb3: { epsilonInf: [4, 1, 20], amplitudeEv: [80, 10, 600], resonanceEv: [2.5, 1.7, 5.5], broadeningEv: [1, 0.1, 3.3], bandgapEv: [1.06, 0.75, 1.3] },
-  vo2: { epsilonInf: [4, 1, 15], amplitudeEv: [80, 10, 500], resonanceEv: [3, 1.6, 5], broadeningEv: [1, 0.1, 3.1], bandgapEv: [0.4, 0.2, 0.8] },
-};
-
-const ELLIPSOMETRY_SEEDS = {
-  agst: {
-    tl1: { epsilonInf: 1.1859581696, amplitudeEv: 156.9796852391, resonanceEv: 2.8517342434, broadeningEv: 4.5, bandgapEv: 0.6241743869 },
-    tl2: { epsilonInf: 0.9207561235, amplitude1Ev: 124.6126748725, resonance1Ev: 2.7350981706, broadening1Ev: 4.5, amplitude2Ev: 40.7349554167, resonance2Ev: 3.2, broadening2Ev: 5, bandgapEv: 0.6447495472 },
-    "tl-gaussian": { epsilonInf: 1.0870251138, amplitudeEv: 157.2316282025, resonanceEv: 2.7879926184, broadeningEv: 4.5, bandgapEv: 0.6457289982, gaussianAmplitude: 0.9806635696, gaussianCenterEv: 3.8440279312, gaussianFwhmEv: 3.480363721 },
-    cody: { epsilonInf: 1.2010650032, amplitudeEv: 111.9447015671, transitionEv: 1.135806991, broadeningEv: 5, crossoverEv: 0.876115222, resonanceEv: 3.1304152044, urbachEv: 0.1997567257, bandgapEv: 0.5190613802 },
-  },
-  cgst: {
-    tl1: { epsilonInf: 1.9229528086, amplitudeEv: 139.3915175486, resonanceEv: 1.456856692, broadeningEv: 1.976612672, bandgapEv: 0.25 },
-    tl2: { epsilonInf: 1.8645010911, amplitude1Ev: 138.3274939796, resonance1Ev: 1.4548330141, broadening1Ev: 1.9640327883, amplitude2Ev: 1, resonance2Ev: 3.2, broadening2Ev: 5, bandgapEv: 0.25 },
-    "tl-gaussian": { epsilonInf: 0.5, amplitudeEv: 139.4178821341, resonanceEv: 1.4624673069, broadeningEv: 1.983736254, bandgapEv: 0.25, gaussianAmplitude: 84.0974476512, gaussianCenterEv: 5.4390381385, gaussianFwhmEv: 0.1000000352 },
-  },
-  asb2sb3: {
-    tl1: { epsilonInf: 1.7804862753, amplitudeEv: 164.8113314557, resonanceEv: 2.5994694212, broadeningEv: 3.1843005574, bandgapEv: 1.3062333079 },
-    tl2: { epsilonInf: 1.7813387578, amplitude1Ev: 163.6828325188, resonance1Ev: 2.5966331473, broadening1Ev: 3.1770002258, amplitude2Ev: 1.0000122654, resonance2Ev: 3.2, broadening2Ev: 3.8452819818, bandgapEv: 1.3061466078 },
-    "tl-gaussian": { epsilonInf: 1.7804308218, amplitudeEv: 164.8107869006, resonanceEv: 2.5994711099, broadeningEv: 3.1842946255, bandgapEv: 1.3062323841, gaussianAmplitude: 0.0003965868, gaussianCenterEv: 6.4987702812, gaussianFwhmEv: 1.26982847 },
-    cody: { epsilonInf: 1.9038818765, amplitudeEv: 89.3094478719, transitionEv: 1.4932227882, broadeningEv: 3.9480578275, crossoverEv: 1.2430762883, resonanceEv: 2.7457520306, urbachEv: 0.0602260423, bandgapEv: 1.2565694075 },
-  },
-  csb2sb3: {
-    tl1: { epsilonInf: 1, amplitudeEv: 205.7301912767, resonanceEv: 2.4859071057, broadeningEv: 2.6287553918, bandgapEv: 0.9766788612 },
-    tl2: { epsilonInf: 1.3580597044, amplitude1Ev: 194.2041501786, resonance1Ev: 2.2752808378, broadening1Ev: 2.3834017241, amplitude2Ev: 17.8155038957, resonance2Ev: 3.2, broadening2Ev: 1.2626406651, bandgapEv: 1.0137402947 },
-    "tl-gaussian": { epsilonInf: 1, amplitudeEv: 352.5408306005, resonanceEv: 1.823128557, broadeningEv: 2.8136041277, bandgapEv: 1.1371299375, gaussianAmplitude: 8.8489195319, gaussianCenterEv: 2.8949294417, gaussianFwhmEv: 0.8370174188 },
-  },
-  vo2: {
-    tl1: { epsilonInf: 2.4157523024, amplitudeEv: 20.4847229431, resonanceEv: 3.5757032102, broadeningEv: 3.1, bandgapEv: 0.2 },
-    tl2: { epsilonInf: 2.000700204, amplitude1Ev: 18.8785081299, resonance1Ev: 3.527965032, broadening1Ev: 3.1, amplitude2Ev: 4.6811156432, resonance2Ev: 6, broadening2Ev: 5, bandgapEv: 0.2 },
-    "tl-gaussian": { epsilonInf: 1, amplitudeEv: 20.6492735606, resonanceEv: 3.5553494846, broadeningEv: 3.1, bandgapEv: 0.2, gaussianAmplitude: 95.7964965008, gaussianCenterEv: 5.9721402862, gaussianFwhmEv: 0.1000000094 },
-  },
-};
-
-function seeded(specifications, model, sample) {
-  for (const [name, value] of Object.entries(ELLIPSOMETRY_SEEDS[sample]?.[model] ?? {})) {
-    if (specifications[name]) specifications[name] = { ...specifications[name], value };
-  }
-  return specifications;
-}
-
-export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 0.1 }, nominalThicknessNm = null, components = {}) {
-  const thickness = nominalThicknessNm ?? NOMINAL_THICKNESS_NM[sample] ?? 200;
+export function modelParameterSpecs(model, referenceAt1064 = { n: 2, k: 0.05 }, nominalThicknessNm = 150, components = {}) {
+  const thickness = nominalThicknessNm;
   if (!Number.isFinite(thickness) || thickness <= 0) throw new Error("Nominal film thickness must be positive and finite.");
   const parameter = (label, unit, values, fit = false) => ({ label, unit, value: values[0], minimum: values[1], maximum: values[2], fit });
   const common = {
@@ -80,7 +35,7 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
     tGain: parameter("T gain", "", [1, 0.1, 10], model === "fixed" || model === "scaled" || model === "constant"),
   };
   if (model === "composite") {
-    const preset = TL_PRESETS[sample] ?? TL_PRESETS.asb2sb3;
+    const preset = GENERIC_TL;
     const specifications = {
       thicknessNm: common.thicknessNm,
       epsilonInf: parameter("ε∞", "", preset.epsilonInf),
@@ -213,7 +168,7 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
       tGain: common.tGain,
     };
   }
-  const preset = TL_PRESETS[sample] ?? TL_PRESETS.asb2sb3;
+  const preset = GENERIC_TL;
   const tl = {
     thicknessNm: common.thicknessNm,
     epsilonInf: parameter("ε∞", "", preset.epsilonInf),
@@ -222,10 +177,10 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
     broadeningEv: parameter("C", "eV", preset.broadeningEv),
     bandgapEv: parameter("E_g", "eV", preset.bandgapEv),
   };
-  if (model === "tl1") return seeded({ ...tl, rGain: common.rGain, tGain: common.tGain }, model, sample);
+  if (model === "tl1") return { ...tl, rGain: common.rGain, tGain: common.tGain };
   if (model === "tl2") {
     const secondResonance = Math.max(3.4, preset.resonanceEv[0] + 0.8);
-    return seeded({
+    return {
       thicknessNm: common.thicknessNm,
       epsilonInf: tl.epsilonInf,
       amplitude1Ev: parameter("A₁", "eV", [0.75 * preset.amplitudeEv[0], 1, preset.amplitudeEv[2]], true),
@@ -237,21 +192,21 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
       bandgapEv: tl.bandgapEv,
       rGain: common.rGain,
       tGain: common.tGain,
-    }, model, sample);
+    };
   }
-  if (model === "tl-gaussian") return seeded({
+  if (model === "tl-gaussian") return {
     ...tl,
     gaussianAmplitude: parameter("Gaussian amplitude", "", [5, 1e-4, 150], true),
     gaussianCenterEv: parameter("Gaussian center", "eV", [3.8, 2.4, 6.5]),
     gaussianFwhmEv: parameter("Gaussian FWHM", "eV", [1, 0.1, 4]),
     rGain: common.rGain,
     tGain: common.tGain,
-  }, model, sample);
+  };
   if (model === "cody") {
     const transitionLower = preset.bandgapEv[2] + 0.05;
     const transition = Math.max(transitionLower + 0.15, preset.bandgapEv[0] + 0.4);
     const resonanceLower = Math.max(transitionLower + 0.1, preset.resonanceEv[1]);
-    return seeded({
+    return {
       thicknessNm: common.thicknessNm,
       epsilonInf: tl.epsilonInf,
       amplitudeEv: tl.amplitudeEv,
@@ -263,7 +218,7 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
       bandgapEv: tl.bandgapEv,
       rGain: common.rGain,
       tGain: common.tGain,
-    }, model, sample);
+    };
   }
   if (model === "drude-tl") return {
     thicknessNm: common.thicknessNm,
@@ -278,13 +233,6 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
     tGain: common.tGain,
   };
   throw new Error(`Unsupported optical model: ${model}.`);
-}
-
-export function validateModelAvailability(model, sample) {
-  if (model === "cody" && !new Set(["agst", "asb2sb3"]).has(sample)) {
-    throw new Error("Cody–Lorentz is restricted to the amorphous GST and Sb₂Se₃ samples.");
-  }
-  if (model === "drude-tl" && sample !== "vo2") throw new Error("Drude + Tauc–Lorentz is restricted to VO₂.");
 }
 
 export function refractiveIndexModel(model, wavelengthNm, parameters, nk, options = {}) {

@@ -3,18 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Browser-based multilayer reflectometry fitting with independent optical models for each layer.">
+  <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer.">
   <meta name="theme-color" content="#071512">
-  <title>Reflectometry · Multilayer optical fitting</title>
-  <link rel="stylesheet" href="styles.css?v=2.0.0">
+  <title>Reflectometry · Generic multilayer fitting</title>
+  <link rel="stylesheet" href="styles.css?v=3.0.0">
 </head>
 <body>
   <header class="masthead">
     <a class="brand" href="./" aria-label="Reflectometry home">
       <span class="brand-mark" aria-hidden="true">Rλ</span>
-      <span><strong>Reflectometry</strong><small>Multilayer optical fitting</small></span>
+      <span><strong>Reflectometry</strong><small>Generic multilayer fitting</small></span>
     </a>
-    <nav class="tool-nav" aria-label="Tool versions"><a href="./">Single layer</a><a href="multilayer.html" aria-current="page">Multilayer</a></nav>
     <p class="privacy"><span aria-hidden="true">●</span> Local computation · files never leave your device</p>
   </header>
 
@@ -36,28 +35,21 @@
       <aside class="controls" aria-label="Data, stack, and fit controls">
         <section class="control-section">
           <div class="section-heading"><span>01</span><h2>Measurement</h2></div>
-          <label for="demo-sample">Included example</label>
-          <div class="inline-control">
-            <select id="demo-sample">
-              <option value="agst">aGST · 250 nm</option><option value="cgst">cGST · 250 nm</option>
-              <option value="asb2sb3">aSb₂Se₃ · 200 nm</option><option value="csb2sb3">cSb₂Se₃ · 200 nm</option>
-              <option value="vo2">VO₂ · 150 nm</option>
-            </select>
-            <button id="load-demo" class="secondary" type="button">Load</button>
-          </div>
+          <button id="reset-example" class="secondary full" type="button">Reset synthetic example</button>
           <details>
             <summary>Load my measurement files</summary>
             <div class="file-grid">
               <label>Sample name<input id="sample-name" type="text" maxlength="80" placeholder="My stack"></label>
               <label>Sample R<input id="file-sample-r" type="file" accept=".txt,text/plain"></label>
               <label>Sample T<input id="file-sample-t" type="file" accept=".txt,text/plain"></label>
-              <label>Si reference<input id="file-silicon" type="file" accept=".txt,text/plain"></label>
-              <label>Open beam<input id="file-open" type="file" accept=".txt,text/plain"></label>
-              <label>Tabulated Si R<input id="file-si-model" type="file" accept=".txt,text/plain"></label>
+              <label>R reference signal<input id="file-r-reference" type="file" accept=".txt,text/plain"></label>
+              <label>T reference signal<input id="file-t-reference" type="file" accept=".txt,text/plain"></label>
+              <label>Reference R table<input id="file-reference-model" type="file" accept=".txt,text/plain"></label>
             </div>
             <button id="load-files" class="secondary full" type="button">Process local files</button>
+            <p class="model-note">Signal files use wavelength (nm) and counts. The reference R and layer n,k tables accept wavelength in nm or µm.</p>
           </details>
-          <p id="source-name" class="source-name">Preparing the example…</p>
+          <p id="source-name" class="source-name">Preparing a synthetic example…</p>
           <div class="field-pair">
             <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" value="300" min="195" max="2500" step="10"></label>
             <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" value="1100" min="200" max="3000" step="10"></label>
@@ -135,7 +127,7 @@
       </section>
     </div>
   </main>
-  <footer><span>Reflectometry · multilayer v2.0.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
-  <script type="module" src="multilayer-app.js?v=2.0.0"></script>
+  <footer><span>Reflectometry · v3.0.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js?v=3.0.0"></script>
 </body>
 </html>
