@@ -9,6 +9,7 @@ import {
 import {
   MODEL_LABELS,
   modelParameterSpecs,
+  refractiveIndexModel,
   tabulatedRefractiveIndex,
   validateModelAvailability,
 } from "./dielectric-models.js";
@@ -22,13 +23,14 @@ const DEMOS = {
 };
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const required = ["load-demo", "load-files", "preview-button", "fit-button", "rt-chart", "residual-chart", "nk-chart", "status"];
+const required = ["load-demo", "load-files", "shared-gains", "preview-button", "fit-button", "download-nk-csv", "rt-chart", "residual-chart", "nk-chart", "status"];
 if (required.some((id) => !elements[id])) throw new Error("The interface is incomplete.");
 
-const state = { spectrum: null, nk: null, fitData: null, evaluation: null, fitResult: null, source: null, worker: null, sampleId: "agst", parameterSpecs: {} };
+const state = { spectrum: null, nk: null, fitData: null, evaluation: null, fitResult: null, sharedCalibration: null, source: null, worker: null, sampleId: "agst", parameterSpecs: {} };
 
 elements["load-demo"].addEventListener("click", () => loadDemo(elements["demo-sample"].value));
 elements["load-files"].addEventListener("click", loadLocalFiles);
+elements["shared-gains"].addEventListener("click", startSharedGainCalibration);
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
 elements.model.addEventListener("change", () => { rebuildParameterEditor(); previewModel(); });
@@ -36,6 +38,7 @@ elements["show-ellipsometry"].addEventListener("change", () => state.evaluation 
 elements["regularize-ellipsometry"].addEventListener("change", updateEllipsometryControls);
 elements["download-json"].addEventListener("click", downloadJson);
 elements["download-csv"].addEventListener("click", downloadCsv);
+elements["download-nk-csv"].addEventListener("click", downloadNkCsv);
 window.addEventListener("resize", () => state.evaluation && drawAll());
 
 async function loadDemo(id) {
@@ -51,11 +54,7 @@ async function loadDemo(id) {
       siliconModel: "examples/si_reflectance.txt",
       nk: `examples/${demo.nk}`,
     };
-    const entries = await Promise.all(Object.entries(paths).map(async ([name, path]) => {
-      const response = await fetch(new URL(path, import.meta.url));
-      if (!response.ok) throw new Error(`Could not load ${path}.`);
-      return [name, await response.text(), path];
-    }));
+    const entries = await Promise.all(Object.entries(paths).map(async ([name, path]) => [name, await fetchText(path), path]));
     const texts = Object.fromEntries(entries.map(([name, text]) => [name, text]));
     await setSource(texts, demo.label, Object.fromEntries(entries.map(([name, , path]) => [name, path])));
     state.sampleId = id;
@@ -110,18 +109,64 @@ async function setSource(texts, sampleName, names) {
   state.fitResult = null;
 }
 
+async function startSharedGainCalibration() {
+  try {
+    const calibration = currentCalibrationSettings();
+    const settings = {
+      substrateIndex: numberValue("substrate-index", 1.001, 5),
+      incidence: elements.incidence.value,
+      sigmaReflectance: numberValue("sigma-r", 0.0001, 1),
+      sigmaTransmittance: numberValue("sigma-t", 0.0001, 1),
+    };
+    setBusy(true, "Preparing shared R/T calibration…");
+    const common = {
+      silicon: await fetchText("examples/si-ref.txt"),
+      openBeam: await fetchText("examples/referencitrx.txt"),
+      siliconModel: await fetchText("examples/si_reflectance.txt"),
+    };
+    const records = await Promise.all(Object.entries(DEMOS).map(async ([sampleId, demo]) => {
+      const texts = {
+        ...common,
+        sampleR: await fetchText(`examples/${demo.sampleR}`),
+        sampleT: await fetchText(`examples/${demo.sampleT}`),
+        nk: await fetchText(`examples/${demo.nk}`),
+      };
+      return {
+        sampleId,
+        nominalThicknessNm: demo.thickness,
+        data: prepareFitData(createSpectrum({ sampleName: demo.label, ...texts }), calibration),
+        nk: loadNkTable(texts.nk),
+      };
+    }));
+    if (state.worker) state.worker.terminate();
+    state.worker = new Worker(new URL("./fit-worker.js", import.meta.url), { type: "module" });
+    state.worker.addEventListener("message", handleWorkerMessage);
+    state.worker.addEventListener("error", (event) => finishFitError(event.message));
+    elements["fit-progress"].hidden = false;
+    elements["fit-progress"].value = 10;
+    state.worker.postMessage({ operation: "shared-gains", records, settings });
+  } catch (error) {
+    setBusy(false);
+    showError(error);
+  }
+}
+
 function prepareCurrentData() {
   if (!state.spectrum || !state.nk) throw new Error("Load a sample and its n,k table first.");
-  const data = prepareFitData(state.spectrum, {
+  const data = prepareFitData(state.spectrum, currentCalibrationSettings());
+  state.fitData = new Set(["fixed", "scaled"]).has(elements.model.value) ? restrictToNkRange(data, state.nk) : data;
+  return state.fitData;
+}
+
+function currentCalibrationSettings() {
+  return {
     wavelengthMinNm: numberValue("wavelength-min", 195, 3000),
     wavelengthMaxNm: numberValue("wavelength-max", 196, 3000),
     referenceThresholdFraction: numberValue("reference-threshold", 0, 99) / 100,
     binWidthNm: numberValue("bin-width", 0.1, 100),
     sampleSnrMinimum: numberValue("sample-snr", 0, 100),
     subtractBackground: elements["subtract-background"].checked,
-  });
-  state.fitData = new Set(["fixed", "scaled"]).has(elements.model.value) ? restrictToNkRange(data, state.nk) : data;
-  return state.fitData;
+  };
 }
 
 function currentSettings() {
@@ -166,6 +211,9 @@ function rebuildParameterEditor() {
   if (elements.model.selectedOptions[0]?.disabled) elements.model.value = "fixed";
   const closest = state.nk ? state.nk.wavelengthNm.reduce((best, value, index) => Math.abs(value - 1064) < Math.abs(state.nk.wavelengthNm[best] - 1064) ? index : best, 0) : 0;
   state.parameterSpecs = modelParameterSpecs(elements.model.value, state.sampleId, { n: state.nk?.n[closest] ?? 3, k: state.nk?.k[closest] ?? 0.1 });
+  for (const name of ["rGain", "tGain"]) if (state.sharedCalibration?.gains[name] && state.parameterSpecs[name]) {
+    state.parameterSpecs[name] = { ...state.parameterSpecs[name], value: state.sharedCalibration.gains[name], fit: false };
+  }
   const rows = Object.entries(state.parameterSpecs).map(([name, specification]) => {
     const row = document.createElement("div");
     row.className = "parameter-row";
@@ -173,6 +221,7 @@ function rebuildParameterEditor() {
     fit.type = "checkbox";
     fit.id = `fit-${name}`;
     fit.checked = specification.fit;
+    fit.disabled = Boolean(state.sharedCalibration?.gains[name]);
     fit.setAttribute("aria-label", `Fit ${specification.label}`);
     const label = document.createElement("label");
     label.className = "parameter-name";
@@ -191,6 +240,7 @@ function rebuildParameterEditor() {
       input.id = `${kind}-${name}`;
       input.value = String(value);
       input.step = "any";
+      input.disabled = Boolean(state.sharedCalibration?.gains[name]);
       input.setAttribute("aria-label", `${kind} ${specification.label}`);
       row.append(input);
     }
@@ -215,7 +265,7 @@ function updateEllipsometryControls() {
   const unsupported = new Set(["fixed", "drude-tl"]).has(elements.model.value);
   elements["regularize-ellipsometry"].disabled = unsupported;
   for (const id of ["sigma-n", "sigma-k"]) elements[id].disabled = unsupported || !elements["regularize-ellipsometry"].checked;
-  if (!unsupported && elements["regularize-ellipsometry"].checked) {
+  if (!unsupported && elements["regularize-ellipsometry"].checked && !state.sharedCalibration) {
     for (const [name, enabled] of [["rGain", elements["use-r"].checked], ["tGain", elements["use-t"].checked]]) {
       const fit = document.querySelector(`#fit-${name}`);
       if (fit && enabled) fit.checked = true;
@@ -286,7 +336,7 @@ function fitModel() {
     validateSelectedChannels(fitData, settings);
     validateModelAvailability(settings.model, state.sampleId);
     const { bounds, fittedParameters } = currentBounds(initial);
-    if (settings.regularizeEllipsometry && ((settings.useReflectance && !fittedParameters.includes("rGain")) || (settings.useTransmittance && !fittedParameters.includes("tGain")))) {
+    if (settings.regularizeEllipsometry && !state.sharedCalibration && ((settings.useReflectance && !fittedParameters.includes("rGain")) || (settings.useTransmittance && !fittedParameters.includes("tGain")))) {
       throw new Error("Enable fitting for the active R/T gains before a regularized fit.");
     }
     if (state.worker) state.worker.terminate();
@@ -309,6 +359,20 @@ function handleWorkerMessage({ data }) {
     return;
   }
   if (data.type === "error") return finishFitError(data.message);
+  if (data.type === "shared-result") {
+    state.worker.terminate();
+    state.worker = null;
+    elements["fit-progress"].hidden = true;
+    setBusy(false);
+    state.sharedCalibration = data.result;
+    rebuildParameterEditor();
+    previewModel();
+    const { rGain, tGain } = data.result.gains;
+    const excludedT = Object.entries(data.result.includedChannels).filter(([, channels]) => !channels.T).map(([sample]) => sample);
+    const sharedWarning = data.result.gainsOutsideOperationalRange.length ? ` Warning: outside 0.8–1.2: ${data.result.gainsOutsideOperationalRange.join(", ")}.` : "";
+    setStatus(`Shared gains fixed: R=${format(rGain, 4)}, T=${format(tGain, 4)}. T excluded for: ${excludedT.join(", ") || "none"}. Bounds: ${data.result.parametersAtBounds.join(", ") || "none"}.${sharedWarning}`);
+    return;
+  }
   if (data.type === "result") {
     state.fitResult = data.result;
     state.evaluation = data.result.evaluation;
@@ -351,6 +415,7 @@ function renderResult(result, message) {
     .map(([name, value]) => `${name} ± ${format(value, 3)}`);
   const warnings = [];
   if (values.gainsOutsideOperationalRange.length) warnings.push(`gain outside 0.8–1.2: ${values.gainsOutsideOperationalRange.join(", ")}`);
+  if (state.sharedCalibration?.gainsOutsideOperationalRange.length) warnings.push(`shared gain outside 0.8–1.2: ${state.sharedCalibration.gainsOutsideOperationalRange.join(", ")}`);
   const shape = Object.entries(values.shapeAfterAffineAlignment ?? {}).map(([channel, metric]) => `${channel}=${format(metric.rmse, 4)}`);
   if (shape.length) warnings.push(`Affine-shape RMSE: ${shape.join(", ")}`);
   if (Number.isFinite(values.indexVsEllipsometry?.rmseDeltaN)) warnings.push(`n,k RMSE vs ellipsometry: ${format(values.indexVsEllipsometry.rmseDeltaN, 3)}, ${format(values.indexVsEllipsometry.rmseDeltaK, 3)}`);
@@ -358,6 +423,7 @@ function renderResult(result, message) {
   elements["diagnostic-note"].textContent = warnings.join(" · ") || "Local finite-difference diagnostics; uncertainty estimates are approximate.";
   elements["download-json"].disabled = false;
   elements["download-csv"].disabled = false;
+  elements["download-nk-csv"].disabled = false;
   const parameterText = Object.entries(parameters).map(([name, value]) => `${name}=${format(value, 5)}`).join("; ");
   elements["provenance-text"].textContent = `${state.source.sampleName}; ${MODEL_LABELS[elements.model.value]}; ${parameterText}.`;
   setStatus(message);
@@ -460,7 +526,7 @@ function exportPayload() {
   if (!state.fitResult || !state.fitData) throw new Error("No results are available for export.");
   return {
     schema: "reflectometry-browser-fit/v1",
-    application: { name: "Reflectometry", version: "0.5.0", url: "https://jorpago2.github.io/reflectometry/" },
+    application: { name: "Reflectometry", version: "0.6.0", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {
@@ -480,8 +546,9 @@ function exportPayload() {
       }])),
     },
     diagnostics: state.fitResult.diagnostics,
+    sharedGainCalibration: state.sharedCalibration,
     optimizer: state.fitResult.preview ? null : { method: "SciPy-compatible scrambled Sobol screening + bounded robust Gauss-Newton", seed: 1729, screeningPoints: state.fitResult.screeningPoints, localRefinements: state.fitResult.localRefinements },
-    assumptions: ["normal incidence", "single coherent homogeneous isotropic film", "optically thick incoherent substrate"],
+    assumptions: ["normal incidence", "single coherent homogeneous isotropic film", "optically thick incoherent substrate", "shared gains require unchanged detector settings and geometry across samples"],
   };
 }
 
@@ -493,17 +560,44 @@ function downloadJson() {
 function downloadCsv() {
   try {
     exportPayload();
-    const header = "wavelength_nm,reflectance_measured,reflectance_modeled,transmittance_measured,transmittance_modeled,n,k";
-    const rows = state.fitData.wavelengthNm.map((wavelength, index) => [
+    const reference = tabulatedRefractiveIndex(state.nk, state.fitData.wavelengthNm);
+    const header = "wavelength_nm,reflectance_calibrated_signal,transmittance_calibrated_signal,reflectance_snr_valid,transmittance_snr_valid,reflectance_model_physical,transmittance_model_physical,reflectance_model_times_gain,transmittance_model_times_gain,reflectance_residual,transmittance_residual,n_model,k_model,n_ellipsometry,k_ellipsometry,delta_n_model_minus_ellipsometry,delta_k_model_minus_ellipsometry";
+    const rows = state.fitData.wavelengthNm.map((wavelength, index) => {
+      const referenceN = wavelength >= 300 && wavelength <= 1100 ? reference.n[index] : "";
+      const referenceK = wavelength >= 300 && wavelength <= 1100 ? reference.k[index] : "";
+      return [
       wavelength,
-      state.fitData.reflectanceValid[index] ? state.fitData.reflectance[index] : "",
+      state.fitData.reflectance[index],
+      state.fitData.transmittance[index],
+      state.fitData.reflectanceValid[index],
+      state.fitData.transmittanceValid[index],
+      state.evaluation.reflectance[index],
+      state.evaluation.transmittance[index],
       state.evaluation.reflectanceScaled[index],
-      state.fitData.transmittanceValid[index] ? state.fitData.transmittance[index] : "",
       state.evaluation.transmittanceScaled[index],
+      state.fitData.reflectanceValid[index] ? state.evaluation.reflectanceScaled[index] - state.fitData.reflectance[index] : "",
+      state.fitData.transmittanceValid[index] ? state.evaluation.transmittanceScaled[index] - state.fitData.transmittance[index] : "",
       state.evaluation.n[index],
       state.evaluation.k[index],
-    ].join(","));
+      referenceN,
+      referenceK,
+      referenceN === "" ? "" : state.evaluation.n[index] - referenceN,
+      referenceK === "" ? "" : state.evaluation.k[index] - referenceK,
+      ].join(",");
+    });
     saveFile([header, ...rows].join("\n"), `${safeName(state.source.sampleName)}-fit.csv`, "text/csv");
+  } catch (error) { showError(error); }
+}
+
+function downloadNkCsv() {
+  try {
+    exportPayload();
+    const wavelengthNm = state.nk.wavelengthNm.filter((value) => value >= 300 && value <= 1100);
+    const reference = tabulatedRefractiveIndex(state.nk, wavelengthNm);
+    const modeled = refractiveIndexModel(elements.model.value, wavelengthNm, state.fitResult.parameters, state.nk);
+    const header = "wavelength_nm,n_model,k_model,n_ellipsometry,k_ellipsometry,delta_n_model_minus_ellipsometry,delta_k_model_minus_ellipsometry";
+    const rows = wavelengthNm.map((wavelength, index) => [wavelength, modeled.n[index], modeled.k[index], reference.n[index], reference.k[index], modeled.n[index] - reference.n[index], modeled.k[index] - reference.k[index]].join(","));
+    saveFile([header, ...rows].join("\n"), `${safeName(state.source.sampleName)}-fit-nk.csv`, "text/csv");
   } catch (error) { showError(error); }
 }
 
@@ -529,9 +623,16 @@ async function sha256(text) {
   return [...digest].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
+async function fetchText(path) {
+  const response = await fetch(new URL(path, import.meta.url));
+  if (!response.ok) throw new Error(`Could not load ${path}.`);
+  return response.text();
+}
+
 function setBusy(busy, message = null) {
   elements["load-demo"].disabled = busy;
   elements["load-files"].disabled = busy;
+  elements["shared-gains"].disabled = busy;
   elements["preview-button"].disabled = busy;
   elements["fit-button"].disabled = busy;
   document.querySelectorAll(".controls input, .controls select").forEach((control) => {

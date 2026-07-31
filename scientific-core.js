@@ -245,6 +245,70 @@ export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateI
   return { reflectance, transmittance };
 }
 
+export function calibrateSharedGains(records, settings) {
+  if (!Array.isArray(records) || !records.length) throw new Error("Shared calibration requires bundled sample records.");
+  if (!(settings.substrateIndex > 1) || !new Set(["film", "substrate"]).has(settings.incidence) || !(settings.sigmaReflectance > 0) || !(settings.sigmaTransmittance > 0)) throw new Error("Shared calibration settings are invalid.");
+  const usable = records.map((record) => ({
+    ...record,
+    useReflectance: record.data.reflectanceValid.filter(Boolean).length >= 0.5 * record.data.wavelengthNm.length,
+    useTransmittance: record.data.transmittanceValid.filter(Boolean).length >= 0.5 * record.data.wavelengthNm.length,
+  })).filter((record) => record.useReflectance || record.useTransmittance);
+  if (!usable.some((record) => record.useReflectance) || !usable.some((record) => record.useTransmittance)) {
+    throw new Error("Shared calibration requires informative R and T channels across the bundled samples.");
+  }
+  const lower = [0.1, 0.1, ...usable.map((record) => 0.5 * record.nominalThicknessNm)];
+  const upper = [10, 10, ...usable.map((record) => 1.5 * record.nominalThicknessNm)];
+  const initial = [1, 1, ...usable.map((record) => record.nominalThicknessNm)];
+  const normalizedInitial = initial.map((value, index) => (value - lower[index]) / (upper[index] - lower[index]));
+  const physical = (point) => point.map((value, index) => lower[index] + value * (upper[index] - lower[index]));
+  const residualFunction = (point) => {
+    const values = physical(point);
+    return usable.flatMap((record, index) => {
+      const evaluation = evaluateOpticalModel(record.data, record.nk, {
+        thicknessNm: values[index + 2], rGain: values[0], tGain: values[1],
+      }, { ...settings, model: "fixed" });
+      const residuals = [];
+      if (record.useReflectance) record.data.reflectance.forEach((value, bin) => {
+        if (record.data.reflectanceValid[bin]) residuals.push((evaluation.reflectanceScaled[bin] - value) / settings.sigmaReflectance);
+      });
+      if (record.useTransmittance) record.data.transmittance.forEach((value, bin) => {
+        if (record.data.transmittanceValid[bin]) residuals.push((evaluation.transmittanceScaled[bin] - value) / settings.sigmaTransmittance);
+      });
+      return residuals;
+    });
+  };
+  const gainSeed = [[0, 0], [0, 0]];
+  usable.forEach((record) => {
+    const evaluation = evaluateOpticalModel(record.data, record.nk, { thicknessNm: record.nominalThicknessNm, rGain: 1, tGain: 1 }, { ...settings, model: "fixed" });
+    for (const [channel, enabled, valid, measured, modeled] of [
+      [0, record.useReflectance, record.data.reflectanceValid, record.data.reflectance, evaluation.reflectance],
+      [1, record.useTransmittance, record.data.transmittanceValid, record.data.transmittance, evaluation.transmittance],
+    ]) if (enabled) measured.forEach((value, index) => {
+      if (valid[index]) { gainSeed[channel][0] += modeled[index] * value; gainSeed[channel][1] += modeled[index] ** 2; }
+    });
+  });
+  const informedStart = normalizedInitial.map((value, index) => {
+    if (index < 2) return (Math.max(lower[index], Math.min(upper[index], gainSeed[index][0] / gainSeed[index][1])) - lower[index]) / (upper[index] - lower[index]);
+    return !usable[index - 2].useTransmittance ? 0 : value;
+  });
+  const starts = [normalizedInitial, informedStart];
+  const normalizedSolution = starts.map((start) => boundedRobustLeastSquares(start, residualFunction))
+    .map((point) => ({ point, cost: softL1Cost(residualFunction(point)) }))
+    .sort((a, b) => a.cost - b.cost)[0];
+  const solution = physical(normalizedSolution.point);
+  const names = ["rGain", "tGain", ...usable.map((record) => `${record.sampleId}.thicknessNm`)];
+  const parametersAtBounds = names.filter((name, index) => Math.abs(solution[index] - lower[index]) <= 1e-5 * Math.max(1, Math.abs(lower[index]))
+    || Math.abs(solution[index] - upper[index]) <= 1e-5 * Math.max(1, Math.abs(upper[index])));
+  return {
+    gains: { rGain: solution[0], tGain: solution[1] },
+    fittedThicknessNm: Object.fromEntries(usable.map((record, index) => [record.sampleId, solution[index + 2]])),
+    includedChannels: Object.fromEntries(usable.map((record) => [record.sampleId, { R: record.useReflectance, T: record.useTransmittance }])),
+    gainsOutsideOperationalRange: ["rGain", "tGain"].filter((name, index) => solution[index] < 0.8 || solution[index] > 1.2),
+    parametersAtBounds,
+    robustCost: normalizedSolution.cost,
+  };
+}
+
 function coherentSingleFilm(wavelengthNm, n, k, thicknessNm, incidentIndex, exitIndex) {
   if (!(wavelengthNm > 0) || !(n > 0) || k < 0) throw new Error("Non-physical wavelength or complex refractive index.");
   const film = { re: n, im: k };

@@ -125,7 +125,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .status-row { min-height: 3rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(8rem, 16rem) auto; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 #status { margin: 0; color: var(--muted); font-size: 0.82rem; }
 progress { width: 100%; height: 0.4rem; border: 0; accent-color: var(--acid); }
-.export-actions { display: flex; gap: 0.4rem; }
+.export-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 0.4rem; }
 .text-button { min-height: 2rem; padding: 0.3rem 0.6rem; border-color: var(--line); background: transparent; color: var(--cyan); font-family: ui-monospace, monospace; font-size: 0.72rem; }
 .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 1rem; border: 1px solid var(--line); }
 .metrics article { min-width: 0; padding: 1rem 1.2rem; border-right: 1px solid var(--line); background: rgb(14 34 29 / 0.65); }

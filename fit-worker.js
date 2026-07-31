@@ -1,7 +1,13 @@
-import { fitOpticalModel } from "./scientific-core.js";
+import { calibrateSharedGains, fitOpticalModel } from "./scientific-core.js";
 
 self.addEventListener("message", ({ data }) => {
   try {
+    if (data.operation === "shared-gains") {
+      self.postMessage({ type: "progress", progress: 10 });
+      const result = calibrateSharedGains(data.records, data.settings);
+      self.postMessage({ type: "shared-result", result });
+      return;
+    }
     const result = fitOpticalModel(data.fitData, data.nk, data.configuration, (progress) => {
       self.postMessage({ type: "progress", progress });
     });

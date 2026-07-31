@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   affineShapeResidual,
+  calibrateSharedGains,
   createSpectrum,
   evaluateOpticalModel,
   filmOnThickSubstrate,
@@ -13,6 +14,36 @@ import {
   restrictToNkRange,
   robustBackground,
 } from "../scientific-core.js";
+
+test("recovers shared R/T gains across samples", () => {
+  const wavelengthNm = Array.from({ length: 41 }, (_, index) => 350 + index * 20);
+  const valid = wavelengthNm.map(() => true);
+  const trueGains = { rGain: 1.17, tGain: 0.88 };
+  const records = [
+    { sampleId: "sample-a", nominalThicknessNm: 200, thicknessNm: 218, n: 2.4, k: 0.12 },
+    { sampleId: "sample-b", nominalThicknessNm: 200, thicknessNm: 184, n: 3.1, k: 0.35 },
+  ].map((record) => {
+    const nk = { wavelengthNm, n: wavelengthNm.map(() => record.n), k: wavelengthNm.map(() => record.k) };
+    const optical = filmOnThickSubstrate(wavelengthNm, nk.n, nk.k, record.thicknessNm, 1.46, "film");
+    return {
+      sampleId: record.sampleId,
+      nominalThicknessNm: record.nominalThicknessNm,
+      nk,
+      data: {
+        wavelengthNm,
+        reflectance: optical.reflectance.map((value) => value * trueGains.rGain),
+        transmittance: optical.transmittance.map((value) => value * trueGains.tGain),
+        reflectanceValid: valid,
+        transmittanceValid: valid,
+      },
+    };
+  });
+  const result = calibrateSharedGains(records, { substrateIndex: 1.46, incidence: "film", sigmaReflectance: 0.02, sigmaTransmittance: 0.02 });
+  assert.ok(Math.abs(result.gains.rGain - trueGains.rGain) < 1e-5);
+  assert.ok(Math.abs(result.gains.tGain - trueGains.tGain) < 1e-5);
+  assert.ok(Math.abs(result.fittedThicknessNm["sample-a"] - 218) < 1e-3);
+  assert.ok(Math.abs(result.fittedThicknessNm["sample-b"] - 184) < 1e-3);
+});
 
 test("matches Python affine-shape and ellipsometry-prior residuals", () => {
   const shapeModel = [0, 1, 0.2, 0.8, 0.1];
@@ -131,11 +162,13 @@ test("reproduces Python/SciPy fixed-table fits for every bundled material", () =
     csb2sb3: { files: ["csb2sb3-ref.txt", "csb2sb3-tr.txt", "cSb2Se3.txt"], nominal: 200, useT: true, thickness: 181.56175835, rGain: 1.0070495334, tGain: 0.8921679150, bins: [289, 182] },
     vo2: { files: ["vo2-ref.txt", "vo2-tr.txt", "VO2_22C.txt"], nominal: 150, useT: true, thickness: 115.94348973, rGain: 0.8790394080, tGain: 1.2718703539, bins: [289, 282] },
   };
+  const sharedRecords = [];
   for (const [sample, reference] of Object.entries(references)) {
     const [sampleR, sampleT, nkFile] = reference.files;
     const spectrum = createSpectrum({ sampleName: sample, sampleR: read(sampleR), sampleT: read(sampleT), silicon: read("si-ref.txt"), openBeam: read("referencitrx.txt"), siliconModel: read("si_reflectance.txt") });
     const nk = loadNkTable(read(nkFile));
     const data = restrictToNkRange(prepareFitData(spectrum, { wavelengthMinNm: 300, wavelengthMaxNm: 1100, referenceThresholdFraction: 0.05, binWidthNm: 2, sampleSnrMinimum: 5, subtractBackground: true }), nk);
+    sharedRecords.push({ sampleId: sample, nominalThicknessNm: reference.nominal, data, nk });
     const result = fitTabulated(data, nk, {
       settings: { model: "fixed", substrateIndex: 1.46, incidence: "film", useReflectance: true, useTransmittance: reference.useT, sigmaReflectance: 0.02, sigmaTransmittance: 0.02 },
       initial: { thicknessNm: reference.nominal, nScale: 1, kScale: 1, rGain: 1, tGain: 1 },
@@ -152,6 +185,10 @@ test("reproduces Python/SciPy fixed-table fits for every bundled material", () =
     assert.ok(Object.values(result.diagnostics.parameterStandardErrorsApproximate).every(Number.isFinite), sample);
     if (!reference.useT) assert.ok(!("tGain" in result.diagnostics.parameterStandardErrorsApproximate));
   }
+  const shared = calibrateSharedGains(sharedRecords, { substrateIndex: 1.46, incidence: "film", sigmaReflectance: 0.02, sigmaTransmittance: 0.02 });
+  assert.ok(Math.abs(shared.gains.rGain - 1.34441394) < 2e-3);
+  assert.ok(Math.abs(shared.gains.tGain - 1.11359892) < 5e-4);
+  assert.ok(Math.abs(shared.fittedThicknessNm.cgst - 125) < 1e-6);
 });
 
 function assertArrayClose(actual, expected, tolerance = 1e-12) {

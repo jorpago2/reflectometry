@@ -20,7 +20,8 @@ Open `http://localhost:4173`. Run the numerical checks with `npm test`.
 - SciPy-compatible scrambled Sobol screening (seed 1729, 512 points) and 16 bounded robust Gauss–Newton refinements in a Web Worker, with logarithmic sampling for broad positive parameters.
 - Optional affine spectral-shape residuals and n,k regularization toward local ellipsometry, matching the Python objective definition.
 - Measured/model n,k overlays and wavelength-resolved R/T residual plots.
+- Joint R/T gain calibration across bundled samples, with one independent film thickness per material.
 - Local identifiability, approximate parameter uncertainty, bound, alternative-minimum, gain, and energy-balance diagnostics.
-- Local JSON and CSV export.
+- Reproducible JSON, full spectra CSV, and dedicated optical-constants CSV export.
 
 Every dielectric model and every bundled fixed-table dataset are checked against fixed values produced by the Python/SciPy reference implementation. The browser fit remains a diagnostic estimator: finite-difference uncertainties are local approximations and do not replace experimental uncertainty propagation.

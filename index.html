@@ -124,6 +124,8 @@
             <label>σk<input id="sigma-k" type="number" value="0.25" min="0.0001" max="10" step="0.05"></label>
           </div>
           <label class="check"><input id="show-ellipsometry" type="checkbox" checked><span>Show measured ellipsometry n,k</span></label>
+          <button id="shared-gains" class="secondary full" type="button">Calibrate shared R/T gains</button>
+          <p class="model-note">Uses all bundled materials; valid only when detector settings and geometry were unchanged between samples.</p>
         </section>
 
         <div class="actions">
@@ -138,7 +140,8 @@
           <progress id="fit-progress" max="100" value="0" hidden aria-label="Fit progress"></progress>
           <div class="export-actions">
             <button id="download-json" class="text-button" type="button" disabled>JSON</button>
-            <button id="download-csv" class="text-button" type="button" disabled>CSV</button>
+            <button id="download-csv" class="text-button" type="button" disabled>SPECTRA CSV</button>
+            <button id="download-nk-csv" class="text-button" type="button" disabled>N,K CSV</button>
           </div>
         </div>
 
