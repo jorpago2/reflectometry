@@ -21,7 +21,8 @@ Open `http://localhost:4173`. Run the numerical checks with `npm test`.
 - Optional affine spectral-shape residuals and n,k regularization toward local ellipsometry, matching the Python objective definition.
 - Measured/model n,k overlays and wavelength-resolved R/T residual plots.
 - Joint R/T gain calibration across bundled samples, with one independent film thickness per material.
-- Local identifiability, approximate parameter uncertainty, bound, alternative-minimum, gain, and energy-balance diagnostics.
+- Local identifiability, approximate parameter uncertainty, bound, gain, energy-balance, and ranked distinct-minimum diagnostics.
 - Reproducible JSON, full spectra CSV, and dedicated optical-constants CSV export.
+- Integrated scientific FAQ covering assumptions, priors, non-uniqueness, and reproducibility.
 
 Every dielectric model and every bundled fixed-table dataset are checked against fixed values produced by the Python/SciPy reference implementation. The browser fit remains a diagnostic estimator: finite-difference uncertainties are local approximations and do not replace experimental uncertainty propagation.

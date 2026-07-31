@@ -23,7 +23,7 @@ const DEMOS = {
 };
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const required = ["load-demo", "load-files", "shared-gains", "preview-button", "fit-button", "download-nk-csv", "rt-chart", "residual-chart", "nk-chart", "status"];
+const required = ["load-demo", "load-files", "shared-gains", "preview-button", "fit-button", "download-nk-csv", "alternative-details", "alternative-solutions", "rt-chart", "residual-chart", "nk-chart", "status"];
 if (required.some((id) => !elements[id])) throw new Error("The interface is incomplete.");
 
 const state = { spectrum: null, nk: null, fitData: null, evaluation: null, fitResult: null, sharedCalibration: null, source: null, worker: null, sampleId: "agst", parameterSpecs: {} };
@@ -410,6 +410,7 @@ function renderResult(result, message) {
   elements["diagnostic-power"].textContent = format(values.maximumPowerBalance, 5);
   elements["diagnostic-power-note"].textContent = values.minimumAbsorption < -1e-8 ? "Energy-balance warning" : "Passive R + T ≤ 1";
   elements["diagnostic-alternatives"].textContent = values.nearEqualAlternativeMinima === null ? "—" : String(values.nearEqualAlternativeMinima);
+  renderAlternativeSolutions(values.alternativeSolutions ?? [], result.preview);
   const uncertainties = Object.entries(values.parameterStandardErrorsApproximate)
     .filter(([, value]) => Number.isFinite(value))
     .map(([name, value]) => `${name} ± ${format(value, 3)}`);
@@ -428,6 +429,35 @@ function renderResult(result, message) {
   elements["provenance-text"].textContent = `${state.source.sampleName}; ${MODEL_LABELS[elements.model.value]}; ${parameterText}.`;
   setStatus(message);
   drawAll();
+}
+
+function renderAlternativeSolutions(solutions, preview) {
+  elements["alternative-details"].hidden = preview || !solutions.length;
+  if (preview || !solutions.length) return elements["alternative-solutions"].replaceChildren();
+  const fitted = Object.keys(state.parameterSpecs).filter((name) => document.querySelector(`#fit-${name}`)?.checked);
+  const rows = solutions.map((solution) => {
+    const row = document.createElement("tr");
+    const metrics = `${solution.channelMetrics.R ? format(solution.channelMetrics.R.rmse, 4) : "—"} / ${solution.channelMetrics.T ? format(solution.channelMetrics.T.rmse, 4) : "—"}`;
+    const indexMetrics = `${Number.isFinite(solution.indexVsEllipsometry.rmseDeltaN) ? format(solution.indexVsEllipsometry.rmseDeltaN, 3) : "—"} / ${Number.isFinite(solution.indexVsEllipsometry.rmseDeltaK) ? format(solution.indexVsEllipsometry.rmseDeltaK, 3) : "—"}`;
+    const parameterText = fitted.map((name) => `${name}=${Number(solution.parameters[name]).toPrecision(5)}`).join("; ");
+    for (const value of [
+      solution.rank,
+      solution.localStart || "initial",
+      Number(solution.robustCost).toExponential(3),
+      `${format(100 * solution.relativeCostIncrease, 2)}%`,
+      format(solution.normalizedParameterDistanceFromBest, 4),
+      metrics,
+      indexMetrics,
+      solution.fittedParametersAtBounds.join(", ") || "None",
+      parameterText,
+    ]) {
+      const cell = document.createElement("td");
+      cell.textContent = String(value);
+      row.append(cell);
+    }
+    return row;
+  });
+  elements["alternative-solutions"].replaceChildren(...rows);
 }
 
 function drawAll() {
@@ -526,7 +556,7 @@ function exportPayload() {
   if (!state.fitResult || !state.fitData) throw new Error("No results are available for export.");
   return {
     schema: "reflectometry-browser-fit/v1",
-    application: { name: "Reflectometry", version: "0.6.0", url: "https://jorpago2.github.io/reflectometry/" },
+    application: { name: "Reflectometry", version: "0.7.0", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {

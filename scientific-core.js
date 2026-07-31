@@ -384,11 +384,12 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const refinedCandidates = [];
   for (let index = 0; index < refinementCount; index += 1) {
     const refinedPoint = boundedRobustLeastSquares(starts[index], (point) => objective(point).residuals);
-    const refined = { point: refinedPoint, ...objective(refinedPoint) };
+    const refined = { localStart: index + 1, point: refinedPoint, ...objective(refinedPoint) };
     refinedCandidates.push(refined);
     if (refined.cost < best.cost) best = refined;
     progress(50 + Math.round((index + 1) / refinementCount * 50));
   }
+  if (!refinedCandidates.some((candidate) => distance(candidate.point, best.point) < 1e-12)) refinedCandidates.push({ localStart: 0, ...best });
   const diagnostics = diagnosticsOf(data, best.evaluated, settings, {
     nk,
     parameters: best.parameters,
@@ -396,6 +397,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     fittedParameters,
     refinedCandidates,
     bestCost: best.cost,
+    bestPoint: best.point,
   });
   return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, screeningPoints, localRefinements: refinementCount };
 }
@@ -421,6 +423,7 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
     parametersAtBounds: [],
     gainsOutsideOperationalRange: [],
     nearEqualAlternativeMinima: null,
+    alternativeSolutions: [],
     parameterStandardErrorsApproximate: {},
     shapeAfterAffineAlignment: {},
     indexVsEllipsometry: {},
@@ -451,7 +454,8 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
   result.gainsOutsideOperationalRange = ["rGain", "tGain"].filter((name) => (
     fit.fittedParameters.includes(name) && (fit.parameters[name] < 0.8 || fit.parameters[name] > 1.2)
   ));
-  result.nearEqualAlternativeMinima = countAlternativeMinima(fit.refinedCandidates, fit.bestCost);
+  result.alternativeSolutions = rankAlternativeMinima(data, settings, fit);
+  result.nearEqualAlternativeMinima = Math.max(0, result.alternativeSolutions.filter((solution) => solution.relativeCostIncrease <= 0.05).length - 1);
   const comparison = indexComparison(fit.nk, fit.parameters, settings);
   result.indexVsEllipsometry = comparison?.diagnostics ?? {};
   const sensitivity = localSensitivity(data, fit.nk, fit.parameters, settings, fit.bounds, fit.fittedParameters);
@@ -549,13 +553,44 @@ function localSensitivity(data, nk, parameters, settings, bounds, fittedParamete
   return { condition, standardErrors };
 }
 
-function countAlternativeMinima(candidates, bestCost) {
+function rankAlternativeMinima(data, settings, fit) {
   const distinct = [];
-  for (const candidate of [...candidates].sort((a, b) => a.cost - b.cost)) {
-    if (candidate.cost > bestCost + Math.max(1e-9, Math.abs(bestCost) * 0.05)) continue;
-    if (distinct.every((chosen) => distance(candidate.point, chosen.point) / Math.sqrt(Math.max(1, candidate.point.length)) >= 1e-3)) distinct.push(candidate);
+  const selectedPoints = [];
+  for (const candidate of [...fit.refinedCandidates].sort((a, b) => a.cost - b.cost)) {
+    if (selectedPoints.some((point) => distance(candidate.point, point) / Math.sqrt(Math.max(1, candidate.point.length)) < 1e-3)) continue;
+    const channelMetrics = {};
+    for (const [channel, enabled, measured, modeled, valid] of [
+      ["R", settings.useReflectance, data.reflectance, candidate.evaluated.reflectanceScaled, data.reflectanceValid],
+      ["T", settings.useTransmittance, data.transmittance, candidate.evaluated.transmittanceScaled, data.transmittanceValid],
+    ]) {
+      if (!enabled) continue;
+      const measuredValid = measured.filter((_, index) => valid[index]);
+      const modeledValid = modeled.filter((_, index) => valid[index]);
+      const raw = modeledValid.map((value, index) => value - measuredValid[index]);
+      const shape = affineShapeResidual(modeledValid, measuredValid).residuals;
+      const rmse = (values) => Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
+      channelMetrics[channel] = { rmse: rmse(raw), shapeRmse: rmse(shape) };
+    }
+    const comparison = indexComparison(fit.nk, candidate.parameters, settings);
+    distinct.push({
+      rank: distinct.length + 1,
+      localStart: candidate.localStart,
+      robustCost: candidate.cost,
+      relativeCostIncrease: (candidate.cost - fit.bestCost) / Math.max(Math.abs(fit.bestCost), 1e-12),
+      normalizedParameterDistanceFromBest: distance(candidate.point, fit.bestPoint) / Math.sqrt(Math.max(1, candidate.point.length)),
+      parameters: candidate.parameters,
+      channelMetrics,
+      indexVsEllipsometry: comparison?.diagnostics ?? {},
+      fittedParametersAtBounds: fit.fittedParameters.filter((name) => {
+        const [lower, upper] = fit.bounds[name];
+        return Math.abs(candidate.parameters[name] - lower) <= 1e-6 * Math.max(1, Math.abs(lower))
+          || Math.abs(candidate.parameters[name] - upper) <= 1e-6 * Math.max(1, Math.abs(upper));
+      }),
+    });
+    selectedPoints.push(candidate.point);
+    if (distinct.length === 5) break;
   }
-  return Math.max(0, distinct.length - 1);
+  return distinct;
 }
 
 function symmetricEigenvalues(matrix) {

@@ -125,6 +125,12 @@ test("recovers a synthetic tabulated-film thickness reproducibly", () => {
   const second = fitTabulated(data, nk, configuration);
   assert.ok(Math.abs(first.parameters.thicknessNm - 237) < 1e-3);
   assert.deepEqual(first.parameters, second.parameters);
+  const alternatives = first.diagnostics.alternativeSolutions;
+  assert.ok(alternatives.length >= 1 && alternatives.length <= 5);
+  assert.deepEqual(alternatives.map((solution) => solution.rank), alternatives.map((_, index) => index + 1));
+  assert.ok(Math.abs(alternatives[0].relativeCostIncrease) < 1e-12);
+  assert.ok(alternatives.every((solution, index) => index === 0 || solution.robustCost >= alternatives[index - 1].robustCost));
+  assert.equal(first.diagnostics.nearEqualAlternativeMinima, Math.max(0, alternatives.filter((solution) => solution.relativeCostIncrease <= 0.05).length - 1));
 });
 
 test("recovers synthetic thickness and n,k scales", () => {

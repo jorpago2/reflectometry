@@ -161,6 +161,16 @@
             <article><span>NEAR-EQUAL ALTERNATIVES</span><strong id="diagnostic-alternatives">—</strong><small>within 5% cost among local starts</small></article>
           </div>
           <p id="diagnostic-note">Local finite-difference diagnostics become available after fitting.</p>
+          <details id="alternative-details" hidden>
+            <summary>Ranked distinct local solutions</summary>
+            <p class="table-note">Solutions are distinct in normalized fitted-parameter space. Similar cost does not imply that their parameters are physically interchangeable.</p>
+            <div class="table-scroll" role="region" aria-label="Ranked alternative fit solutions" tabindex="0">
+              <table>
+                <thead><tr><th scope="col">Rank</th><th scope="col">Start</th><th scope="col">Cost</th><th scope="col">Δ cost</th><th scope="col">Distance</th><th scope="col">RMSE R / T</th><th scope="col">RMSE Δn / Δk</th><th scope="col">At bounds</th><th scope="col">Fitted parameters</th></tr></thead>
+                <tbody id="alternative-solutions"></tbody>
+              </table>
+            </div>
+          </details>
         </section>
 
         <article class="plot-card">
@@ -194,6 +204,20 @@
         </details>
       </section>
     </div>
+
+    <section class="faq" aria-labelledby="faq-title">
+      <div class="plot-heading"><div><p>INTERPRETATION GUIDE</p><h2 id="faq-title">Frequently asked questions</h2></div></div>
+      <div class="faq-grid">
+        <details><summary>Does the browser run the original Python program?</summary><p>No. The numerical workflow was ported to JavaScript so it runs locally on any modern browser without uploading the measurement files.</p></details>
+        <details><summary>What physical system is modeled?</summary><p>One homogeneous, isotropic, coherent film at normal incidence on an optically thick substrate. Rear-surface substrate returns are combined incoherently.</p></details>
+        <details><summary>What does ellipsometry regularization do?</summary><p>It adds n and k deviations from the local 300–1100 nm ellipsometry table to the fit residual. It is an informative prior, not a new independent measurement.</p></details>
+        <details><summary>Why use the spectral-shape residual?</summary><p>It penalizes line-shape disagreement after one positive affine gain and offset alignment. The raw residual remains active, so absolute amplitude is still constrained.</p></details>
+        <details><summary>Why calibrate shared R/T gains?</summary><p>Shared gains separate detector scaling from material parameters by fitting all bundled samples together. They are valid only when detector settings and geometry were unchanged.</p></details>
+        <details><summary>How should alternative minima be interpreted?</summary><p>Near-equal solutions within 5% robust cost indicate possible non-uniqueness. Prefer conclusions stable across those solutions, and treat parameters at bounds or with a poorly conditioned Jacobian cautiously.</p></details>
+        <details><summary>When is the recovered n,k unreliable?</summary><p>Risk increases with weak spectral coverage, one-channel fits, excessive free parameters, gains far from unity, parameters at bounds, or disagreement with independent ellipsometry.</p></details>
+        <details><summary>What should be archived for reproducibility?</summary><p>Save the JSON provenance record, spectra CSV, optical-constants CSV, original TXT files, model choice, bounds, assumed uncertainties, and instrument geometry.</p></details>
+      </div>
+    </section>
   </main>
 
   <footer>

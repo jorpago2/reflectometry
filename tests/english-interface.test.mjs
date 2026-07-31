@@ -11,5 +11,7 @@ test("ships an English-only application interface", async () => {
   assert.match(files[0], /Calibrate shared R\/T gains/);
   assert.match(files[0], /id="residual-chart"/);
   assert.match(files[0], /id="download-nk-csv"/);
+  assert.match(files[0], /Ranked distinct local solutions/);
+  assert.match(files[0], /Frequently asked questions/);
   assert.doesNotMatch(files.join("\n"), /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

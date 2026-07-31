@@ -138,6 +138,17 @@ progress { width: 100%; height: 0.4rem; border: 0; accent-color: var(--acid); }
 .diagnostic-grid span, .diagnostic-grid small { display: block; color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.62rem; letter-spacing: 0.06em; }
 .diagnostic-grid strong { display: block; min-height: 2.4rem; margin: 0.35rem 0; color: var(--paper); font-size: 0.9rem; overflow-wrap: anywhere; }
 #diagnostic-note { margin: 0.8rem 0 0; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
+.table-note { margin: 0 0 0.7rem; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 0.68rem; }
+th, td { padding: 0.65rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; white-space: nowrap; }
+th { color: var(--acid); background: #0a1a16; font-weight: 600; }
+td { color: #bdd0c9; }
+td:last-child { min-width: 18rem; white-space: normal; }
+.faq { padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 4vw, 4rem); border-top: 1px solid var(--line); }
+.faq-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.faq details { padding: 0.65rem 1rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.faq p { margin: 0 0 0.8rem; color: #afc4bc; font-size: 0.8rem; line-height: 1.6; }
 .plot-card { margin-bottom: 1rem; padding: clamp(1rem, 2vw, 1.7rem); border: 1px solid var(--line); background: linear-gradient(145deg, rgb(18 43 36 / 0.88), rgb(9 24 20 / 0.9)); box-shadow: var(--shadow); }
 .plot-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-bottom: 1rem; }
 .plot-heading p { margin: 0 0 0.25rem; }
@@ -175,6 +186,7 @@ footer { padding: 1.5rem clamp(1rem, 4vw, 4rem); display: flex; justify-content:
   #fit-progress { grid-row: 2; grid-column: 1 / -1; }
   .plot-heading { align-items: flex-start; flex-direction: column; }
   .legend { justify-content: start; }
+  .faq-grid { grid-template-columns: 1fr; }
   footer { flex-direction: column; }
 }
 
