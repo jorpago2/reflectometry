@@ -6,7 +6,7 @@
   <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer.">
   <meta name="theme-color" content="#f3f0e8">
   <title>Reflectometry · Generic multilayer fitting</title>
-  <link rel="stylesheet" href="styles.css?v=3.1.0">
+  <link rel="stylesheet" href="styles.css?v=3.2.0">
 </head>
 <body>
   <header class="masthead">
@@ -114,6 +114,14 @@
           <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
           <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
         </div>
+        <section class="stack-card" aria-labelledby="stack-title">
+          <div class="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
+          <figure class="stack-figure">
+            <div class="stack-beam" aria-hidden="true"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow">↓</strong><small>LIGHT</small></div>
+            <div id="stack-diagram" class="stack-diagram" role="img" aria-live="polite"></div>
+            <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
+          </figure>
+        </section>
         <section class="diagnostics">
           <div class="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
           <div class="diagnostic-grid">
@@ -131,7 +139,7 @@
       </section>
     </div>
   </main>
-  <footer><span>Reflectometry · v3.1.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
-  <script type="module" src="multilayer-app.js?v=3.1.0"></script>
+  <footer><span>Reflectometry · v3.2.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js?v=3.2.0"></script>
 </body>
 </html>
