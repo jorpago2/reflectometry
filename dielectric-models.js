@@ -169,8 +169,7 @@ export function refractiveIndexModel(model, wavelengthNm, parameters, nk) {
   if (model === "constant") return { n: wavelengthNm.map(() => parameters.n), k: wavelengthNm.map(() => parameters.k) };
   if (model === "fixed" || model === "scaled") {
     if (!nk) throw new Error("The selected model requires a matching ellipsometry n,k table.");
-    const n = interpolate(nk.wavelengthNm, nk.n, wavelengthNm);
-    const k = interpolate(nk.wavelengthNm, nk.k, wavelengthNm);
+    const { n, k } = tabulatedRefractiveIndex(nk, wavelengthNm);
     return model === "scaled"
       ? { n: n.map((value) => value * parameters.nScale), k: k.map((value) => value * parameters.kScale) }
       : { n, k };
@@ -183,6 +182,11 @@ export function refractiveIndexModel(model, wavelengthNm, parameters, nk) {
   else if (model === "drude-tl") dielectric = drudeTaucLorentzDielectric(wavelengthNm, parameters);
   else throw new Error(`Unsupported optical model: ${model}.`);
   return passiveRefractiveIndex(dielectric);
+}
+
+export function tabulatedRefractiveIndex(nk, wavelengthNm) {
+  if (!nk?.wavelengthNm?.length || nk.wavelengthNm.length !== nk.n?.length || nk.n.length !== nk.k?.length) throw new Error("Invalid ellipsometry n,k table.");
+  return { n: interpolate(nk.wavelengthNm, nk.n, wavelengthNm), k: interpolate(nk.wavelengthNm, nk.k, wavelengthNm) };
 }
 
 export function taucLorentzDielectric(wavelengthNm, epsilonInf, amplitudeEv, resonanceEv, broadeningEv, bandgapEv) {

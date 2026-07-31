@@ -117,6 +117,13 @@
             <label>σR<input id="sigma-r" type="number" value="0.02" min="0.0001" max="1" step="0.005"></label>
             <label>σT<input id="sigma-t" type="number" value="0.02" min="0.0001" max="1" step="0.005"></label>
           </div>
+          <label class="check"><input id="prefer-shape" type="checkbox" checked><span>Prefer matching spectral shape</span></label>
+          <label class="check"><input id="regularize-ellipsometry" type="checkbox" checked><span>Regularize toward ellipsometry</span></label>
+          <div class="field-pair">
+            <label>σn<input id="sigma-n" type="number" value="0.5" min="0.0001" max="10" step="0.05"></label>
+            <label>σk<input id="sigma-k" type="number" value="0.25" min="0.0001" max="10" step="0.05"></label>
+          </div>
+          <label class="check"><input id="show-ellipsometry" type="checkbox" checked><span>Show measured ellipsometry n,k</span></label>
         </section>
 
         <div class="actions">
@@ -163,8 +170,16 @@
 
         <article class="plot-card">
           <div class="plot-heading">
+            <div><p>FIT ERROR</p><h2>Reflectance and transmittance residuals</h2></div>
+            <div class="legend" aria-hidden="true"><span class="r-model">R residual</span><span class="t-model">T residual</span></div>
+          </div>
+          <canvas id="residual-chart" role="img" aria-label="Reflectance and transmittance residual chart"></canvas>
+        </article>
+
+        <article class="plot-card">
+          <div class="plot-heading">
             <div><p>OPTICAL CONSTANTS</p><h2>Complex film refractive index</h2></div>
-            <div class="legend" aria-hidden="true"><span class="n-line">n</span><span class="k-line">k</span></div>
+            <div class="legend" aria-hidden="true"><span class="n-line">n model</span><span class="k-line">k model</span><span class="n-reference">n ellipsometry</span><span class="k-reference">k ellipsometry</span></div>
           </div>
           <canvas id="nk-chart" role="img" aria-label="Refractive index n and extinction coefficient k chart"></canvas>
         </article>

@@ -7,5 +7,7 @@ test("ships an English-only application interface", async () => {
   assert.match(files[0], /<html lang="en">/);
   assert.match(files[0], /From spectral signals to/);
   assert.match(files[0], /Tauc–Lorentz \(2 oscillators, causal\)/);
+  assert.match(files[0], /Regularize toward ellipsometry/);
+  assert.match(files[0], /id="residual-chart"/);
   assert.doesNotMatch(files.join("\n"), /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

@@ -18,6 +18,8 @@ Open `http://localhost:4173`. Run the numerical checks with `npm test`.
 - Causal one/two-oscillator Tauc–Lorentz, Tauc–Lorentz + Gaussian, Cody–Lorentz, and Drude + Tauc–Lorentz models.
 - Coherent single-film TMM with incoherent substrate returns.
 - SciPy-compatible scrambled Sobol screening (seed 1729, 512 points) and 16 bounded robust Gauss–Newton refinements in a Web Worker, with logarithmic sampling for broad positive parameters.
+- Optional affine spectral-shape residuals and n,k regularization toward local ellipsometry, matching the Python objective definition.
+- Measured/model n,k overlays and wavelength-resolved R/T residual plots.
 - Local identifiability, approximate parameter uncertainty, bound, alternative-minimum, gain, and energy-balance diagnostics.
 - Local JSON and CSV export.
 

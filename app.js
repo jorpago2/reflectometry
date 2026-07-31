@@ -9,6 +9,7 @@ import {
 import {
   MODEL_LABELS,
   modelParameterSpecs,
+  tabulatedRefractiveIndex,
   validateModelAvailability,
 } from "./dielectric-models.js";
 
@@ -21,7 +22,7 @@ const DEMOS = {
 };
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const required = ["load-demo", "load-files", "preview-button", "fit-button", "rt-chart", "nk-chart", "status"];
+const required = ["load-demo", "load-files", "preview-button", "fit-button", "rt-chart", "residual-chart", "nk-chart", "status"];
 if (required.some((id) => !elements[id])) throw new Error("The interface is incomplete.");
 
 const state = { spectrum: null, nk: null, fitData: null, evaluation: null, fitResult: null, source: null, worker: null, sampleId: "agst", parameterSpecs: {} };
@@ -31,6 +32,8 @@ elements["load-files"].addEventListener("click", loadLocalFiles);
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
 elements.model.addEventListener("change", () => { rebuildParameterEditor(); previewModel(); });
+elements["show-ellipsometry"].addEventListener("change", () => state.evaluation && drawAll());
+elements["regularize-ellipsometry"].addEventListener("change", updateEllipsometryControls);
 elements["download-json"].addEventListener("click", downloadJson);
 elements["download-csv"].addEventListener("click", downloadCsv);
 window.addEventListener("resize", () => state.evaluation && drawAll());
@@ -133,6 +136,11 @@ function currentSettings() {
     useTransmittance,
     sigmaReflectance: numberValue("sigma-r", 0.0001, 1),
     sigmaTransmittance: numberValue("sigma-t", 0.0001, 1),
+    preferSpectralShape: elements["prefer-shape"].checked,
+    regularizeEllipsometry: elements["regularize-ellipsometry"].checked && !elements["regularize-ellipsometry"].disabled,
+    showEllipsometry: elements["show-ellipsometry"].checked,
+    sigmaN: numberValue("sigma-n", 0.0001, 10),
+    sigmaK: numberValue("sigma-k", 0.0001, 10),
   };
 }
 
@@ -200,6 +208,19 @@ function rebuildParameterEditor() {
     "drude-tl": "Free-carrier Drude response plus a causal Tauc–Lorentz background; restricted to VO₂.",
   };
   elements["model-note"].textContent = notes[elements.model.value];
+  updateEllipsometryControls();
+}
+
+function updateEllipsometryControls() {
+  const unsupported = new Set(["fixed", "drude-tl"]).has(elements.model.value);
+  elements["regularize-ellipsometry"].disabled = unsupported;
+  for (const id of ["sigma-n", "sigma-k"]) elements[id].disabled = unsupported || !elements["regularize-ellipsometry"].checked;
+  if (!unsupported && elements["regularize-ellipsometry"].checked) {
+    for (const [name, enabled] of [["rGain", elements["use-r"].checked], ["tGain", elements["use-t"].checked]]) {
+      const fit = document.querySelector(`#fit-${name}`);
+      if (fit && enabled) fit.checked = true;
+    }
+  }
 }
 
 function currentParameters() {
@@ -265,6 +286,9 @@ function fitModel() {
     validateSelectedChannels(fitData, settings);
     validateModelAvailability(settings.model, state.sampleId);
     const { bounds, fittedParameters } = currentBounds(initial);
+    if (settings.regularizeEllipsometry && ((settings.useReflectance && !fittedParameters.includes("rGain")) || (settings.useTransmittance && !fittedParameters.includes("tGain")))) {
+      throw new Error("Enable fitting for the active R/T gains before a regularized fit.");
+    }
     if (state.worker) state.worker.terminate();
     state.worker = new Worker(new URL("./fit-worker.js", import.meta.url), { type: "module" });
     state.worker.addEventListener("message", handleWorkerMessage);
@@ -327,6 +351,9 @@ function renderResult(result, message) {
     .map(([name, value]) => `${name} ± ${format(value, 3)}`);
   const warnings = [];
   if (values.gainsOutsideOperationalRange.length) warnings.push(`gain outside 0.8–1.2: ${values.gainsOutsideOperationalRange.join(", ")}`);
+  const shape = Object.entries(values.shapeAfterAffineAlignment ?? {}).map(([channel, metric]) => `${channel}=${format(metric.rmse, 4)}`);
+  if (shape.length) warnings.push(`Affine-shape RMSE: ${shape.join(", ")}`);
+  if (Number.isFinite(values.indexVsEllipsometry?.rmseDeltaN)) warnings.push(`n,k RMSE vs ellipsometry: ${format(values.indexVsEllipsometry.rmseDeltaN, 3)}, ${format(values.indexVsEllipsometry.rmseDeltaK, 3)}`);
   if (uncertainties.length) warnings.push(`Approximate 1σ: ${uncertainties.join("; ")}`);
   elements["diagnostic-note"].textContent = warnings.join(" · ") || "Local finite-difference diagnostics; uncertainty estimates are approximate.";
   elements["download-json"].disabled = false;
@@ -346,10 +373,22 @@ function drawAll() {
     { values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : Number.NaN), color: "#718d84", points: true },
     { values: state.evaluation.transmittanceScaled, color: "#ff8a57" },
   ], { minimumY: 0, yLabel: "R, T" });
-  drawChart(elements["nk-chart"], x, [
+  drawChart(elements["residual-chart"], x, [
+    { values: state.evaluation.reflectanceScaled.map((value, index) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : Number.NaN), color: "#cbf36b" },
+    { values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : Number.NaN), color: "#ff8a57" },
+  ], { symmetricY: true, yLabel: "Model − data" });
+  const indexSeries = [
     { values: state.evaluation.n, color: "#cbf36b" },
     { values: state.evaluation.k, color: "#ff8a57" },
-  ], { minimumY: 0, yLabel: "n, k" });
+  ];
+  if (elements["show-ellipsometry"].checked) {
+    const ellipsometry = tabulatedRefractiveIndex(state.nk, x);
+    indexSeries.push(
+      { values: ellipsometry.n.map((value, index) => x[index] >= 300 && x[index] <= 1100 ? value : Number.NaN), color: "#8da858", dash: [5, 4] },
+      { values: ellipsometry.k.map((value, index) => x[index] >= 300 && x[index] <= 1100 ? value : Number.NaN), color: "#b66b4d", dash: [5, 4] },
+    );
+  }
+  drawChart(elements["nk-chart"], x, indexSeries, { minimumY: 0, yLabel: "n, k" });
 }
 
 function drawChart(canvas, x, series, options) {
@@ -366,8 +405,9 @@ function drawChart(canvas, x, series, options) {
   const xMinimum = Math.min(...x);
   const xMaximum = Math.max(...x);
   const finiteValues = series.flatMap((entry) => entry.values.filter(Number.isFinite));
-  const yMinimum = options.minimumY ?? Math.min(...finiteValues);
-  const yMaximumRaw = Math.max(...finiteValues);
+  const maximumAbsoluteY = Math.max(...finiteValues.map(Math.abs));
+  const yMinimum = options.symmetricY ? -(maximumAbsoluteY || 1) * 1.08 : options.minimumY ?? Math.min(...finiteValues);
+  const yMaximumRaw = options.symmetricY ? maximumAbsoluteY || 1 : Math.max(...finiteValues);
   const yMaximum = yMaximumRaw > yMinimum ? yMaximumRaw * 1.08 : yMinimum + 1;
   const xPixel = (value) => margin.left + (value - xMinimum) / (xMaximum - xMinimum) * plotWidth;
   const yPixel = (value) => margin.top + (yMaximum - value) / (yMaximum - yMinimum) * plotHeight;
@@ -396,6 +436,7 @@ function drawChart(canvas, x, series, options) {
     context.fillStyle = entry.color;
     context.lineWidth = entry.points ? 1 : 2;
     context.globalAlpha = entry.points ? 0.8 : 1;
+    context.setLineDash(entry.dash ?? []);
     context.beginPath();
     let drawing = false;
     entry.values.forEach((value, index) => {
@@ -411,6 +452,7 @@ function drawChart(canvas, x, series, options) {
       context.fillRect(xPixel(x[index]) - 1.25, yPixel(value) - 1.25, 2.5, 2.5);
     });
   }
+  context.setLineDash([]);
   context.globalAlpha = 1;
 }
 
@@ -418,7 +460,7 @@ function exportPayload() {
   if (!state.fitResult || !state.fitData) throw new Error("No results are available for export.");
   return {
     schema: "reflectometry-browser-fit/v1",
-    application: { name: "Reflectometry", version: "0.4.0", url: "https://jorpago2.github.io/reflectometry/" },
+    application: { name: "Reflectometry", version: "0.5.0", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {

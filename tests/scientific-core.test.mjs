@@ -2,14 +2,45 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  affineShapeResidual,
   createSpectrum,
+  evaluateOpticalModel,
   filmOnThickSubstrate,
+  fitResidualVector,
   fitTabulated,
   loadNkTable,
   prepareFitData,
   restrictToNkRange,
   robustBackground,
 } from "../scientific-core.js";
+
+test("matches Python affine-shape and ellipsometry-prior residuals", () => {
+  const shapeModel = [0, 1, 0.2, 0.8, 0.1];
+  const shapeMeasured = shapeModel.map((value) => 0.15 + 1.7 * value);
+  const aligned = affineShapeResidual(shapeModel, shapeMeasured);
+  assertArrayClose(aligned.residuals, shapeModel.map(() => 0), 1e-14);
+  assert.ok(Math.abs(aligned.gain - 1.7) < 1e-14);
+  assert.ok(Math.abs(aligned.offset - 0.15) < 1e-14);
+  assert.ok(Math.sqrt(affineShapeResidual([...shapeModel].reverse(), shapeMeasured).residuals.reduce((sum, value) => sum + value ** 2, 0) / shapeModel.length) > 0.1);
+
+  const wavelengthNm = Array.from({ length: 11 }, (_, index) => 300 + index * 80);
+  const nk = { wavelengthNm, n: wavelengthNm.map(() => 2.5), k: wavelengthNm.map(() => 0.2) };
+  const parameters = { thicknessNm: 200, n: 2, k: 0.1, rGain: 1, tGain: 1 };
+  const settings = {
+    model: "constant", substrateIndex: 1.46, incidence: "film", useReflectance: true, useTransmittance: true,
+    sigmaReflectance: 0.02, sigmaTransmittance: 0.02, preferSpectralShape: true,
+    regularizeEllipsometry: true, sigmaN: 0.5, sigmaK: 0.25,
+  };
+  const valid = wavelengthNm.map(() => true);
+  const emptyData = { wavelengthNm, reflectance: [], transmittance: [], reflectanceValid: valid, transmittanceValid: valid };
+  const evaluation = evaluateOpticalModel(emptyData, nk, parameters, settings);
+  const data = { ...emptyData, reflectance: evaluation.reflectanceScaled, transmittance: evaluation.transmittanceScaled };
+  const residuals = fitResidualVector(data, nk, parameters, evaluation, settings);
+  assert.equal(residuals.length, 66);
+  assertArrayClose(residuals.slice(0, 44), Array(44).fill(0), 1e-14);
+  assertArrayClose(residuals.slice(44, 55), Array(11).fill(-1), 1e-14);
+  assertArrayClose(residuals.slice(55), Array(11).fill(-0.4), 1e-14);
+});
 
 test("matches Python background, calibration order and TMM references", () => {
   const backgroundWavelength = Array.from({ length: 99 }, (_, index) => 195 + index * 55 / 98);

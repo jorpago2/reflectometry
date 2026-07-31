@@ -301,7 +301,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     const variable = toPhysical(point);
     const parameters = { ...initial, ...variable };
     const evaluated = evaluateOpticalModel(data, nk, parameters, settings);
-    const residuals = residualVector(data, evaluated, settings);
+    const residuals = fitResidualVector(data, nk, parameters, evaluated, settings);
     return { cost: softL1Cost(residuals), residuals, parameters, evaluated };
   };
 
@@ -358,7 +358,24 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
     gainsOutsideOperationalRange: [],
     nearEqualAlternativeMinima: null,
     parameterStandardErrorsApproximate: {},
+    shapeAfterAffineAlignment: {},
+    indexVsEllipsometry: {},
+    regularizedTowardEllipsometry: Boolean(settings.regularizeEllipsometry && settings.model !== "fixed"),
   };
+  for (const [channel, enabled, measured, modeled, valid] of [
+    ["R", settings.useReflectance, data.reflectance, evaluation.reflectanceScaled, data.reflectanceValid],
+    ["T", settings.useTransmittance, data.transmittance, evaluation.transmittanceScaled, data.transmittanceValid],
+  ]) {
+    if (!enabled) continue;
+    const measuredValid = measured.filter((_, index) => valid[index]);
+    const modeledValid = modeled.filter((_, index) => valid[index]);
+    const shape = affineShapeResidual(modeledValid, measuredValid);
+    result.shapeAfterAffineAlignment[channel] = {
+      rmse: Math.sqrt(shape.residuals.reduce((sum, value) => sum + value ** 2, 0) / shape.residuals.length),
+      gain: shape.gain,
+      offset: shape.offset,
+    };
+  }
   if (!fit) return result;
 
   result.parametersAtBounds = fit.fittedParameters.filter((name) => {
@@ -371,25 +388,65 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
     fit.fittedParameters.includes(name) && (fit.parameters[name] < 0.8 || fit.parameters[name] > 1.2)
   ));
   result.nearEqualAlternativeMinima = countAlternativeMinima(fit.refinedCandidates, fit.bestCost);
+  const comparison = indexComparison(fit.nk, fit.parameters, settings);
+  result.indexVsEllipsometry = comparison?.diagnostics ?? {};
   const sensitivity = localSensitivity(data, fit.nk, fit.parameters, settings, fit.bounds, fit.fittedParameters);
   result.normalizedJacobianCondition = sensitivity.condition;
   result.parameterStandardErrorsApproximate = sensitivity.standardErrors;
   return result;
 }
 
-function residualVector(data, evaluation, settings) {
+export function affineShapeResidual(modeled, measured) {
+  if (modeled.length !== measured.length || !modeled.length || !modeled.every(Number.isFinite) || !measured.every(Number.isFinite)) throw new Error("Shape comparison requires matching finite spectra.");
+  const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const modeledMean = mean(modeled);
+  const measuredMean = mean(measured);
+  const centered = modeled.map((value) => value - modeledMean);
+  const denominator = centered.reduce((sum, value) => sum + value ** 2, 0);
+  const gain = denominator > Number.EPSILON
+    ? Math.max(0, centered.reduce((sum, value, index) => sum + value * (measured[index] - measuredMean), 0) / denominator)
+    : 0;
+  const offset = measuredMean - gain * modeledMean;
+  return { residuals: modeled.map((value, index) => gain * value + offset - measured[index]), gain, offset };
+}
+
+export function fitResidualVector(data, nk, parameters, evaluation, settings) {
   const residuals = [];
-  if (settings.useReflectance) data.reflectance.forEach((value, index) => {
-    if (data.reflectanceValid[index]) residuals.push((evaluation.reflectanceScaled[index] - value) / settings.sigmaReflectance);
-  });
-  if (settings.useTransmittance) data.transmittance.forEach((value, index) => {
-    if (data.transmittanceValid[index]) residuals.push((evaluation.transmittanceScaled[index] - value) / settings.sigmaTransmittance);
-  });
+  for (const [enabled, measured, modeled, valid, sigma] of [
+    [settings.useReflectance, data.reflectance, evaluation.reflectanceScaled, data.reflectanceValid, settings.sigmaReflectance],
+    [settings.useTransmittance, data.transmittance, evaluation.transmittanceScaled, data.transmittanceValid, settings.sigmaTransmittance],
+  ]) {
+    if (!enabled) continue;
+    const measuredValid = measured.filter((_, index) => valid[index]);
+    const modeledValid = modeled.filter((_, index) => valid[index]);
+    residuals.push(...modeledValid.map((value, index) => (value - measuredValid[index]) / sigma));
+    if (settings.preferSpectralShape) residuals.push(...affineShapeResidual(modeledValid, measuredValid).residuals.map((value) => value / sigma));
+  }
+  if (settings.regularizeEllipsometry && settings.model !== "fixed") {
+    if (settings.model === "drude-tl") throw new Error("The metallic VO₂ model cannot be regularized toward the 22 °C insulating n,k table.");
+    const comparison = indexComparison(nk, parameters, settings);
+    if (!comparison) throw new Error("Ellipsometry regularization requires a matching n,k table from 300 to 1100 nm.");
+    residuals.push(...comparison.deltaN.map((value) => value / settings.sigmaN));
+    residuals.push(...comparison.deltaK.map((value) => value / settings.sigmaK));
+  }
   return residuals;
 }
 
+function indexComparison(nk, parameters, settings) {
+  if (!nk) return null;
+  const selected = nk.wavelengthNm.map((value) => value >= 300 && value <= 1100);
+  const wavelengthNm = nk.wavelengthNm.filter((_, index) => selected[index]);
+  if (wavelengthNm.length < 10) return null;
+  const reference = { n: nk.n.filter((_, index) => selected[index]), k: nk.k.filter((_, index) => selected[index]) };
+  const modeled = refractiveIndexModel(settings.model, wavelengthNm, parameters, nk);
+  const deltaN = modeled.n.map((value, index) => value - reference.n[index]);
+  const deltaK = modeled.k.map((value, index) => value - reference.k[index]);
+  const rmse = (values) => Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
+  return { wavelengthNm, reference, modeled, deltaN, deltaK, diagnostics: { rmseDeltaN: rmse(deltaN), rmseDeltaK: rmse(deltaK), weightedRmseDeltaN: rmse(deltaN), weightedRmseDeltaK: rmse(deltaK) } };
+}
+
 function localSensitivity(data, nk, parameters, settings, bounds, fittedParameters) {
-  const residual = residualVector(data, evaluateOpticalModel(data, nk, parameters, settings), settings);
+  const residual = fitResidualVector(data, nk, parameters, evaluateOpticalModel(data, nk, parameters, settings), settings);
   const jacobian = residual.map(() => []);
   for (const name of fittedParameters) {
     const [lower, upper] = bounds[name];
@@ -397,8 +454,10 @@ function localSensitivity(data, nk, parameters, settings, bounds, fittedParamete
     const below = Math.max(lower, parameters[name] - step);
     const above = Math.min(upper, parameters[name] + step);
     if (!(above > below)) continue;
-    const low = residualVector(data, evaluateOpticalModel(data, nk, { ...parameters, [name]: below }, settings), settings);
-    const high = residualVector(data, evaluateOpticalModel(data, nk, { ...parameters, [name]: above }, settings), settings);
+    const lowParameters = { ...parameters, [name]: below };
+    const highParameters = { ...parameters, [name]: above };
+    const low = fitResidualVector(data, nk, lowParameters, evaluateOpticalModel(data, nk, lowParameters, settings), settings);
+    const high = fitResidualVector(data, nk, highParameters, evaluateOpticalModel(data, nk, highParameters, settings), settings);
     residual.forEach((value, row) => {
       const softL1JacobianWeight = (1 + value ** 2) ** -0.75;
       jacobian[row].push((high[row] - low[row]) / (above - below) * softL1JacobianWeight);
