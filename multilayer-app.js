@@ -180,12 +180,7 @@ function renderStackDiagram() {
   elements["stack-direction"].textContent = `INCIDENT / ${fromSubstrate ? "SUBSTRATE" : "STACK"} SIDE`;
   elements["stack-arrow"].textContent = fromSubstrate ? "↑" : "↓";
 
-  const air = document.createElement("div"); air.className = "stack-medium stack-air";
-  const airName = document.createElement("strong"); airName.textContent = "Ambient";
-  const airIndex = document.createElement("span"); airIndex.textContent = "air · n = 1.000";
-  air.append(airName, airIndex);
-
-  const layers = document.createElement("ol"); layers.className = "stack-layers";
+  const layers = [];
   for (const [index, layer] of state.layers.entries()) {
     const item = document.createElement("li"); item.className = "stack-layer"; item.classList.toggle("active", layer.id === state.activeLayerId);
     const order = document.createElement("span"); order.className = "stack-layer-order"; order.textContent = String(index + 1).padStart(2, "0");
@@ -194,18 +189,10 @@ function renderStackDiagram() {
     const model = document.createElement("small"); model.textContent = MULTILAYER_MODEL_LABELS[layer.model] ?? layer.model;
     identity.append(name, model);
     const thickness = document.createElement("span"); thickness.className = "stack-thickness"; thickness.textContent = `${format(layer.specs.thicknessNm?.value, 2)} nm`;
-    item.append(order, identity, thickness); layers.append(item);
+    item.append(order, identity, thickness); layers.push(item);
   }
-
-  const substrateIndex = Number(elements["substrate-index"].value);
-  const substrate = document.createElement("div"); substrate.className = "stack-medium stack-substrate";
-  const substrateName = document.createElement("strong"); substrateName.textContent = "Substrate";
-  const substrateValue = document.createElement("span"); substrateValue.textContent = `optically thick · n = ${format(substrateIndex, 3)}`;
-  substrate.append(substrateName, substrateValue);
-  elements["stack-diagram"].replaceChildren(air, layers, substrate);
-
-  const layerDescription = state.layers.map((layer) => `${layer.name}, ${MULTILAYER_MODEL_LABELS[layer.model] ?? layer.model}, ${format(layer.specs.thicknessNm?.value, 2)} nanometres`).join("; ");
-  elements["stack-diagram"].setAttribute("aria-label", `Physical stack from ambient air through ${layerDescription} to a substrate with refractive index ${format(substrateIndex, 3)}. Illumination from the ${fromSubstrate ? "substrate" : "stack"} side.`);
+  elements["stack-layers"].replaceChildren(...layers);
+  elements["stack-substrate-index"].textContent = `optically thick · n = ${format(Number(elements["substrate-index"].value), 3)}`;
 }
 
 function selectControl(labelText, field, choices, value) {
@@ -457,7 +444,7 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-fit/v4", application: { name: "Reflectometry", version: "3.2.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-fit/v4", application: { name: "Reflectometry", version: "3.2.1", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: Number(elements["substrate-index"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,

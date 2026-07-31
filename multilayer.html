@@ -6,7 +6,7 @@
   <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer.">
   <meta name="theme-color" content="#f3f0e8">
   <title>Reflectometry · Generic multilayer fitting</title>
-  <link rel="stylesheet" href="styles.css?v=3.2.0">
+  <link rel="stylesheet" href="styles.css?v=3.2.1">
 </head>
 <body>
   <header class="masthead">
@@ -117,8 +117,12 @@
         <section class="stack-card" aria-labelledby="stack-title">
           <div class="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
           <figure class="stack-figure">
-            <div class="stack-beam" aria-hidden="true"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow">↓</strong><small>LIGHT</small></div>
-            <div id="stack-diagram" class="stack-diagram" role="img" aria-live="polite"></div>
+            <div class="stack-beam"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow" aria-hidden="true">↓</strong><small>LIGHT</small></div>
+            <div id="stack-diagram" class="stack-diagram">
+              <div class="stack-medium stack-air"><strong>Ambient</strong><span>air · n = 1.000</span></div>
+              <ol id="stack-layers" class="stack-layers"></ol>
+              <div class="stack-medium stack-substrate"><strong>Substrate</strong><span id="stack-substrate-index"></span></div>
+            </div>
             <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
           </figure>
         </section>
@@ -139,7 +143,7 @@
       </section>
     </div>
   </main>
-  <footer><span>Reflectometry · v3.2.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
-  <script type="module" src="multilayer-app.js?v=3.2.0"></script>
+  <footer><span>Reflectometry · v3.2.1</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js?v=3.2.1"></script>
 </body>
 </html>

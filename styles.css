@@ -439,7 +439,6 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 }
 
 .stack-beam {
-  min-height: 100%;
   padding: 18px 10px;
   display: flex;
   flex-direction: column;
