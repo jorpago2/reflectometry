@@ -4,6 +4,7 @@ import test from "node:test";
 
 test("ships one English-only material-agnostic multilayer interface", async () => {
   const files = await Promise.all(["index.html", "multilayer.html", "multilayer-app.js", "scientific-core.js", "dielectric-models.js"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
+  const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   const combined = files.join("\n");
   assert.match(files[0], /<html lang="en">/);
   assert.match(files[0], /url=multilayer\.html/);
@@ -21,6 +22,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /Drude–Smith/);
   assert.match(files[2], /Effective-medium constituents/);
   assert.match(files[2], /deterministic browser-generated example/);
+  for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
+  assert.doesNotMatch(styles, /\.parameter-grid\b/);
+  assert.match(styles, /\.hero h1 \{ font-size: clamp\(38px, 11vw, 42px\); \}/);
   assert.doesNotMatch(combined, new RegExp(["single", "layer"].join("[- ]") + "|material " + "preset|included example", "i"));
   assert.doesNotMatch(combined, /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });
