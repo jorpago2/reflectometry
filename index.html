@@ -142,6 +142,17 @@
           <article><span>R / T BINS</span><strong id="metric-bins">—</strong><small>valid</small></article>
         </div>
 
+        <section class="diagnostics" aria-labelledby="diagnostics-title">
+          <div class="plot-heading"><div><p>RELIABILITY CHECKS</p><h2 id="diagnostics-title">Fit diagnostics</h2></div></div>
+          <div class="diagnostic-grid">
+            <article><span>JACOBIAN CONDITION</span><strong id="diagnostic-condition">—</strong><small id="diagnostic-condition-note">Available after fitting</small></article>
+            <article><span>PARAMETERS AT BOUNDS</span><strong id="diagnostic-bounds">None</strong><small>fitted parameters only</small></article>
+            <article><span>MAX PHYSICAL R + T</span><strong id="diagnostic-power">—</strong><small id="diagnostic-power-note">unscaled model</small></article>
+            <article><span>NEAR-EQUAL ALTERNATIVES</span><strong id="diagnostic-alternatives">—</strong><small>within 5% cost among local starts</small></article>
+          </div>
+          <p id="diagnostic-note">Local finite-difference diagnostics become available after fitting.</p>
+        </section>
+
         <article class="plot-card">
           <div class="plot-heading">
             <div><p>CALIBRATED SPECTRA</p><h2>Reflectance and transmittance</h2></div>

@@ -1,5 +1,6 @@
 import {
   createSpectrum,
+  diagnosticsOf,
   evaluateOpticalModel,
   loadNkTable,
   prepareFitData,
@@ -249,7 +250,7 @@ function previewModel() {
     validateSelectedChannels(fitData, settings);
     validateModelAvailability(settings.model, state.sampleId);
     state.evaluation = evaluateOpticalModel(fitData, state.nk, parameters, settings);
-    state.fitResult = { parameters, evaluation: state.evaluation, diagnostics: diagnostics(fitData, state.evaluation, settings), preview: true };
+    state.fitResult = { parameters, evaluation: state.evaluation, diagnostics: diagnosticsOf(fitData, state.evaluation, settings), preview: true };
     renderResult(state.fitResult, "Model updated; parameters have not been optimized yet.");
   } catch (error) {
     showError(error);
@@ -314,6 +315,20 @@ function renderResult(result, message) {
   elements["metric-rmse-r"].textContent = values.rmseReflectance === null ? "—" : format(values.rmseReflectance, 4);
   elements["metric-rmse-t"].textContent = values.rmseTransmittance === null ? "—" : format(values.rmseTransmittance, 4);
   elements["metric-bins"].textContent = `${values.reflectanceBins} / ${values.transmittanceBins}`;
+  const condition = values.normalizedJacobianCondition;
+  elements["diagnostic-condition"].textContent = condition === null ? "—" : Number.isFinite(condition) ? condition.toExponential(2) : "∞";
+  elements["diagnostic-condition-note"].textContent = condition === null ? "Available after fitting" : condition > 1e4 ? "Poor local identifiability" : "Below the 10⁴ warning threshold";
+  elements["diagnostic-bounds"].textContent = values.parametersAtBounds.length ? values.parametersAtBounds.join(", ") : "None";
+  elements["diagnostic-power"].textContent = format(values.maximumPowerBalance, 5);
+  elements["diagnostic-power-note"].textContent = values.minimumAbsorption < -1e-8 ? "Energy-balance warning" : "Passive R + T ≤ 1";
+  elements["diagnostic-alternatives"].textContent = values.nearEqualAlternativeMinima === null ? "—" : String(values.nearEqualAlternativeMinima);
+  const uncertainties = Object.entries(values.parameterStandardErrorsApproximate)
+    .filter(([, value]) => Number.isFinite(value))
+    .map(([name, value]) => `${name} ± ${format(value, 3)}`);
+  const warnings = [];
+  if (values.gainsOutsideOperationalRange.length) warnings.push(`gain outside 0.8–1.2: ${values.gainsOutsideOperationalRange.join(", ")}`);
+  if (uncertainties.length) warnings.push(`Approximate 1σ: ${uncertainties.join("; ")}`);
+  elements["diagnostic-note"].textContent = warnings.join(" · ") || "Local finite-difference diagnostics; uncertainty estimates are approximate.";
   elements["download-json"].disabled = false;
   elements["download-csv"].disabled = false;
   const parameterText = Object.entries(parameters).map(([name, value]) => `${name}=${format(value, 5)}`).join("; ");
@@ -399,24 +414,11 @@ function drawChart(canvas, x, series, options) {
   context.globalAlpha = 1;
 }
 
-function diagnostics(data, evaluation, settings) {
-  const rmse = (modeled, measured, valid) => {
-    const residuals = modeled.map((value, index) => valid[index] ? value - measured[index] : Number.NaN).filter(Number.isFinite);
-    return residuals.length ? Math.sqrt(residuals.reduce((sum, value) => sum + value ** 2, 0) / residuals.length) : null;
-  };
-  return {
-    rmseReflectance: settings.useReflectance ? rmse(evaluation.reflectanceScaled, data.reflectance, data.reflectanceValid) : null,
-    rmseTransmittance: settings.useTransmittance ? rmse(evaluation.transmittanceScaled, data.transmittance, data.transmittanceValid) : null,
-    reflectanceBins: data.reflectanceValid.filter(Boolean).length,
-    transmittanceBins: data.transmittanceValid.filter(Boolean).length,
-  };
-}
-
 function exportPayload() {
   if (!state.fitResult || !state.fitData) throw new Error("No results are available for export.");
   return {
     schema: "reflectometry-browser-fit/v1",
-    application: { name: "Reflectometry", version: "0.2.0", url: "https://jorpago2.github.io/reflectometry/" },
+    application: { name: "Reflectometry", version: "0.3.0", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {

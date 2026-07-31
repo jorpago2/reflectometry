@@ -281,8 +281,11 @@ function complexAbs2(value) { return value.re ** 2 + value.im ** 2; }
 
 export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const { settings, initial, bounds } = configuration;
-  const fittedParameters = configuration.fittedParameters
+  const requestedParameters = configuration.fittedParameters
     ?? (settings.model === "scaled" ? ["thicknessNm", "nScale", "kScale", "rGain", "tGain"] : ["thicknessNm", "rGain", "tGain"]);
+  const fittedParameters = requestedParameters.filter((name) => (
+    !(name === "rGain" && !settings.useReflectance) && !(name === "tGain" && !settings.useTransmittance)
+  ));
   if (!fittedParameters.length) throw new Error("Select at least one parameter to fit.");
   const names = fittedParameters.filter((name) => name !== "rGain" && name !== "tGain");
   const lower = names.map((name) => bounds[name][0]);
@@ -322,13 +325,22 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   candidates.sort((a, b) => a.cost - b.cost);
   let best = candidates[0];
   const refinementCount = Math.min(6, candidates.length);
+  const refinedCandidates = [];
   for (let index = 0; index < refinementCount; index += 1) {
     const refinedPoint = nelderMead(candidates[index].point, (point) => objective(point).cost);
     const refined = { point: refinedPoint, ...objective(refinedPoint) };
+    refinedCandidates.push(refined);
     if (refined.cost < best.cost) best = refined;
     progress(50 + Math.round((index + 1) / refinementCount * 50));
   }
-  const diagnostics = diagnosticsOf(data, best.evaluated, settings);
+  const diagnostics = diagnosticsOf(data, best.evaluated, settings, {
+    nk,
+    parameters: best.parameters,
+    bounds,
+    fittedParameters,
+    refinedCandidates,
+    bestCost: best.cost,
+  });
   return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, screeningPoints, localRefinements: refinementCount };
 }
 
@@ -368,17 +380,142 @@ function robustCost(data, evaluation, settings) {
   return residuals.reduce((sum, value) => sum + 2 * (Math.sqrt(1 + value ** 2) - 1), 0);
 }
 
-function diagnosticsOf(data, evaluation, settings) {
+export function diagnosticsOf(data, evaluation, settings, fit = null) {
   const rmse = (modeled, measured, valid) => {
     const residuals = modeled.map((value, index) => valid[index] ? value - measured[index] : Number.NaN).filter(Number.isFinite);
     return residuals.length ? Math.sqrt(residuals.reduce((sum, value) => sum + value ** 2, 0) / residuals.length) : null;
   };
-  return {
+  const powerBalance = evaluation.reflectance.map((value, index) => value + evaluation.transmittance[index]);
+  const result = {
     rmseReflectance: settings.useReflectance ? rmse(evaluation.reflectanceScaled, data.reflectance, data.reflectanceValid) : null,
     rmseTransmittance: settings.useTransmittance ? rmse(evaluation.transmittanceScaled, data.transmittance, data.transmittanceValid) : null,
     reflectanceBins: data.reflectanceValid.filter(Boolean).length,
     transmittanceBins: data.transmittanceValid.filter(Boolean).length,
+    maximumPowerBalance: Math.max(...powerBalance),
+    minimumAbsorption: Math.min(...powerBalance.map((value) => 1 - value)),
+    normalizedJacobianCondition: null,
+    parametersAtBounds: [],
+    gainsOutsideOperationalRange: [],
+    nearEqualAlternativeMinima: null,
+    parameterStandardErrorsApproximate: {},
   };
+  if (!fit) return result;
+
+  result.parametersAtBounds = fit.fittedParameters.filter((name) => {
+    const [lower, upper] = fit.bounds[name];
+    const value = fit.parameters[name];
+    return Math.abs(value - lower) <= 1e-5 * Math.max(1, Math.abs(lower))
+      || Math.abs(value - upper) <= 1e-5 * Math.max(1, Math.abs(upper));
+  });
+  result.gainsOutsideOperationalRange = ["rGain", "tGain"].filter((name) => (
+    fit.fittedParameters.includes(name) && (fit.parameters[name] < 0.8 || fit.parameters[name] > 1.2)
+  ));
+  result.nearEqualAlternativeMinima = countAlternativeMinima(fit.refinedCandidates, fit.bestCost);
+  const sensitivity = localSensitivity(data, fit.nk, fit.parameters, settings, fit.bounds, fit.fittedParameters);
+  result.normalizedJacobianCondition = sensitivity.condition;
+  result.parameterStandardErrorsApproximate = sensitivity.standardErrors;
+  return result;
+}
+
+function residualVector(data, evaluation, settings) {
+  const residuals = [];
+  if (settings.useReflectance) data.reflectance.forEach((value, index) => {
+    if (data.reflectanceValid[index]) residuals.push((evaluation.reflectanceScaled[index] - value) / settings.sigmaReflectance);
+  });
+  if (settings.useTransmittance) data.transmittance.forEach((value, index) => {
+    if (data.transmittanceValid[index]) residuals.push((evaluation.transmittanceScaled[index] - value) / settings.sigmaTransmittance);
+  });
+  return residuals;
+}
+
+function localSensitivity(data, nk, parameters, settings, bounds, fittedParameters) {
+  const residual = residualVector(data, evaluateOpticalModel(data, nk, parameters, settings), settings);
+  const jacobian = residual.map(() => []);
+  for (const name of fittedParameters) {
+    const [lower, upper] = bounds[name];
+    const step = Math.max((upper - lower) * 1e-5, Math.max(1, Math.abs(parameters[name])) * 1e-7);
+    const below = Math.max(lower, parameters[name] - step);
+    const above = Math.min(upper, parameters[name] + step);
+    if (!(above > below)) continue;
+    const low = residualVector(data, evaluateOpticalModel(data, nk, { ...parameters, [name]: below }, settings), settings);
+    const high = residualVector(data, evaluateOpticalModel(data, nk, { ...parameters, [name]: above }, settings), settings);
+    residual.forEach((value, row) => {
+      const softL1JacobianWeight = (1 + value ** 2) ** -0.75;
+      jacobian[row].push((high[row] - low[row]) / (above - below) * softL1JacobianWeight);
+    });
+  }
+  if (!jacobian.length || !jacobian[0]?.length) return { condition: null, standardErrors: {} };
+  const columns = jacobian[0].length;
+  const gram = Array.from({ length: columns }, (_, row) => Array.from({ length: columns }, (_, column) => (
+    jacobian.reduce((sum, values) => sum + values[row] * values[column], 0)
+  )));
+  const norms = gram.map((row, index) => Math.sqrt(row[index]));
+  let condition = Number.POSITIVE_INFINITY;
+  if (norms.every((value) => value > Number.EPSILON)) {
+    const correlation = gram.map((row, i) => row.map((value, j) => value / (norms[i] * norms[j])));
+    const eigenvalues = symmetricEigenvalues(correlation).sort((a, b) => a - b);
+    if (eigenvalues[0] > Number.EPSILON) condition = Math.sqrt(eigenvalues.at(-1) / eigenvalues[0]);
+  }
+  const inverse = invertMatrix(gram);
+  const degreesOfFreedom = residual.length - columns;
+  const variance = degreesOfFreedom > 0 ? residual.reduce((sum, value) => sum + value ** 2, 0) / degreesOfFreedom : Number.NaN;
+  const standardErrors = Object.fromEntries(fittedParameters.map((name, index) => [
+    name,
+    inverse && Number.isFinite(variance) ? Math.sqrt(Math.max(0, inverse[index][index] * variance)) : null,
+  ]));
+  return { condition, standardErrors };
+}
+
+function countAlternativeMinima(candidates, bestCost) {
+  const distinct = [];
+  for (const candidate of [...candidates].sort((a, b) => a.cost - b.cost)) {
+    if (candidate.cost > bestCost + Math.max(1e-9, Math.abs(bestCost) * 0.05)) continue;
+    if (distinct.every((chosen) => distance(candidate.point, chosen.point) / Math.sqrt(Math.max(1, candidate.point.length)) >= 1e-3)) distinct.push(candidate);
+  }
+  return Math.max(0, distinct.length - 1);
+}
+
+function symmetricEigenvalues(matrix) {
+  const values = matrix.map((row) => [...row]);
+  for (let iteration = 0; iteration < 50 * values.length ** 2; iteration += 1) {
+    let p = 0; let q = 1; let largest = 0;
+    for (let row = 0; row < values.length; row += 1) for (let column = row + 1; column < values.length; column += 1) {
+      if (Math.abs(values[row][column]) > largest) { largest = Math.abs(values[row][column]); p = row; q = column; }
+    }
+    if (largest < 1e-12) break;
+    const angle = 0.5 * Math.atan2(2 * values[p][q], values[q][q] - values[p][p]);
+    const cosine = Math.cos(angle); const sine = Math.sin(angle);
+    for (let index = 0; index < values.length; index += 1) {
+      if (index === p || index === q) continue;
+      const ip = values[index][p]; const iq = values[index][q];
+      values[index][p] = values[p][index] = cosine * ip - sine * iq;
+      values[index][q] = values[q][index] = sine * ip + cosine * iq;
+    }
+    const pp = values[p][p]; const qq = values[q][q]; const pq = values[p][q];
+    values[p][p] = cosine ** 2 * pp - 2 * sine * cosine * pq + sine ** 2 * qq;
+    values[q][q] = sine ** 2 * pp + 2 * sine * cosine * pq + cosine ** 2 * qq;
+    values[p][q] = values[q][p] = 0;
+  }
+  return values.map((row, index) => row[index]);
+}
+
+function invertMatrix(matrix) {
+  const size = matrix.length;
+  const rows = matrix.map((row, index) => [...row, ...Array.from({ length: size }, (_, column) => Number(index === column))]);
+  for (let column = 0; column < size; column += 1) {
+    let pivot = column;
+    for (let row = column + 1; row < size; row += 1) if (Math.abs(rows[row][column]) > Math.abs(rows[pivot][column])) pivot = row;
+    if (Math.abs(rows[pivot][column]) <= Number.EPSILON) return null;
+    [rows[column], rows[pivot]] = [rows[pivot], rows[column]];
+    const divisor = rows[column][column];
+    rows[column] = rows[column].map((value) => value / divisor);
+    for (let row = 0; row < size; row += 1) {
+      if (row === column) continue;
+      const factor = rows[row][column];
+      rows[row] = rows[row].map((value, index) => value - factor * rows[column][index]);
+    }
+  }
+  return rows.map((row) => row.slice(size));
 }
 
 function halton(index, base) {

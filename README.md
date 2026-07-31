@@ -18,6 +18,7 @@ Open `http://localhost:4173`. Run the numerical checks with `npm test`.
 - Causal one/two-oscillator Tauc–Lorentz, Tauc–Lorentz + Gaussian, Cody–Lorentz, and Drude + Tauc–Lorentz models.
 - Coherent single-film TMM with incoherent substrate returns.
 - Deterministic Halton screening and bounded Nelder–Mead refinement in a Web Worker, with logarithmic sampling for broad positive parameters.
+- Local identifiability, approximate parameter uncertainty, bound, alternative-minimum, gain, and energy-balance diagnostics.
 - Local JSON and CSV export.
 
-Every dielectric model is checked against fixed values produced by the Python/SciPy reference implementation. The browser fit remains a diagnostic estimator: thickness, optical constants, and channel gains may be correlated and should not be interpreted as independently identified without sensitivity analysis.
+Every dielectric model and every bundled fixed-table dataset are checked against fixed values produced by the Python/SciPy reference implementation. The browser fit remains a diagnostic estimator: finite-difference uncertainties are local approximations and do not replace experimental uncertainty propagation.

@@ -132,6 +132,12 @@ progress { width: 100%; height: 0.4rem; border: 0; accent-color: var(--acid); }
 .metrics article:last-child { border-right: 0; }
 .metrics span, .metrics small { display: block; color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.65rem; letter-spacing: 0.09em; }
 .metrics strong { display: block; margin: 0.35rem 0 0.15rem; color: var(--paper); font-family: Georgia, serif; font-size: clamp(1.35rem, 2.3vw, 2.1rem); font-weight: 400; overflow-wrap: anywhere; }
+.diagnostics { margin-bottom: 1rem; padding: clamp(1rem, 2vw, 1.7rem); border: 1px solid var(--line); background: rgb(10 26 22 / 0.72); }
+.diagnostic-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.diagnostic-grid article { min-width: 0; padding: 0.9rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.diagnostic-grid span, .diagnostic-grid small { display: block; color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.62rem; letter-spacing: 0.06em; }
+.diagnostic-grid strong { display: block; min-height: 2.4rem; margin: 0.35rem 0; color: var(--paper); font-size: 0.9rem; overflow-wrap: anywhere; }
+#diagnostic-note { margin: 0.8rem 0 0; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
 .plot-card { margin-bottom: 1rem; padding: clamp(1rem, 2vw, 1.7rem); border: 1px solid var(--line); background: linear-gradient(145deg, rgb(18 43 36 / 0.88), rgb(9 24 20 / 0.9)); box-shadow: var(--shadow); }
 .plot-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-bottom: 1rem; }
 .plot-heading p { margin: 0 0 0.25rem; }
@@ -159,6 +165,7 @@ footer { padding: 1.5rem clamp(1rem, 4vw, 4rem); display: flex; justify-content:
   .privacy { max-width: 10rem; text-align: right; }
   .hero { padding-top: 3rem; }
   .metrics { grid-template-columns: repeat(2, 1fr); }
+  .diagnostic-grid { grid-template-columns: repeat(2, 1fr); }
   .metrics article:nth-child(2) { border-right: 0; }
   .metrics article:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
   .status-row { grid-template-columns: 1fr auto; }

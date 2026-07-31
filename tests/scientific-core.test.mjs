@@ -91,35 +91,36 @@ test("recovers synthetic thickness and n,k scales", () => {
   assert.ok(Math.abs(result.parameters.kScale - 1.2) < 1e-5);
 });
 
-test("reproduces the Python aGST fixed-table fit", () => {
+test("reproduces Python/SciPy fixed-table fits for every bundled material", () => {
   const read = (name) => readFileSync(new URL(`../examples/${name}`, import.meta.url), "utf8");
-  const spectrum = createSpectrum({
-    sampleName: "aGST",
-    sampleR: read("agst-ref.txt"),
-    sampleT: read("agst-tr.txt"),
-    silicon: read("si-ref.txt"),
-    openBeam: read("referencitrx.txt"),
-    siliconModel: read("si_reflectance.txt"),
-  });
-  const nk = loadNkTable(read("aGST.txt"));
-  const data = restrictToNkRange(prepareFitData(spectrum, {
-    wavelengthMinNm: 300,
-    wavelengthMaxNm: 1100,
-    referenceThresholdFraction: 0.05,
-    binWidthNm: 2,
-    sampleSnrMinimum: 5,
-    subtractBackground: true,
-  }), nk);
-  const result = fitTabulated(data, nk, {
-    settings: { model: "fixed", substrateIndex: 1.46, incidence: "film", useReflectance: true, useTransmittance: true, sigmaReflectance: 0.02, sigmaTransmittance: 0.02 },
-    initial: { thicknessNm: 250, nScale: 1, kScale: 1, rGain: 1, tGain: 1 },
-    bounds: { thicknessNm: [125, 375], nScale: [0.85, 1.15], kScale: [0.5, 2], rGain: [0.1, 10], tGain: [0.1, 10] },
-  });
-  assert.equal(result.diagnostics.reflectanceBins, 289);
-  assert.equal(result.diagnostics.transmittanceBins, 79);
-  assert.ok(Math.abs(result.parameters.thicknessNm - 234.21575503) < 2e-3);
-  assert.ok(Math.abs(result.parameters.rGain - 1.39816712) < 2e-6);
-  assert.ok(Math.abs(result.parameters.tGain - 0.69779503) < 2e-6);
+  const references = {
+    agst: { files: ["agst-ref.txt", "agst-tr.txt", "aGST.txt"], nominal: 250, useT: true, thickness: 234.21543802, rGain: 1.3981671261, tGain: 0.6977925667, bins: [289, 79] },
+    asb2sb3: { files: ["asb2sb3-ref.txt", "asb2sb3-tr.txt", "aSb2Se3.txt"], nominal: 200, useT: true, thickness: 215.53910555, rGain: 1.3549330249, tGain: 1.0707410972, bins: [289, 267] },
+    cgst: { files: ["cgst-ref.txt", "cgst-tr.txt", "cGST.txt"], nominal: 250, useT: false, thickness: 125, rGain: 1.4623690113, tGain: 1, bins: [289, 0] },
+    csb2sb3: { files: ["csb2sb3-ref.txt", "csb2sb3-tr.txt", "cSb2Se3.txt"], nominal: 200, useT: true, thickness: 181.56175835, rGain: 1.0070495334, tGain: 0.8921679150, bins: [289, 182] },
+    vo2: { files: ["vo2-ref.txt", "vo2-tr.txt", "VO2_22C.txt"], nominal: 150, useT: true, thickness: 115.94348973, rGain: 0.8790394080, tGain: 1.2718703539, bins: [289, 282] },
+  };
+  for (const [sample, reference] of Object.entries(references)) {
+    const [sampleR, sampleT, nkFile] = reference.files;
+    const spectrum = createSpectrum({ sampleName: sample, sampleR: read(sampleR), sampleT: read(sampleT), silicon: read("si-ref.txt"), openBeam: read("referencitrx.txt"), siliconModel: read("si_reflectance.txt") });
+    const nk = loadNkTable(read(nkFile));
+    const data = restrictToNkRange(prepareFitData(spectrum, { wavelengthMinNm: 300, wavelengthMaxNm: 1100, referenceThresholdFraction: 0.05, binWidthNm: 2, sampleSnrMinimum: 5, subtractBackground: true }), nk);
+    const result = fitTabulated(data, nk, {
+      settings: { model: "fixed", substrateIndex: 1.46, incidence: "film", useReflectance: true, useTransmittance: reference.useT, sigmaReflectance: 0.02, sigmaTransmittance: 0.02 },
+      initial: { thicknessNm: reference.nominal, nScale: 1, kScale: 1, rGain: 1, tGain: 1 },
+      bounds: { thicknessNm: [0.5 * reference.nominal, 1.5 * reference.nominal], nScale: [0.85, 1.15], kScale: [0.5, 2], rGain: [0.1, 10], tGain: [0.1, 10] },
+      fittedParameters: ["thicknessNm", "rGain", "tGain"],
+    });
+    assert.equal(result.diagnostics.reflectanceBins, reference.bins[0], sample);
+    assert.equal(result.diagnostics.transmittanceBins, reference.bins[1], sample);
+    assert.ok(Math.abs(result.parameters.thicknessNm - reference.thickness) < 2e-3, sample);
+    assert.ok(Math.abs(result.parameters.rGain - reference.rGain) < 2e-5, sample);
+    assert.ok(Math.abs(result.parameters.tGain - reference.tGain) < 2e-5, sample);
+    assert.ok(result.diagnostics.maximumPowerBalance <= 1 + 1e-10, sample);
+    assert.ok(result.diagnostics.normalizedJacobianCondition >= 1, sample);
+    assert.ok(Object.values(result.diagnostics.parameterStandardErrorsApproximate).every(Number.isFinite), sample);
+    if (!reference.useT) assert.ok(!("tGain" in result.diagnostics.parameterStandardErrorsApproximate));
+  }
 });
 
 function assertArrayClose(actual, expected, tolerance = 1e-12) {
