@@ -3,6 +3,7 @@ import { scrambledSobolPoints } from "./sobol.js";
 
 const EPSILON = Number.EPSILON;
 const LOG_PARAMETERS = new Set(["amplitudeEv", "amplitude1Ev", "amplitude2Ev", "broadeningEv", "broadening1Ev", "broadening2Ev", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
+const CAUSAL_ELLIPSOMETRY_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
 
 export function parseNumericTable(text, minimumColumns = 2) {
   const rows = String(text)
@@ -246,7 +247,7 @@ export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateI
 }
 
 export function calibrateSharedGains(records, settings) {
-  if (!Array.isArray(records) || !records.length) throw new Error("Shared calibration requires bundled sample records.");
+  if (!Array.isArray(records) || !records.length) throw new Error("Shared calibration requires sample records with n,k tables.");
   if (!(settings.substrateIndex > 1) || !new Set(["film", "substrate"]).has(settings.incidence) || !(settings.sigmaReflectance > 0) || !(settings.sigmaTransmittance > 0)) throw new Error("Shared calibration settings are invalid.");
   const usable = records.map((record) => ({
     ...record,
@@ -254,7 +255,7 @@ export function calibrateSharedGains(records, settings) {
     useTransmittance: record.data.transmittanceValid.filter(Boolean).length >= 0.5 * record.data.wavelengthNm.length,
   })).filter((record) => record.useReflectance || record.useTransmittance);
   if (!usable.some((record) => record.useReflectance) || !usable.some((record) => record.useTransmittance)) {
-    throw new Error("Shared calibration requires informative R and T channels across the bundled samples.");
+    throw new Error("Shared calibration requires informative R and T channels across the selected samples.");
   }
   const lower = [0.1, 0.1, ...usable.map((record) => 0.5 * record.nominalThicknessNm)];
   const upper = [10, 10, ...usable.map((record) => 1.5 * record.nominalThicknessNm)];
@@ -292,8 +293,8 @@ export function calibrateSharedGains(records, settings) {
     return !usable[index - 2].useTransmittance ? 0 : value;
   });
   const starts = [normalizedInitial, informedStart];
-  const normalizedSolution = starts.map((start) => boundedTrustRegionReflective(start, residualFunction))
-    .map((point) => ({ point, cost: softL1Cost(residualFunction(point)) }))
+  const normalizedSolution = starts.map((start) => boundedTrustRegionReflective(start, residualFunction, { returnDetails: true }))
+    .map((solver) => ({ point: solver.point, solver, cost: softL1Cost(residualFunction(solver.point)) }))
     .sort((a, b) => a.cost - b.cost)[0];
   const solution = physical(normalizedSolution.point);
   const names = ["rGain", "tGain", ...usable.map((record) => `${record.sampleId}.thicknessNm`)];
@@ -306,6 +307,13 @@ export function calibrateSharedGains(records, settings) {
     gainsOutsideOperationalRange: ["rGain", "tGain"].filter((name, index) => solution[index] < 0.8 || solution[index] > 1.2),
     parametersAtBounds,
     robustCost: normalizedSolution.cost,
+    optimizer: {
+      method: "bounded trust-region reflective least squares with soft-L1 loss",
+      success: normalizedSolution.solver.success,
+      message: normalizedSolution.solver.message,
+      evaluations: normalizedSolution.solver.evaluations,
+      optimality: normalizedSolution.solver.optimality,
+    },
   };
 }
 
@@ -344,8 +352,69 @@ function complexExpI(value) {
 }
 function complexAbs2(value) { return value.re ** 2 + value.im ** 2; }
 
+export function fitEllipsometrySeed(nk, model, specifications) {
+  if (!CAUSAL_ELLIPSOMETRY_MODELS.has(model)) throw new Error("Dynamic ellipsometry seeding is available only for causal dielectric models.");
+  const selected = nk.wavelengthNm.map((value) => value >= 300 && value <= 1100);
+  let wavelengthNm = nk.wavelengthNm.filter((_, index) => selected[index]);
+  let targetN = nk.n.filter((_, index) => selected[index]);
+  let targetK = nk.k.filter((_, index) => selected[index]);
+  if (wavelengthNm.length < 20) throw new Error("Dynamic seeding needs at least 20 n,k points from 300 to 1100 nm.");
+  if (new Set(["tl1", "tl2"]).has(model)) {
+    const stride = Math.max(1, Math.ceil(wavelengthNm.length / 250));
+    wavelengthNm = wavelengthNm.filter((_, index) => index % stride === 0);
+    targetN = targetN.filter((_, index) => index % stride === 0);
+    targetK = targetK.filter((_, index) => index % stride === 0);
+  }
+  const names = Object.keys(specifications).filter((name) => !new Set(["thicknessNm", "rGain", "tGain"]).has(name));
+  const lower = names.map((name) => specifications[name].minimum);
+  const upper = names.map((name) => specifications[name].maximum);
+  const start = names.map((name, index) => (specifications[name].value - lower[index]) / (upper[index] - lower[index]));
+  const targetEpsilon1 = targetN.map((value, index) => value ** 2 - targetK[index] ** 2);
+  const targetEpsilon2 = targetN.map((value, index) => 2 * value * targetK[index]);
+  const populationDeviation = (values) => {
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length);
+  };
+  const realScale = Math.max(populationDeviation(targetEpsilon1), 1);
+  const imaginaryScale = Math.max(populationDeviation(targetEpsilon2), 1);
+  const toParameters = (point) => Object.fromEntries(names.map((name, index) => [name, lower[index] + point[index] * (upper[index] - lower[index])]));
+  const residualFunction = (point) => {
+    const modeled = refractiveIndexModel(model, wavelengthNm, toParameters(point), nk);
+    const epsilon1 = modeled.n.map((value, index) => value ** 2 - modeled.k[index] ** 2);
+    const epsilon2 = modeled.n.map((value, index) => 2 * value * modeled.k[index]);
+    return [
+      ...epsilon1.map((value, index) => (value - targetEpsilon1[index]) / realScale),
+      ...epsilon2.map((value, index) => (value - targetEpsilon2[index]) / imaginaryScale),
+    ];
+  };
+  const maximumEvaluations = ({ tl1: 1500, tl2: 2500, "tl-gaussian": 3000, cody: 1800 })[model];
+  const solver = boundedTrustRegionReflective(start, residualFunction, { returnDetails: true, maximumEvaluations });
+  const parameters = toParameters(solver.point);
+  const fullWavelength = nk.wavelengthNm.filter((value) => value >= 300 && value <= 1100);
+  const referenceN = nk.n.filter((_, index) => selected[index]);
+  const referenceK = nk.k.filter((_, index) => selected[index]);
+  const modeled = refractiveIndexModel(model, fullWavelength, parameters, nk);
+  const diagnostics = indexDiagnostics(
+    fullWavelength,
+    modeled.n.map((value, index) => value - referenceN[index]),
+    modeled.k.map((value, index) => value - referenceK[index]),
+  );
+  diagnostics.parametersAtBounds = names.filter((name, index) => solver.point[index] <= 1e-5 || solver.point[index] >= 1 - 1e-5);
+  diagnostics.solver = { success: solver.success, message: solver.message, evaluations: solver.evaluations, optimality: solver.optimality };
+  diagnostics.wavelengthRangeNm = [300, 1100];
+  return { parameters, diagnostics };
+}
+
 export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const { settings, initial, bounds } = configuration;
+  const screeningPoints = configuration.screeningPoints ?? 512;
+  const localRefinements = configuration.localRefinements ?? 16;
+  if (!Number.isInteger(screeningPoints) || screeningPoints < 64 || screeningPoints > 4096 || (screeningPoints & (screeningPoints - 1))) {
+    throw new Error("Sobol screening points must be a power of two from 64 to 4096.");
+  }
+  if (!Number.isInteger(localRefinements) || localRefinements < 1 || localRefinements > 50) {
+    throw new Error("Local refinements must be an integer from 1 to 50.");
+  }
   const requestedParameters = configuration.fittedParameters
     ?? (settings.model === "scaled" ? ["thicknessNm", "nScale", "kScale", "rGain", "tGain"] : ["thicknessNm", "rGain", "tGain"]);
   const fittedParameters = requestedParameters.filter((name) => (
@@ -372,24 +441,57 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const initialPoint = names.map((name, index) => LOG_PARAMETERS.has(name)
     ? (Math.log(initial[name]) - Math.log(lower[index])) / (Math.log(upper[index]) - Math.log(lower[index]))
     : (initial[name] - lower[index]) / (upper[index] - lower[index]));
-  const screeningPoints = 512;
   const sampledCandidates = scrambledSobolPoints(names.length, screeningPoints).map((point, index) => {
-    const candidate = { point, ...objective(point) };
-    if (index % 48 === 0) progress(Math.round(index / screeningPoints * 45));
+    let candidate;
+    try { candidate = { point, sobolIndex: index, ...objective(point) }; }
+    catch { candidate = { point, sobolIndex: index, cost: Number.POSITIVE_INFINITY }; }
+    if (index % Math.max(1, Math.floor(screeningPoints / 12)) === 0) progress(Math.round(index / screeningPoints * 45));
     return candidate;
   });
-  const starts = selectDiverseStarts(initialPoint, sampledCandidates, 16);
+  const finiteCandidates = sampledCandidates.filter((candidate) => Number.isFinite(candidate.cost));
+  if (localRefinements > 1 && !finiteCandidates.length) throw new Error("No finite Sobol screening point was found inside the parameter bounds.");
+  const starts = selectDiverseStarts(initialPoint, finiteCandidates, localRefinements);
   let best = { point: initialPoint, ...objective(initialPoint) };
   const refinementCount = starts.length;
   const refinedCandidates = [];
+  const failedStarts = [];
   for (let index = 0; index < refinementCount; index += 1) {
-    const refinedPoint = boundedTrustRegionReflective(starts[index], (point) => objective(point).residuals);
-    const refined = { localStart: index + 1, point: refinedPoint, ...objective(refinedPoint) };
-    refinedCandidates.push(refined);
-    if (refined.cost < best.cost) best = refined;
+    try {
+      const solver = boundedTrustRegionReflective(starts[index].point, (point) => objective(point).residuals, { returnDetails: true });
+      const refined = { localStart: index + 1, point: solver.point, solver, ...objective(solver.point) };
+      refinedCandidates.push(refined);
+      if (refined.cost < best.cost) best = refined;
+    } catch (error) {
+      failedStarts.push({ localStart: index + 1, message: error instanceof Error ? error.message : String(error) });
+    }
     progress(50 + Math.round((index + 1) / refinementCount * 50));
   }
   if (!refinedCandidates.some((candidate) => distance(candidate.point, best.point) < 1e-12)) refinedCandidates.push({ localStart: 0, ...best });
+  const finiteScreeningCosts = finiteCandidates.map((candidate) => candidate.cost).sort((a, b) => a - b);
+  const optimizer = {
+    method: "SciPy-compatible scrambled Sobol screening followed by bounded trust-region reflective least squares",
+    seed: 1729,
+    screeningPoints,
+    finiteScreeningPoints: finiteCandidates.length,
+    localRefinementsRequested: localRefinements,
+    localRefinementsCompleted: refinedCandidates.filter((candidate) => candidate.localStart > 0).length,
+    selectedStart: best.localStart ?? 0,
+    selectedSobolIndices: starts.slice(1).map((start) => start.sobolIndex),
+    selectedSobolCosts: starts.slice(1).map((start) => start.cost),
+    screeningCostSummary: finiteScreeningCosts.length ? {
+      minimum: finiteScreeningCosts[0],
+      median: median(finiteScreeningCosts),
+      maximum: finiteScreeningCosts.at(-1),
+    } : { minimum: null, median: null, maximum: null },
+    logarithmicallySampledParameters: names.filter((name) => LOG_PARAMETERS.has(name)),
+    failedStarts,
+    selectedSolver: best.solver ? {
+      success: best.solver.success,
+      message: best.solver.message,
+      evaluations: best.solver.evaluations,
+      optimality: best.solver.optimality,
+    } : { success: true, message: "The visible initial point had the lowest evaluated cost.", evaluations: 0, optimality: null },
+  };
   const diagnostics = diagnosticsOf(data, best.evaluated, settings, {
     nk,
     parameters: best.parameters,
@@ -398,8 +500,9 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
     refinedCandidates,
     bestCost: best.cost,
     bestPoint: best.point,
+    optimizer,
   });
-  return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, screeningPoints, localRefinements: refinementCount };
+  return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, optimizer, screeningPoints, localRefinements: refinementCount };
 }
 
 export const fitTabulated = fitOpticalModel;
@@ -461,6 +564,7 @@ export function diagnosticsOf(data, evaluation, settings, fit = null) {
   const sensitivity = localSensitivity(data, fit.nk, fit.parameters, settings, fit.bounds, fit.fittedParameters);
   result.normalizedJacobianCondition = sensitivity.condition;
   result.parameterStandardErrorsApproximate = sensitivity.standardErrors;
+  result.optimizer = fit.optimizer;
   return result;
 }
 
@@ -509,8 +613,30 @@ function indexComparison(nk, parameters, settings) {
   const modeled = refractiveIndexModel(settings.model, wavelengthNm, parameters, nk);
   const deltaN = modeled.n.map((value, index) => value - reference.n[index]);
   const deltaK = modeled.k.map((value, index) => value - reference.k[index]);
+  return { wavelengthNm, reference, modeled, deltaN, deltaK, diagnostics: indexDiagnostics(wavelengthNm, deltaN, deltaK) };
+}
+
+function indexDiagnostics(wavelengthNm, deltaN, deltaK) {
   const rmse = (values) => Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
-  return { wavelengthNm, reference, modeled, deltaN, deltaK, diagnostics: { rmseDeltaN: rmse(deltaN), rmseDeltaK: rmse(deltaK), weightedRmseDeltaN: rmse(deltaN), weightedRmseDeltaK: rmse(deltaK) } };
+  const diagnostics = {
+    overlapPoints: wavelengthNm.length,
+    rmseDeltaN: rmse(deltaN),
+    rmseDeltaK: rmse(deltaK),
+    weightedRmseDeltaN: rmse(deltaN),
+    weightedRmseDeltaK: rmse(deltaK),
+    maximumAbsoluteDeltaN: Math.max(...deltaN.map(Math.abs)),
+    maximumAbsoluteDeltaK: Math.max(...deltaK.map(Math.abs)),
+  };
+  for (const [key, minimum, maximum] of [["Uv300To400Nm", 300, 400], ["Visible400To900Nm", 400, 900], ["Nir900To1100Nm", 900, 1100]]) {
+    const selected = wavelengthNm.map((value) => value >= minimum && value <= maximum);
+    const bandN = deltaN.filter((_, index) => selected[index]);
+    const bandK = deltaK.filter((_, index) => selected[index]);
+    if (bandN.length) {
+      diagnostics[`rmseDeltaN${key}`] = rmse(bandN);
+      diagnostics[`rmseDeltaK${key}`] = rmse(bandK);
+    }
+  }
+  return diagnostics;
 }
 
 function localSensitivity(data, nk, parameters, settings, bounds, fittedParameters) {
@@ -638,25 +764,28 @@ function invertMatrix(matrix) {
 
 function selectDiverseStarts(initialPoint, candidates, count) {
   const ranked = [...candidates].sort((a, b) => a.cost - b.cost);
-  const selected = [initialPoint];
+  const selected = [{ point: initialPoint, sobolIndex: null, cost: null }];
+  if (count === 1) return selected;
   const used = new Set();
   for (const candidate of ranked) {
-    if (selected.every((point) => distance(candidate.point, point) / Math.sqrt(initialPoint.length) >= 0.05)) {
-      selected.push(candidate.point); used.add(candidate);
+    if (selected.every((chosen) => distance(candidate.point, chosen.point) / Math.sqrt(initialPoint.length) >= 0.05)) {
+      selected.push(candidate); used.add(candidate);
     }
     if (selected.length === count) return selected;
   }
   for (const candidate of ranked) {
-    if (!used.has(candidate)) selected.push(candidate.point);
+    if (!used.has(candidate)) selected.push(candidate);
     if (selected.length === count) break;
   }
   return selected;
 }
 
-function boundedTrustRegionReflective(start, residualFunction) {
+function boundedTrustRegionReflective(start, residualFunction, options = {}) {
   const tolerance = 1e-8;
-  const maximumEvaluations = 3000;
+  const maximumEvaluations = options.maximumEvaluations ?? 3000;
   let evaluations = 0;
+  let success = false;
+  let message = "The maximum number of residual evaluations was reached.";
   const evaluate = (point) => {
     const residuals = residualFunction(point);
     evaluations += 1;
@@ -679,7 +808,11 @@ function boundedTrustRegionReflective(start, residualFunction) {
   while (evaluations < maximumEvaluations) {
     ({ v, derivative } = colemanLiScaling(point, gradient));
     const optimality = Math.max(...gradient.map((value, index) => Math.abs(value * v[index])));
-    if (optimality < tolerance) break;
+    if (optimality < tolerance) {
+      success = true;
+      message = "The first-order optimality tolerance was satisfied.";
+      break;
+    }
     const transformedV = v.map((value, index) => derivative[index] === 0 ? value : value * scaleInverse[index]);
     const transform = transformedV.map((value, index) => Math.sqrt(value) * scale[index]);
     const diagonal = gradient.map((value, index) => Math.max(0, value * derivative[index] * scale[index]));
@@ -711,7 +844,13 @@ function boundedTrustRegionReflective(start, residualFunction) {
       if (terminate || !(transformedStepNorm > 0) || !(trustRadius > 0)) break;
     }
 
-    if (!accepted) break;
+    if (!accepted) {
+      success = optimality < 10 * tolerance;
+      message = success
+        ? "No improving step was found after reaching near-optimal first-order conditions."
+        : "No cost-reducing trust-region step was found.";
+      break;
+    }
     point = accepted.point;
     trueResiduals = accepted.residuals;
     cost = accepted.cost;
@@ -721,9 +860,16 @@ function boundedTrustRegionReflective(start, residualFunction) {
     const currentScaleInverse = jacobianColumnNorms(scaled.jacobian);
     scaleInverse = scaleInverse.map((value, index) => Math.max(value, currentScaleInverse[index]));
     scale = scaleInverse.map((value) => 1 / value);
-    if (terminate) break;
+    if (terminate) {
+      success = true;
+      message = "The cost or step-size tolerance was satisfied.";
+      break;
+    }
   }
-  return point;
+  const finalScaling = colemanLiScaling(point, gradient).v;
+  const optimality = Math.max(...gradient.map((value, index) => Math.abs(value * finalScaling[index])));
+  const details = { point, success, message, evaluations, optimality, cost };
+  return options.returnDetails ? details : point;
 }
 
 function finiteDifferenceJacobian(point, residuals, evaluate) {

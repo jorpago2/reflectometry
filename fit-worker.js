@@ -1,4 +1,4 @@
-import { calibrateSharedGains, fitOpticalModel } from "./scientific-core.js";
+import { calibrateSharedGains, fitEllipsometrySeed, fitOpticalModel } from "./scientific-core.js";
 
 self.addEventListener("message", ({ data }) => {
   try {
@@ -6,6 +6,11 @@ self.addEventListener("message", ({ data }) => {
       self.postMessage({ type: "progress", progress: 10 });
       const result = calibrateSharedGains(data.records, data.settings);
       self.postMessage({ type: "shared-result", result });
+      return;
+    }
+    if (data.operation === "ellipsometry-seed") {
+      const result = fitEllipsometrySeed(data.nk, data.model, data.specifications);
+      self.postMessage({ type: "seed-result", result });
       return;
     }
     const result = fitOpticalModel(data.fitData, data.nk, data.configuration, (progress) => {

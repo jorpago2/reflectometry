@@ -54,16 +54,30 @@
           </div>
 
           <details>
-            <summary>Load my six TXT files</summary>
+            <summary>Load my measurement files</summary>
             <div class="file-grid">
+              <label>Sample name<input id="local-sample-name" type="text" placeholder="Defaults to the Sample R filename" maxlength="80"></label>
+              <div class="field-pair">
+                <label>Material preset<select id="local-material">
+                  <option value="custom">Generic material</option>
+                  <option value="agst">Amorphous GST</option>
+                  <option value="cgst">Crystalline GST</option>
+                  <option value="asb2sb3">Amorphous Sb₂Se₃</option>
+                  <option value="csb2sb3">Crystalline Sb₂Se₃</option>
+                  <option value="vo2">VO₂</option>
+                </select></label>
+                <label>Nominal thickness <span>nm</span><input id="local-thickness" type="number" value="200" min="0.1" max="100000" step="1"></label>
+              </div>
               <label>Sample R<input id="file-sample-r" type="file" accept=".txt,text/plain"></label>
               <label>Sample T<input id="file-sample-t" type="file" accept=".txt,text/plain"></label>
               <label>Si reference<input id="file-silicon" type="file" accept=".txt,text/plain"></label>
               <label>Open beam<input id="file-open" type="file" accept=".txt,text/plain"></label>
               <label>Tabulated Si R<input id="file-si-model" type="file" accept=".txt,text/plain"></label>
-              <label>n,k table<input id="file-nk" type="file" accept=".txt,text/plain"></label>
+              <label>n,k table <span>optional for constant or causal models</span><input id="file-nk" type="file" accept=".txt,text/plain"></label>
             </div>
             <button id="load-files" class="secondary full" type="button">Process local files</button>
+            <p id="local-session" class="model-note">No local samples stored for shared calibration.</p>
+            <button id="clear-local-session" class="text-button" type="button">Clear stored local samples</button>
           </details>
           <p id="source-name" class="source-name">Preparing the example…</p>
         </section>
@@ -103,7 +117,7 @@
               <option value="substrate">Substrate side</option>
             </select></label>
           </div>
-          <div class="parameter-header" aria-hidden="true"><span>Fit</span><span>Parameter</span><span>Value</span><span>Min</span><span>Max</span></div>
+          <div class="parameter-header" aria-hidden="true"><span>Fit</span><span>Parameter</span><span>Value</span><span>Min</span><span>Max</span><span>1σ</span></div>
           <div id="model-parameters" class="parameter-table"></div>
           <details class="parameter-help">
             <summary>Parameter guidance</summary>
@@ -123,9 +137,20 @@
             <label>σn<input id="sigma-n" type="number" value="0.5" min="0.0001" max="10" step="0.05"></label>
             <label>σk<input id="sigma-k" type="number" value="0.25" min="0.0001" max="10" step="0.05"></label>
           </div>
+          <div class="field-pair">
+            <label>Sobol points<select id="screening-points">
+              <option>64</option><option>128</option><option>256</option><option selected>512</option><option>1024</option><option>2048</option><option>4096</option>
+            </select></label>
+            <label>Local refinements<input id="local-refinements" type="number" value="16" min="1" max="50" step="1"></label>
+          </div>
           <label class="check"><input id="show-ellipsometry" type="checkbox" checked><span>Show measured ellipsometry n,k</span></label>
+          <p id="ellipsometry-seed" class="model-note">Dynamic ellipsometry seed is not available yet.</p>
+          <label>Shared-gain data<select id="shared-gain-source">
+            <option value="bundled">Bundled validation samples</option>
+            <option value="local">Local samples stored this session</option>
+          </select></label>
           <button id="shared-gains" class="secondary full" type="button">Calibrate shared R/T gains</button>
-          <p class="model-note">Uses all bundled materials; valid only when detector settings and geometry were unchanged between samples.</p>
+          <p class="model-note">Use at least two local samples with n,k tables. Shared gains are valid only when detector settings and geometry were unchanged.</p>
         </section>
 
         <div class="actions">
@@ -159,8 +184,16 @@
             <article><span>PARAMETERS AT BOUNDS</span><strong id="diagnostic-bounds">None</strong><small>fitted parameters only</small></article>
             <article><span>MAX PHYSICAL R + T</span><strong id="diagnostic-power">—</strong><small id="diagnostic-power-note">unscaled model</small></article>
             <article><span>NEAR-EQUAL ALTERNATIVES</span><strong id="diagnostic-alternatives">—</strong><small>within 5% cost among local starts</small></article>
+            <article><span>CONVERGENCE</span><strong id="diagnostic-convergence">—</strong><small id="diagnostic-convergence-note">Available after fitting</small></article>
+            <article><span>RESIDUAL EVALUATIONS</span><strong id="diagnostic-evaluations">—</strong><small>selected local refinement</small></article>
+            <article><span>FAILED STARTS</span><strong id="diagnostic-failures">—</strong><small>local refinements</small></article>
+            <article><span>N,K BAND RMSE</span><strong id="diagnostic-bands">—</strong><small>UV / visible / NIR</small></article>
           </div>
           <p id="diagnostic-note">Local finite-difference diagnostics become available after fitting.</p>
+          <details id="optimizer-details" hidden>
+            <summary>Optimizer and convergence record</summary>
+            <dl id="optimizer-record" class="optimizer-record"></dl>
+          </details>
           <details id="alternative-details" hidden>
             <summary>Ranked distinct local solutions</summary>
             <p class="table-note">Solutions are distinct in normalized fitted-parameter space. Similar cost does not imply that their parameters are physically interchangeable.</p>
@@ -176,25 +209,25 @@
         <article class="plot-card">
           <div class="plot-heading">
             <div><p>CALIBRATED SPECTRA</p><h2>Reflectance and transmittance</h2></div>
-            <div class="legend" aria-hidden="true"><span class="r-data">R data</span><span class="r-model">R model</span><span class="t-data">T data</span><span class="t-model">T model</span></div>
+            <div class="plot-actions"><div class="legend" aria-hidden="true"><span class="r-data">R data</span><span class="r-model">R model</span><span class="t-data">T data</span><span class="t-model">T model</span></div><div class="chart-toolbar" role="group" aria-label="Reflectance and transmittance chart controls"><button type="button" data-chart="rt-chart" data-chart-action="zoom-in" aria-label="Zoom in">+</button><button type="button" data-chart="rt-chart" data-chart-action="zoom-out" aria-label="Zoom out">−</button><button type="button" data-chart="rt-chart" data-chart-action="reset">Reset</button><button type="button" data-chart="rt-chart" data-chart-action="png">PNG</button></div></div>
           </div>
-          <canvas id="rt-chart" role="img" aria-label="Measured and modeled reflectance and transmittance chart"></canvas>
+          <canvas id="rt-chart" role="img" tabindex="0" aria-label="Measured and modeled reflectance and transmittance chart. Drag or use arrow keys to pan; use plus and minus keys to zoom."></canvas>
         </article>
 
         <article class="plot-card">
           <div class="plot-heading">
             <div><p>FIT ERROR</p><h2>Reflectance and transmittance residuals</h2></div>
-            <div class="legend" aria-hidden="true"><span class="r-model">R residual</span><span class="t-model">T residual</span></div>
+            <div class="plot-actions"><div class="legend" aria-hidden="true"><span class="r-model">R residual</span><span class="t-model">T residual</span></div><div class="chart-toolbar" role="group" aria-label="Residual chart controls"><button type="button" data-chart="residual-chart" data-chart-action="zoom-in" aria-label="Zoom in">+</button><button type="button" data-chart="residual-chart" data-chart-action="zoom-out" aria-label="Zoom out">−</button><button type="button" data-chart="residual-chart" data-chart-action="reset">Reset</button><button type="button" data-chart="residual-chart" data-chart-action="png">PNG</button></div></div>
           </div>
-          <canvas id="residual-chart" role="img" aria-label="Reflectance and transmittance residual chart"></canvas>
+          <canvas id="residual-chart" role="img" tabindex="0" aria-label="Reflectance and transmittance residual chart. Drag or use arrow keys to pan; use plus and minus keys to zoom."></canvas>
         </article>
 
         <article class="plot-card">
           <div class="plot-heading">
             <div><p>OPTICAL CONSTANTS</p><h2>Complex film refractive index</h2></div>
-            <div class="legend" aria-hidden="true"><span class="n-line">n model</span><span class="k-line">k model</span><span class="n-reference">n ellipsometry</span><span class="k-reference">k ellipsometry</span></div>
+            <div class="plot-actions"><div class="legend" aria-hidden="true"><span class="n-line">n model</span><span class="k-line">k model</span><span class="n-reference">n ellipsometry</span><span class="k-reference">k ellipsometry</span></div><div class="chart-toolbar" role="group" aria-label="Optical constants chart controls"><button type="button" data-chart="nk-chart" data-chart-action="zoom-in" aria-label="Zoom in">+</button><button type="button" data-chart="nk-chart" data-chart-action="zoom-out" aria-label="Zoom out">−</button><button type="button" data-chart="nk-chart" data-chart-action="reset">Reset</button><button type="button" data-chart="nk-chart" data-chart-action="png">PNG</button></div></div>
           </div>
-          <canvas id="nk-chart" role="img" aria-label="Refractive index n and extinction coefficient k chart"></canvas>
+          <canvas id="nk-chart" role="img" tabindex="0" aria-label="Refractive index n and extinction coefficient k chart. Drag or use arrow keys to pan; use plus and minus keys to zoom."></canvas>
         </article>
 
         <details class="provenance">
@@ -211,9 +244,12 @@
         <details><summary>Does the browser run the original Python program?</summary><p>No. The numerical workflow was ported to JavaScript so it runs locally on any modern browser without uploading the measurement files.</p></details>
         <details><summary>What physical system is modeled?</summary><p>One homogeneous, isotropic, coherent film at normal incidence on an optically thick substrate. Rear-surface substrate returns are combined incoherently.</p></details>
         <details><summary>What does ellipsometry regularization do?</summary><p>It adds n and k deviations from the local 300–1100 nm ellipsometry table to the fit residual. It is an informative prior, not a new independent measurement.</p></details>
+        <details><summary>Can I fit a sample without an n,k table?</summary><p>Yes. Load the five required R/T and reference files, leave n,k empty, and use the constant or a causal dielectric model. Ellipsometry regularization, fixed/scaled tables, and direct n,k comparison remain unavailable.</p></details>
+        <details><summary>How is the dynamic ellipsometry seed calculated?</summary><p>For causal models, the browser fits the model dielectric function to the loaded n,k table from 300 to 1100 nm using bounded robust trust-region refinement. The seed improves initialization but does not prove parameter uniqueness.</p></details>
         <details><summary>Why use the spectral-shape residual?</summary><p>It penalizes line-shape disagreement after one positive affine gain and offset alignment. The raw residual remains active, so absolute amplitude is still constrained.</p></details>
         <details><summary>Why calibrate shared R/T gains?</summary><p>Shared gains separate detector scaling from material parameters by fitting all bundled samples together. They are valid only when detector settings and geometry were unchanged.</p></details>
         <details><summary>How should alternative minima be interpreted?</summary><p>Near-equal solutions within 5% robust cost indicate possible non-uniqueness. Prefer conclusions stable across those solutions, and treat parameters at bounds or with a poorly conditioned Jacobian cautiously.</p></details>
+        <details><summary>How should I choose the optimizer budget?</summary><p>Use 512 Sobol points and 16 refinements normally. Increase toward 4096/50 only when many parameters are released or distinct near-equal minima remain; runtime grows approximately with both controls.</p></details>
         <details><summary>When is the recovered n,k unreliable?</summary><p>Risk increases with weak spectral coverage, one-channel fits, excessive free parameters, gains far from unity, parameters at bounds, or disagreement with independent ellipsometry.</p></details>
         <details><summary>What should be archived for reproducibility?</summary><p>Save the JSON provenance record, spectra CSV, optical-constants CSV, original TXT files, model choice, bounds, assumed uncertainties, and instrument geometry.</p></details>
       </div>

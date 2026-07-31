@@ -64,8 +64,9 @@ function seeded(specifications, model, sample) {
   return specifications;
 }
 
-export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 0.1 }) {
-  const thickness = NOMINAL_THICKNESS_NM[sample] ?? 200;
+export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 0.1 }, nominalThicknessNm = null) {
+  const thickness = nominalThicknessNm ?? NOMINAL_THICKNESS_NM[sample] ?? 200;
+  if (!Number.isFinite(thickness) || thickness <= 0) throw new Error("Nominal film thickness must be positive and finite.");
   const parameter = (label, unit, values, fit = false) => ({ label, unit, value: values[0], minimum: values[1], maximum: values[2], fit });
   const common = {
     thicknessNm: parameter("Film thickness", "nm", [thickness, 0.5 * thickness, 1.5 * thickness], true),

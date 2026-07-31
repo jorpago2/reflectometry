@@ -34,7 +34,7 @@ button, input, select { font: inherit; }
 
 button, select, input { color: inherit; }
 
-button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, canvas:focus-visible {
   outline: 0.15rem solid var(--acid);
   outline-offset: 0.15rem;
 }
@@ -97,7 +97,7 @@ input[type="file"] { min-height: auto; padding: 0.55rem; font-size: 0.72rem; }
 .channel-row { display: flex; gap: 1.2rem; }
 .model-note { margin: 0.65rem 0 1rem; color: var(--muted); font-size: 0.76rem; line-height: 1.5; }
 .compact-pair { margin-top: 0.4rem; }
-.parameter-header, .parameter-row { display: grid; grid-template-columns: 2.2rem minmax(6.5rem, 1fr) repeat(3, minmax(3.4rem, 0.65fr)); gap: 0.4rem; align-items: center; }
+.parameter-header, .parameter-row { display: grid; grid-template-columns: 2.2rem minmax(6.5rem, 1fr) repeat(3, minmax(3.4rem, 0.65fr)) minmax(3.4rem, 0.65fr); gap: 0.4rem; align-items: center; }
 .parameter-header { padding: 0.2rem 0 0.45rem; color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; }
 .parameter-row { padding: 0.35rem 0; border-top: 1px solid rgb(37 71 61 / 0.58); }
 .parameter-row label { display: block; margin: 0; overflow-wrap: anywhere; }
@@ -105,6 +105,7 @@ input[type="file"] { min-height: auto; padding: 0.55rem; font-size: 0.72rem; }
 .parameter-row input[type="number"] { min-width: 0; min-height: 2.15rem; padding: 0.38rem 0.42rem; font-family: ui-monospace, monospace; font-size: 0.68rem; }
 .parameter-name { color: #bdd0c9; font-size: 0.7rem; }
 .parameter-unit { display: block; color: var(--dim); font-size: 0.58rem; }
+.parameter-uncertainty { color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.68rem; overflow-wrap: anywhere; }
 .parameter-help { margin: 0.45rem 0 0.8rem; }
 .parameter-help p { margin: 0.2rem 0 0.7rem; font-size: 0.72rem; line-height: 1.5; }
 details { color: var(--muted); }
@@ -138,6 +139,11 @@ progress { width: 100%; height: 0.4rem; border: 0; accent-color: var(--acid); }
 .diagnostic-grid span, .diagnostic-grid small { display: block; color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.62rem; letter-spacing: 0.06em; }
 .diagnostic-grid strong { display: block; min-height: 2.4rem; margin: 0.35rem 0; color: var(--paper); font-size: 0.9rem; overflow-wrap: anywhere; }
 #diagnostic-note { margin: 0.8rem 0 0; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
+.optimizer-record { display: grid; grid-template-columns: minmax(9rem, 0.4fr) minmax(0, 1fr); margin: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.optimizer-record div { display: contents; }
+.optimizer-record dt, .optimizer-record dd { margin: 0; padding: 0.65rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 0.72rem; overflow-wrap: anywhere; }
+.optimizer-record dt { color: var(--dim); font-family: ui-monospace, monospace; }
+.optimizer-record dd { color: #bdd0c9; }
 .table-note { margin: 0 0 0.7rem; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
 .table-scroll { overflow-x: auto; border: 1px solid var(--line); }
 table { width: 100%; border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 0.68rem; }
@@ -154,6 +160,9 @@ td:last-child { min-width: 18rem; white-space: normal; }
 .plot-heading p { margin: 0 0 0.25rem; }
 .plot-heading h2 { margin: 0; font-family: Georgia, serif; font-size: clamp(1.25rem, 2vw, 1.8rem); font-weight: 400; }
 .legend { display: flex; flex-wrap: wrap; justify-content: end; gap: 0.75rem; color: var(--muted); font-size: 0.68rem; }
+.plot-actions { display: grid; justify-items: end; gap: 0.65rem; }
+.chart-toolbar { display: flex; flex-wrap: wrap; justify-content: end; gap: 0.3rem; }
+.chart-toolbar button { min-height: 1.9rem; padding: 0.25rem 0.5rem; border-color: var(--line); background: transparent; color: var(--cyan); font-family: ui-monospace, monospace; font-size: 0.68rem; }
 .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.15rem; margin-right: 0.35rem; vertical-align: middle; background: currentColor; }
 .r-data, .t-data { color: #a8bbb4; }
 .r-model, .n-line { color: var(--acid); }
@@ -161,7 +170,8 @@ td:last-child { min-width: 18rem; white-space: normal; }
 .n-reference { color: #8da858; }
 .k-reference { color: #b66b4d; }
 .n-reference::before, .k-reference::before { height: 0 !important; border-top: 1px dashed currentColor; background: transparent !important; }
-canvas { display: block; width: 100%; height: clamp(15rem, 34vw, 27rem); border-top: 1px solid var(--line); }
+canvas { display: block; width: 100%; height: clamp(15rem, 34vw, 27rem); border-top: 1px solid var(--line); touch-action: none; cursor: grab; }
+canvas:active { cursor: grabbing; }
 .provenance { padding: 0.75rem 1rem; border: 1px solid var(--line); }
 .provenance p { max-width: 70rem; color: var(--muted); font-size: 0.8rem; line-height: 1.6; }
 footer { padding: 1.5rem clamp(1rem, 4vw, 4rem); display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--line); color: var(--dim); font-size: 0.72rem; }
@@ -185,7 +195,8 @@ footer { padding: 1.5rem clamp(1rem, 4vw, 4rem); display: flex; justify-content:
   .status-row { grid-template-columns: 1fr auto; }
   #fit-progress { grid-row: 2; grid-column: 1 / -1; }
   .plot-heading { align-items: flex-start; flex-direction: column; }
-  .legend { justify-content: start; }
+  .legend, .chart-toolbar { justify-content: start; }
+  .plot-actions { justify-items: start; }
   .faq-grid { grid-template-columns: 1fr; }
   footer { flex-direction: column; }
 }
@@ -194,7 +205,7 @@ footer { padding: 1.5rem clamp(1rem, 4vw, 4rem); display: flex; justify-content:
   .field-pair, .actions { grid-template-columns: 1fr; }
   .privacy { display: none; }
   .parameter-header { display: none; }
-  .parameter-row { grid-template-columns: 2rem 1fr repeat(3, minmax(3.1rem, 0.7fr)); }
+  .parameter-row { grid-template-columns: 2rem 1fr repeat(3, minmax(3.1rem, 0.7fr)) minmax(3.1rem, 0.7fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

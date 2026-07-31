@@ -12,7 +12,7 @@ import {
   taucGaussianDielectric,
   taucLorentzDielectric,
 } from "../dielectric-models.js";
-import { createSpectrum, filmOnThickSubstrate, fitOpticalModel, loadNkTable, prepareFitData } from "../scientific-core.js";
+import { createSpectrum, filmOnThickSubstrate, fitEllipsometrySeed, fitOpticalModel, loadNkTable, prepareFitData } from "../scientific-core.js";
 
 const wavelengthNm = [300, 400, 700, 1064];
 
@@ -50,6 +50,18 @@ test("uses the Python-derived ellipsometry seeds for bundled samples", () => {
   assert.ok(Math.abs(tl.amplitudeEv.value - 156.97968523911194) < 1e-9);
   const cody = modelParameterSpecs("cody", "asb2sb3");
   assert.ok(Math.abs(cody.bandgapEv.value - 1.2565694074958578) < 1e-9);
+  const custom = modelParameterSpecs("tl1", "custom", { n: 3, k: 0.1 }, 333);
+  assert.equal(custom.thicknessNm.value, 333);
+  assert.equal(custom.thicknessNm.minimum, 166.5);
+});
+
+test("fits a dynamic ellipsometry seed from the loaded n,k table", () => {
+  const text = readFileSync(new URL("../examples/aGST.txt", import.meta.url), "utf8");
+  const result = fitEllipsometrySeed(loadNkTable(text), "tl1", modelParameterSpecs("tl1", "agst"));
+  assert.ok(Math.abs(result.parameters.epsilonInf - 1.1859581695838666) < 1e-7);
+  assert.ok(Math.abs(result.parameters.amplitudeEv - 156.97968523911194) < 1e-5);
+  assert.ok(result.diagnostics.rmseDeltaN < 0.011);
+  assert.ok(result.diagnostics.solver.success);
 });
 
 test("recovers synthetic Tauc–Lorentz thickness and amplitude", () => {
@@ -63,9 +75,14 @@ test("recovers synthetic Tauc–Lorentz thickness and amplitude", () => {
     initial: { ...targetParameters, thicknessNm: 210, amplitudeEv: 60 },
     bounds: { thicknessNm: [100, 400], epsilonInf: [0.5, 20], amplitudeEv: [10, 200], resonanceEv: [1.6, 5.5], broadeningEv: [0.1, 3.1], bandgapEv: [0, 1.5], rGain: [0.1, 10], tGain: [0.1, 10] },
     fittedParameters: ["thicknessNm", "amplitudeEv"],
+    screeningPoints: 64,
+    localRefinements: 1,
   });
   assert.ok(Math.abs(result.parameters.thicknessNm - 237) < 1e-3);
   assert.ok(Math.abs(result.parameters.amplitudeEv - 70) < 1e-3);
+  assert.equal(result.optimizer.screeningPoints, 64);
+  assert.equal(result.optimizer.localRefinementsRequested, 1);
+  assert.equal(result.optimizer.failedStarts.length, 0);
 });
 
 test("matches SciPy TRF for a regularized real aGST fit", () => {
