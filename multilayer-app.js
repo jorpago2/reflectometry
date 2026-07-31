@@ -8,6 +8,7 @@ import {
   restrictToNkRange,
 } from "./scientific-core.js";
 import { MODEL_LABELS, modelParameterSpecs } from "./dielectric-models.js";
+import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./model-help.js";
 
 const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
@@ -130,7 +131,7 @@ function renderLayers() {
     header.append(order, name, actions);
     const selectors = document.createElement("div"); selectors.className = "field-pair";
     selectors.append(selectControl("Optical model", "model", MULTILAYER_MODEL_LABELS, layer.model));
-    const modelHint = document.createElement("p"); modelHint.className = "layer-model-hint"; modelHint.hidden = layer.model !== "composite"; modelHint.textContent = "Combine up to five Tauc–Lorentz and five Lorentz oscillators with independent absorption or free-carrier components.";
+    const modelHelp = renderModelHelp(layer);
     const components = document.createElement("fieldset"); components.className = "component-selector"; components.hidden = layer.model !== "composite";
     const legend = document.createElement("legend"); legend.textContent = "Additive dielectric components"; components.append(legend);
     for (const [field, key, label] of [["tl-count", "taucLorentz", "Tauc–Lorentz oscillators"], ["lorentz-count", "lorentz", "Lorentz oscillators"]]) {
@@ -167,7 +168,7 @@ function renderLayers() {
     for (const text of ["Fit", "Parameter", "Value", "Min", "Max", "1σ"]) { const span = document.createElement("span"); span.textContent = text; tableHeader.append(span); }
     const table = document.createElement("div"); table.className = "parameter-table";
     for (const [parameter, specification] of Object.entries(layer.specs)) table.append(parameterRow(layer, parameter, specification));
-    card.append(header, selectors, modelHint, components, ema, reference, flags, tableHeader, table);
+    card.append(header, selectors, modelHelp, components, ema, reference, flags, tableHeader, table);
     return card;
   });
   elements.layers.replaceChildren(...cards);
@@ -211,7 +212,9 @@ function checkControl(text, field, checked, disabled, type = "checkbox") {
 function parameterRow(layer, parameter, specification) {
   const row = document.createElement("div"); row.className = "parameter-row"; row.dataset.parameter = parameter;
   const fit = document.createElement("input"); fit.type = "checkbox"; fit.dataset.kind = "fit"; fit.checked = specification.fit; fit.setAttribute("aria-label", `Fit ${layer.name} ${specification.label}`);
-  const label = document.createElement("span"); label.className = "parameter-name"; label.textContent = specification.label;
+  const description = parameterDescription(parameter);
+  const label = document.createElement("span"); label.className = "parameter-name"; label.textContent = specification.label; label.title = description; label.tabIndex = 0; label.setAttribute("aria-label", `${specification.label}: ${description}`);
+  const helpMark = document.createElement("span"); helpMark.className = "parameter-help-mark"; helpMark.textContent = "?"; helpMark.setAttribute("aria-hidden", "true"); label.append(helpMark);
   if (specification.unit) { const unit = document.createElement("span"); unit.className = "parameter-unit"; unit.textContent = specification.unit; label.append(unit); }
   row.append(fit, label);
   for (const [kind, value] of [["value", specification.value], ["minimum", specification.minimum], ["maximum", specification.maximum]]) {
@@ -219,6 +222,67 @@ function parameterRow(layer, parameter, specification) {
   }
   const uncertainty = document.createElement("span"); uncertainty.className = "parameter-uncertainty"; uncertainty.textContent = specification.uncertainty ?? "—"; row.append(uncertainty);
   return row;
+}
+
+function renderModelHelp(layer) {
+  const guide = MODEL_GUIDES[layer.model];
+  const details = document.createElement("details"); details.className = "model-help";
+  const summary = document.createElement("summary"); summary.textContent = `Model guide · ${MULTILAYER_MODEL_LABELS[layer.model]}`;
+  const body = document.createElement("div"); body.className = "model-help-body";
+  const description = document.createElement("p"); description.className = "model-help-summary"; description.textContent = guide.summary;
+  body.append(description, equationBlock(guide.equation), helpFact("Typically represents", guide.represents), helpFact("Scope / limitation", guide.limitation));
+
+  const activeGuides = [];
+  if (layer.model === "composite") {
+    if (layer.components.taucLorentz) activeGuides.push([`${layer.components.taucLorentz} × Tauc–Lorentz`, COMPONENT_GUIDES.taucLorentz]);
+    if (layer.components.lorentz) activeGuides.push([`${layer.components.lorentz} × Lorentz`, COMPONENT_GUIDES.lorentz]);
+    for (const component of Object.keys(COMPONENT_LABELS)) if (layer.components[component]) activeGuides.push([COMPONENT_LABELS[component], COMPONENT_GUIDES[component]]);
+  } else if (layer.model === "ema") activeGuides.push([EMA_RULE_GUIDES[layer.ema.method].title, EMA_RULE_GUIDES[layer.ema.method]]);
+
+  if (activeGuides.length) {
+    const heading = document.createElement("h4"); heading.textContent = "Active contributions"; body.append(heading);
+    for (const [title, activeGuide] of activeGuides) {
+      const section = document.createElement("section"); section.className = "component-help";
+      const componentTitle = document.createElement("h5"); componentTitle.textContent = title;
+      const componentSummary = document.createElement("p"); componentSummary.textContent = activeGuide.summary ?? activeGuide.represents;
+      section.append(componentTitle, componentSummary, equationBlock(activeGuide.equation));
+      if (activeGuide.summary && activeGuide.represents) section.append(helpFact("Typically represents", activeGuide.represents));
+      body.append(section);
+    }
+  }
+
+  const parameterHeading = document.createElement("h4"); parameterHeading.textContent = "Parameters in this layer";
+  const parameters = document.createElement("dl"); parameters.className = "model-parameter-help";
+  for (const [name, specification] of Object.entries(layer.specs)) {
+    const term = document.createElement("dt"); term.textContent = `${specification.label}${specification.unit ? ` (${specification.unit})` : ""}`;
+    const definition = document.createElement("dd"); definition.textContent = parameterDescription(name);
+    parameters.append(term, definition);
+  }
+  body.append(parameterHeading, parameters);
+
+  const references = [guide, ...activeGuides.map(([, activeGuide]) => activeGuide)].flatMap((item) => item.references ?? []);
+  const uniqueReferences = [...new Map(references.map((item) => [item.doi.toLowerCase(), item])).values()];
+  const referenceHeading = document.createElement("h4"); referenceHeading.textContent = "References";
+  const referenceList = document.createElement("ul"); referenceList.className = "model-references";
+  for (const item of uniqueReferences) {
+    const entry = document.createElement("li"); entry.append(document.createTextNode(`${item.citation} `));
+    const link = document.createElement("a"); link.href = `https://doi.org/${item.doi}`; link.target = "_blank"; link.rel = "noreferrer"; link.textContent = item.doi; entry.append(link); referenceList.append(entry);
+  }
+  const notation = document.createElement("p"); notation.className = "model-notation"; notation.textContent = "Notation: E = hc/λ in eV; N = n + ik; ε = N². Equations follow the implementation used by this tool.";
+  body.append(referenceHeading, referenceList, notation);
+  details.append(summary, body);
+  return details;
+}
+
+function equationBlock(equation) {
+  const block = document.createElement("div"); block.className = "model-equation";
+  block.innerHTML = `<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" aria-label="${equation.label}">${equation.mathml}</math>`;
+  return block;
+}
+
+function helpFact(label, text) {
+  const paragraph = document.createElement("p"); paragraph.className = "model-help-fact";
+  const strong = document.createElement("strong"); strong.textContent = `${label}: `; paragraph.append(strong, document.createTextNode(text)); return paragraph;
 }
 
 async function handleLayerChange(event) {
@@ -444,7 +508,7 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.3.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.4.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: { n: Number(elements["substrate-index"].value), k: Number(elements["substrate-extinction"].value) }, thicknessNm: 1000 * Number(elements["substrate-thickness"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,

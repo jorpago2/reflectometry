@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("ships one English-only material-agnostic multilayer interface", async () => {
-  const files = await Promise.all(["index.html", "multilayer.html", "multilayer-app.js", "scientific-core.js", "dielectric-models.js"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
+  const files = await Promise.all(["index.html", "multilayer.html", "multilayer-app.js", "model-help.js", "scientific-core.js", "dielectric-models.js"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   const combined = files.join("\n");
   assert.match(files[0], /<html lang="en">/);
@@ -23,6 +23,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /Brendel–Bormann/);
   assert.match(files[2], /Drude–Smith/);
   assert.match(files[2], /Effective-medium constituents/);
+  assert.match(files[2], /Model guide/);
+  assert.match(files[3], /Kramers–Kronig/);
+  assert.match(files[2], /https:\/\/doi\.org\//);
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
