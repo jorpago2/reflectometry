@@ -22,6 +22,8 @@ test("ships an English-only application interface", async () => {
   assert.match(files[3], /id="add-layer"/);
   assert.match(files[3], /LAYERS N,K/);
   assert.match(files[4], /Select at most 11 fitted parameters/);
+  assert.match(files[4], /Additive dielectric components/);
+  assert.match(files[4], /Tauc–Lorentz 1/);
   assert.doesNotMatch(files.join("\n"), /robust Gauss.Newton/i);
   assert.doesNotMatch(files.join("\n"), /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

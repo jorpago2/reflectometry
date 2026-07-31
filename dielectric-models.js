@@ -9,6 +9,7 @@ export const MODEL_LABELS = {
   "tl-gaussian": "Tauc–Lorentz + Gaussian (causal)",
   cody: "Cody–Lorentz (amorphous, causal)",
   "drude-tl": "Drude + Tauc–Lorentz (VO₂ metal)",
+  composite: "Independent dielectric components",
 };
 
 export const NOMINAL_THICKNESS_NM = {
@@ -64,7 +65,7 @@ function seeded(specifications, model, sample) {
   return specifications;
 }
 
-export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 0.1 }, nominalThicknessNm = null) {
+export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 0.1 }, nominalThicknessNm = null, components = {}) {
   const thickness = nominalThicknessNm ?? NOMINAL_THICKNESS_NM[sample] ?? 200;
   if (!Number.isFinite(thickness) || thickness <= 0) throw new Error("Nominal film thickness must be positive and finite.");
   const parameter = (label, unit, values, fit = false) => ({ label, unit, value: values[0], minimum: values[1], maximum: values[2], fit });
@@ -73,6 +74,45 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
     rGain: parameter("R gain", "", [1, 0.1, 10], model === "fixed" || model === "scaled" || model === "constant"),
     tGain: parameter("T gain", "", [1, 0.1, 10], model === "fixed" || model === "scaled" || model === "constant"),
   };
+  if (model === "composite") {
+    const preset = TL_PRESETS[sample] ?? TL_PRESETS.asb2sb3;
+    const specifications = {
+      thicknessNm: common.thicknessNm,
+      epsilonInf: parameter("ε∞", "", preset.epsilonInf),
+    };
+    const add = (prefix, entries) => Object.entries(entries).forEach(([name, specification]) => { specifications[`${prefix}__${name}`] = specification; });
+    if (components.tl1) add("tl1", {
+      amplitudeEv: parameter("TL1 · A", "eV", preset.amplitudeEv, true),
+      resonanceEv: parameter("TL1 · E₀", "eV", preset.resonanceEv),
+      broadeningEv: parameter("TL1 · C", "eV", preset.broadeningEv),
+      bandgapEv: parameter("TL1 · E_g", "eV", preset.bandgapEv),
+    });
+    if (components.tl2) add("tl2", {
+      amplitudeEv: parameter("TL2 · A", "eV", [0.3 * preset.amplitudeEv[0], 1, preset.amplitudeEv[2]], true),
+      resonanceEv: parameter("TL2 · E₀", "eV", [Math.max(3.4, preset.resonanceEv[0] + 0.8), 3.2, 6]),
+      broadeningEv: parameter("TL2 · C", "eV", [1.5, 0.1, 5]),
+      bandgapEv: parameter("TL2 · E_g", "eV", preset.bandgapEv),
+    });
+    if (components.gaussian) add("gaussian", {
+      amplitude: parameter("Gaussian · amplitude", "", [5, 1e-4, 150], true),
+      centerEnergyEv: parameter("Gaussian · center", "eV", [3.8, 0.2, 10]),
+      fwhmEv: parameter("Gaussian · FWHM", "eV", [1, 0.05, 8]),
+    });
+    if (components.cody) add("cody", {
+      amplitudeEv: parameter("Cody · A", "eV", preset.amplitudeEv, true),
+      transitionEv: parameter("Cody · Eₜ", "eV", [Math.max(preset.bandgapEv[2] + 0.2, preset.bandgapEv[0] + 0.4), preset.bandgapEv[2] + 0.05, 3.8]),
+      broadeningEv: parameter("Cody · γ", "eV", [Math.max(0.5, preset.broadeningEv[0]), 0.1, 5]),
+      crossoverEv: parameter("Cody · Eₚ", "eV", [0.8, 0.05, 3]),
+      resonanceEv: parameter("Cody · E₀", "eV", [Math.max(2, preset.resonanceEv[0]), Math.max(1, preset.bandgapEv[2] + 0.1), 6.5]),
+      urbachEv: parameter("Cody · Eᵤ", "eV", [0.07, 0.005, 0.3]),
+      bandgapEv: parameter("Cody · E_g", "eV", preset.bandgapEv),
+    });
+    if (components.drude) add("drude", {
+      plasmaEnergyEv: parameter("Drude · plasma energy", "eV", [4.16, 0.05, 12], true),
+      gammaEv: parameter("Drude · γ", "eV", [0.67, 0.005, 5]),
+    });
+    return specifications;
+  }
   if (model === "fixed") return common;
   if (model === "scaled") return {
     thicknessNm: common.thicknessNm,
@@ -166,7 +206,7 @@ export function validateModelAvailability(model, sample) {
   if (model === "drude-tl" && sample !== "vo2") throw new Error("Drude + Tauc–Lorentz is restricted to VO₂.");
 }
 
-export function refractiveIndexModel(model, wavelengthNm, parameters, nk) {
+export function refractiveIndexModel(model, wavelengthNm, parameters, nk, options = {}) {
   if (model === "constant") return { n: wavelengthNm.map(() => parameters.n), k: wavelengthNm.map(() => parameters.k) };
   if (model === "fixed" || model === "scaled") {
     if (!nk) throw new Error("The selected model requires a matching ellipsometry n,k table.");
@@ -181,8 +221,32 @@ export function refractiveIndexModel(model, wavelengthNm, parameters, nk) {
   else if (model === "tl-gaussian") dielectric = taucGaussianDielectric(wavelengthNm, parameters);
   else if (model === "cody") dielectric = codyLorentzDielectric(wavelengthNm, parameters);
   else if (model === "drude-tl") dielectric = drudeTaucLorentzDielectric(wavelengthNm, parameters);
+  else if (model === "composite") dielectric = compositeDielectric(wavelengthNm, parameters, options.components);
   else throw new Error(`Unsupported optical model: ${model}.`);
   return passiveRefractiveIndex(dielectric);
+}
+
+export function compositeDielectric(wavelengthNm, parameters, components = {}) {
+  validatePositiveWavelengths(wavelengthNm);
+  if (!(parameters.epsilonInf > 0)) throw new Error("The composite model requires a finite positive ε∞.");
+  const enabled = Object.entries(components).filter(([, value]) => value).map(([name]) => name);
+  if (!enabled.length) throw new Error("Select at least one dielectric component.");
+  const epsilon1 = wavelengthNm.map(() => parameters.epsilonInf);
+  const epsilon2 = wavelengthNm.map(() => 0);
+  const values = (prefix) => Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(`${prefix}__`)).map(([name, value]) => [name.slice(prefix.length + 2), value]));
+  const add = (dielectric, subtractBackground = false) => dielectric.epsilon1.forEach((value, index) => {
+    epsilon1[index] += value - Number(subtractBackground);
+    epsilon2[index] += dielectric.epsilon2[index];
+  });
+  for (const component of enabled) {
+    const componentParameters = values(component);
+    if (component === "tl1" || component === "tl2") add(taucLorentzDielectric(wavelengthNm, 1, componentParameters.amplitudeEv, componentParameters.resonanceEv, componentParameters.broadeningEv, componentParameters.bandgapEv), true);
+    else if (component === "gaussian") add(gaussianOscillatorDielectric(wavelengthNm, componentParameters.amplitude, componentParameters.centerEnergyEv, componentParameters.fwhmEv));
+    else if (component === "cody") add(codyLorentzDielectric(wavelengthNm, { ...componentParameters, epsilonInf: 1 }), true);
+    else if (component === "drude") add(drudeDielectric(wavelengthNm, componentParameters.plasmaEnergyEv, componentParameters.gammaEv));
+    else throw new Error(`Unsupported dielectric component: ${component}.`);
+  }
+  return { epsilon1, epsilon2 };
 }
 
 export function tabulatedRefractiveIndex(nk, wavelengthNm) {
@@ -307,13 +371,23 @@ function codyLorentzEpsilon2(energyEv, amplitudeEv, parameters) {
 export function drudeTaucLorentzDielectric(wavelengthNm, parameters) {
   if (!(parameters.plasmaEnergyEv > 0) || !(parameters.drudeGammaEv > 0)) throw new Error("Drude plasma energy and γ must be finite and positive.");
   const interband = taucLorentzDielectric(wavelengthNm, parameters.epsilonInf, parameters.amplitudeEv, parameters.resonanceEv, parameters.broadeningEv, parameters.bandgapEv);
+  const drude = drudeDielectric(wavelengthNm, parameters.plasmaEnergyEv, parameters.drudeGammaEv);
+  return {
+    epsilon1: interband.epsilon1.map((value, index) => value + drude.epsilon1[index]),
+    epsilon2: interband.epsilon2.map((value, index) => value + drude.epsilon2[index]),
+  };
+}
+
+export function drudeDielectric(wavelengthNm, plasmaEnergyEv, gammaEv) {
+  validatePositiveWavelengths(wavelengthNm);
+  if (!(plasmaEnergyEv > 0) || !(gammaEv > 0)) throw new Error("Drude plasma energy and γ must be finite and positive.");
   const epsilon1 = [];
   const epsilon2 = [];
-  wavelengthNm.forEach((wavelength, index) => {
+  wavelengthNm.forEach((wavelength) => {
     const energy = PHOTON_ENERGY_EV_NM / wavelength;
-    const denominator = energy ** 4 + parameters.drudeGammaEv ** 2 * energy ** 2;
-    epsilon1.push(interband.epsilon1[index] - parameters.plasmaEnergyEv ** 2 * energy ** 2 / denominator);
-    epsilon2.push(interband.epsilon2[index] + parameters.plasmaEnergyEv ** 2 * parameters.drudeGammaEv * energy / denominator);
+    const denominator = energy ** 4 + gammaEv ** 2 * energy ** 2;
+    epsilon1.push(-(plasmaEnergyEv ** 2) * energy ** 2 / denominator);
+    epsilon2.push(plasmaEnergyEv ** 2 * gammaEv * energy / denominator);
   });
   return { epsilon1, epsilon2 };
 }

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   codyLorentzDielectric,
+  compositeDielectric,
+  drudeDielectric,
   drudeTaucLorentzDielectric,
   gaussianOscillatorDielectric,
   modelParameterSpecs,
@@ -44,6 +46,33 @@ test("matches Python causal dielectric-model references", () => {
   assert.ok(index.k.every((value) => value >= 0));
 });
 
+test("combines dielectric components independently without duplicating epsilon infinity", () => {
+  const tlParameters = {
+    epsilonInf: 4,
+    tl1__amplitudeEv: 80,
+    tl1__resonanceEv: 3,
+    tl1__broadeningEv: 1,
+    tl1__bandgapEv: 0.4,
+  };
+  const tl = taucLorentzDielectric(wavelengthNm, 4, 80, 3, 1, 0.4);
+  const tlComposite = compositeDielectric(wavelengthNm, tlParameters, { tl1: true });
+  assertArrayClose(tlComposite.epsilon1, tl.epsilon1);
+  assertArrayClose(tlComposite.epsilon2, tl.epsilon2);
+
+  const gaussianParameters = { gaussian__amplitude: 5, gaussian__centerEnergyEv: 3.8, gaussian__fwhmEv: 1 };
+  const gaussian = gaussianOscillatorDielectric(wavelengthNm, 5, 3.8, 1);
+  const drudeParameters = { drude__plasmaEnergyEv: 4.16, drude__gammaEv: 0.67 };
+  const drude = drudeDielectric(wavelengthNm, 4.16, 0.67);
+  const independent = compositeDielectric(wavelengthNm, { epsilonInf: 4, ...gaussianParameters, ...drudeParameters }, { gaussian: true, drude: true });
+  assertArrayClose(independent.epsilon1, gaussian.epsilon1.map((value, index) => 4 + value + drude.epsilon1[index]));
+  assertArrayClose(independent.epsilon2, gaussian.epsilon2.map((value, index) => value + drude.epsilon2[index]));
+
+  const combined = compositeDielectric(wavelengthNm, { ...tlParameters, ...gaussianParameters, ...drudeParameters }, { tl1: true, gaussian: true, drude: true });
+  const legacy = drudeTaucLorentzDielectric(wavelengthNm, { epsilonInf: 4, plasmaEnergyEv: 4.16, drudeGammaEv: 0.67, amplitudeEv: 80, resonanceEv: 3, broadeningEv: 1, bandgapEv: 0.4 });
+  assertArrayClose(combined.epsilon1, legacy.epsilon1.map((value, index) => value + gaussian.epsilon1[index]));
+  assertArrayClose(combined.epsilon2, legacy.epsilon2.map((value, index) => value + gaussian.epsilon2[index]));
+});
+
 test("uses the Python-derived ellipsometry seeds for bundled samples", () => {
   const tl = modelParameterSpecs("tl1", "agst");
   assert.ok(Math.abs(tl.epsilonInf.value - 1.1859581695838666) < 1e-9);
@@ -53,6 +82,9 @@ test("uses the Python-derived ellipsometry seeds for bundled samples", () => {
   const custom = modelParameterSpecs("tl1", "custom", { n: 3, k: 0.1 }, 333);
   assert.equal(custom.thicknessNm.value, 333);
   assert.equal(custom.thicknessNm.minimum, 166.5);
+  const composite = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { tl1: true, gaussian: true, drude: false });
+  assert.ok(composite["tl1__amplitudeEv"] && composite["gaussian__amplitude"]);
+  assert.equal(composite["drude__plasmaEnergyEv"], undefined);
 });
 
 test("fits a dynamic ellipsometry seed from the loaded n,k table", () => {

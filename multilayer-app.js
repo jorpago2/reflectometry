@@ -16,6 +16,8 @@ const DEMOS = {
   vo2: { label: "VO₂", thickness: 150, sampleR: "vo2-ref.txt", sampleT: "vo2-tr.txt", nk: "VO2_22C.txt" },
 };
 const PRESET_LABELS = { custom: "Custom", agst: "aGST", cgst: "cGST", asb2sb3: "aSb₂Se₃", csb2sb3: "cSb₂Se₃", vo2: "VO₂" };
+const COMPONENT_LABELS = { tl1: "Tauc–Lorentz 1", tl2: "Tauc–Lorentz 2", gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude" };
+const DEFAULT_COMPONENTS = { tl1: true, tl2: false, gaussian: false, cody: false, drude: false };
 const CAUSAL_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -44,15 +46,23 @@ for (const id of ["fit-r-gain", "fit-t-gain"]) elements[id].addEventListener("ch
 
 function makeLayer(preset, model, thicknessNm, nk) {
   const id = `layer${state.nextLayer++}`;
-  return { id, name: `Layer ${state.layers.length + 1}`, preset, model, nk, nkSource: nk ? `${PRESET_LABELS[preset]} bundled table` : null, regularize: false, specs: layerSpecs(model, preset, thicknessNm, nk) };
+  const components = { ...DEFAULT_COMPONENTS };
+  const specs = layerSpecs(model, preset, thicknessNm, nk, components);
+  return { id, name: `Layer ${state.layers.length + 1}`, preset, model, components, nk, nkSource: nk ? `${PRESET_LABELS[preset]} bundled table` : null, regularize: false, specs, specCache: { ...specs } };
 }
 
-function layerSpecs(model, preset, thicknessNm, nk, previous = {}) {
+function layerSpecs(model, preset, thicknessNm, nk, components, previous = {}) {
   const referenceIndex = nk ? nk.wavelengthNm.reduce((best, value, index) => Math.abs(value - 1064) < Math.abs(nk.wavelengthNm[best] - 1064) ? index : best, 0) : 0;
-  const generated = modelParameterSpecs(model, preset, { n: nk?.n[referenceIndex] ?? 2.5, k: nk?.k[referenceIndex] ?? 0.05 }, thicknessNm);
+  const generated = modelParameterSpecs(model, preset, { n: nk?.n[referenceIndex] ?? 2.5, k: nk?.k[referenceIndex] ?? 0.05 }, thicknessNm, components);
   delete generated.rGain;
   delete generated.tGain;
   return Object.fromEntries(Object.entries(generated).map(([name, specification]) => [name, previous[name] ? { ...specification, ...previous[name] } : specification]));
+}
+
+function rebuildLayerSpecs(layer) {
+  layer.specCache = { ...layer.specCache, ...layer.specs };
+  layer.specs = layerSpecs(layer.model, layer.preset, layer.specs.thicknessNm.value, layer.nk, layer.components, layer.specCache);
+  layer.specCache = { ...layer.specCache, ...layer.specs };
 }
 
 async function loadDemo(id) {
@@ -116,6 +126,11 @@ function renderLayers() {
     header.append(order, name, actions);
     const selectors = document.createElement("div"); selectors.className = "field-pair";
     selectors.append(selectControl("Material preset", "preset", PRESET_LABELS, layer.preset), selectControl("Optical model", "model", MODEL_LABELS, layer.model));
+    const components = document.createElement("fieldset"); components.className = "component-selector"; components.hidden = layer.model !== "composite";
+    const legend = document.createElement("legend"); legend.textContent = "Additive dielectric components"; components.append(legend);
+    for (const [component, label] of Object.entries(COMPONENT_LABELS)) {
+      const control = checkControl(label, "component", layer.components[component], false); control.querySelector("input").dataset.component = component; components.append(control);
+    }
     const reference = document.createElement("div"); reference.className = "layer-reference";
     const fileLabel = document.createElement("label"); fileLabel.textContent = "Layer n,k table";
     const file = document.createElement("input"); file.type = "file"; file.accept = ".txt,text/plain"; file.dataset.field = "nk-file"; fileLabel.append(file);
@@ -131,7 +146,7 @@ function renderLayers() {
     for (const text of ["Fit", "Parameter", "Value", "Min", "Max", "1σ"]) { const span = document.createElement("span"); span.textContent = text; tableHeader.append(span); }
     const table = document.createElement("div"); table.className = "parameter-table";
     for (const [parameter, specification] of Object.entries(layer.specs)) table.append(parameterRow(layer, parameter, specification));
-    card.append(header, selectors, reference, flags, tableHeader, table);
+    card.append(header, selectors, components, reference, flags, tableHeader, table);
     return card;
   });
   elements.layers.replaceChildren(...cards);
@@ -172,18 +187,23 @@ async function handleLayerChange(event) {
   if (field === "name") { layer.name = event.target.value.trim() || layer.name; return; }
   if (field === "active") { state.activeLayerId = layer.id; drawAll(); return; }
   if (field === "regularize") { layer.regularize = event.target.checked; return; }
+  if (field === "component") {
+    captureLayerInputs(); layer.components[event.target.dataset.component] = event.target.checked; rebuildLayerSpecs(layer); renderLayers(); previewModel(); return;
+  }
   if (field === "nk-file") {
-    try { layer.nk = loadNkTable(await event.target.files[0].text()); layer.nkSource = event.target.files[0].name; layer.regularize = false; layer.specs = layerSpecs(layer.model, layer.preset, layer.specs.thicknessNm.value, layer.nk, layer.specs); renderLayers(); previewModel(); }
+    if (!event.target.files[0]) return;
+    try { captureLayerInputs(); layer.nk = loadNkTable(await event.target.files[0].text()); layer.nkSource = event.target.files[0].name; layer.regularize = false; rebuildLayerSpecs(layer); renderLayers(); previewModel(); }
     catch (error) { showError(error); }
     return;
   }
   captureLayerInputs();
-  if (field === "model") { layer.model = event.target.value; layer.regularize = false; layer.specs = layerSpecs(layer.model, layer.preset, layer.specs.thicknessNm.value, layer.nk, layer.specs); renderLayers(); previewModel(); }
+  if (field === "model") { layer.model = event.target.value; layer.regularize = false; rebuildLayerSpecs(layer); renderLayers(); previewModel(); }
   if (field === "preset") {
     layer.preset = event.target.value; layer.nk = null; layer.nkSource = null; layer.regularize = false;
     try { if (DEMOS[layer.preset]) { const text = await fetchText(`examples/${DEMOS[layer.preset].nk}`); layer.nk = loadNkTable(text); layer.nkSource = `${PRESET_LABELS[layer.preset]} bundled table`; } }
     catch (error) { showError(error); }
-    layer.specs = layerSpecs(layer.model, layer.preset, layer.specs.thicknessNm.value, layer.nk, layer.specs); renderLayers(); previewModel();
+    layer.specCache = { thicknessNm: layer.specs.thicknessNm };
+    rebuildLayerSpecs(layer); renderLayers(); previewModel();
   }
 }
 
@@ -236,6 +256,7 @@ function configuration() {
   if (elements["fit-t-gain"].checked && useTransmittance) fittedParameters.push("tGain");
   for (const layer of state.layers) {
     if (TABLE_MODELS.has(layer.model) && !layer.nk) throw new Error(`${layer.name}: ${MODEL_LABELS[layer.model]} requires an n,k table.`);
+    if (layer.model === "composite" && !Object.values(layer.components).some(Boolean)) throw new Error(`${layer.name}: select at least one dielectric component.`);
     for (const [name, specification] of Object.entries(layer.specs)) {
       const key = `${layer.id}__${name}`; const { value, minimum, maximum } = specification;
       if (![value, minimum, maximum].every(Number.isFinite) || minimum >= maximum || value < minimum || value > maximum) throw new Error(`${layer.name}: ${specification.label} must have a finite value inside valid bounds.`);
@@ -244,7 +265,7 @@ function configuration() {
   }
   if (fittedParameters.length > 11) throw new Error(`Select at most 11 fitted parameters; ${fittedParameters.length} are selected.`);
   const settings = {
-    layers: state.layers.map(({ id, name, preset, model, nk, regularize }) => ({ id, name, preset, model, nk, regularize })),
+    layers: state.layers.map(({ id, name, preset, model, components, nk, regularize }) => ({ id, name, preset, model, components, nk, regularize })),
     activeLayerId: state.activeLayerId,
     substrateIndex: numberValue("substrate-index", 1.001, 5), incidence: elements.incidence.value,
     useReflectance, useTransmittance,
@@ -364,8 +385,8 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-multilayer-fit/v1", application: { name: "Reflectometry Multilayer", version: "1.0.0", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
-    stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, materialPreset: layer.preset, opticalModel: layer.model, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
+    schema: "reflectometry-browser-multilayer-fit/v1", application: { name: "Reflectometry Multilayer", version: "1.1.0", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
+    stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, materialPreset: layer.preset, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? Object.keys(layer.components).filter((name) => layer.components[name]) : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: Number(elements["substrate-index"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
     assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "optically thick substrate with incoherent rear returns", "constant real substrate refractive index"],

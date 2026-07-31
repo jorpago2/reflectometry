@@ -88,6 +88,34 @@ test("recovers a synthetic multilayer thickness with namespaced parameters", () 
   assert.ok(Math.abs(result.parameters.top__thicknessNm - truth.top__thicknessNm) < 1e-5);
 });
 
+test("fits an independently composed layer through the multilayer worker contract", () => {
+  const wavelengthNm = Array.from({ length: 41 }, (_, index) => 400 + 15 * index);
+  const valid = wavelengthNm.map(() => true);
+  const settings = {
+    substrateIndex: 1.5, incidence: "film", activeLayerId: "film", useReflectance: true, useTransmittance: true,
+    sigmaReflectance: 0.01, sigmaTransmittance: 0.01, preferSpectralShape: true, sigmaN: 0.5, sigmaK: 0.25,
+    layers: [{ id: "film", name: "Composite film", model: "composite", components: { tl1: true, gaussian: true } }],
+  };
+  const truth = {
+    film__thicknessNm: 180, film__epsilonInf: 3,
+    film__tl1__amplitudeEv: 55, film__tl1__resonanceEv: 3.2, film__tl1__broadeningEv: 1, film__tl1__bandgapEv: 0.8,
+    film__gaussian__amplitude: 4, film__gaussian__centerEnergyEv: 4.2, film__gaussian__fwhmEv: 0.8,
+    rGain: 1, tGain: 1,
+  };
+  const synthetic = evaluateOpticalModel({ wavelengthNm }, null, truth, settings);
+  const data = { wavelengthNm, reflectance: synthetic.reflectance, transmittance: synthetic.transmittance, reflectanceValid: valid, transmittanceValid: valid };
+  const result = fitTabulated(data, null, {
+    settings,
+    initial: { ...truth, film__tl1__amplitudeEv: 45 },
+    bounds: { film__tl1__amplitudeEv: [20, 90] },
+    fittedParameters: ["film__tl1__amplitudeEv"],
+    screeningPoints: 64,
+    localRefinements: 1,
+  });
+  assert.ok(Math.abs(result.parameters.film__tl1__amplitudeEv - 55) < 1e-4);
+  assert.deepEqual(result.optimizer.logarithmicallySampledParameters, ["film__tl1__amplitudeEv"]);
+});
+
 test("recovers shared R/T gains across samples", () => {
   const wavelengthNm = Array.from({ length: 41 }, (_, index) => 350 + index * 20);
   const valid = wavelengthNm.map(() => true);
