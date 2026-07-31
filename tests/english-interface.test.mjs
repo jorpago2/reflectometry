@@ -14,6 +14,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /id="add-layer"/);
   assert.match(files[1], /id="substrate-extinction"/);
   assert.match(files[1], /id="substrate-thickness"/);
+  assert.match(files[1], /micrometres \(µm\)/);
   assert.match(files[1], /id="stack-diagram"/);
   assert.match(files[1], /LAYERS N,K/);
   assert.match(files[2], /Independent dielectric components/);
@@ -33,6 +34,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /aria-expanded/);
   assert.match(styles, /\.parameter-help-popover\b/);
   assert.doesNotMatch(styles, /parameter-help-mark/);
+  assert.match(files[2], /substrateThicknessNm: 1000 \* substrateThicknessUm/);
+  assert.match(files[2], /thicknessUm: Number\(elements\["substrate-thickness"\]\.value\)/);
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);

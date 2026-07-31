@@ -6,7 +6,7 @@
   <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer.">
   <meta name="theme-color" content="#f3f0e8">
   <title>Reflectometry · Generic multilayer fitting</title>
-  <link rel="stylesheet" href="styles.css?v=3.5.1">
+  <link rel="stylesheet" href="styles.css?v=3.5.2">
 </head>
 <body>
   <header class="masthead">
@@ -66,11 +66,11 @@
 
         <section class="control-section">
           <div class="section-heading"><span>02</span><h2>Layer stack</h2></div>
-          <p class="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Substrate thickness must be at least 10× the maximum fitted wavelength.</p>
+          <p class="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p>
           <div class="field-pair compact-pair">
             <label>Substrate n<input id="substrate-index" type="number" value="1.46" min="0.001" max="20" step="0.01"></label>
             <label>Substrate k<input id="substrate-extinction" type="number" value="0" min="0" max="100" step="0.001"></label>
-            <label>Substrate thickness <span>µm</span><input id="substrate-thickness" type="number" value="1000" min="10" max="1000000" step="1"></label>
+            <label>Substrate thickness <span>micrometres (µm)</span><input id="substrate-thickness" type="number" value="1000" min="10" max="1000000" step="1"></label>
             <label>Incidence<select id="incidence"><option value="film">Stack side</option><option value="substrate">Substrate side</option></select></label>
           </div>
           <div id="layers" class="layer-list"></div>
@@ -145,7 +145,7 @@
       </section>
     </div>
   </main>
-  <footer><span>Reflectometry · v3.5.1</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
-  <script type="module" src="multilayer-app.js?v=3.5.1"></script>
+  <footer><span>Reflectometry · v3.5.2</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js?v=3.5.2"></script>
 </body>
 </html>

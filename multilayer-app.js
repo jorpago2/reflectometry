@@ -83,7 +83,7 @@ function loadSyntheticExample() {
     layer.name = "Generic layer";
     state.layers = [layer];
     state.activeLayerId = layer.id;
-    state.source = { sampleName: "Synthetic stack", type: "deterministic browser-generated example", truth: { layers: [{ thicknessNm: 150, n: 2, k: 0.05 }], substrate: { n: 1.46, k: 0, thicknessNm: 1e6 } } };
+    state.source = { sampleName: "Synthetic stack", type: "deterministic browser-generated example", truth: { layers: [{ thicknessNm: 150, n: 2, k: 0.05 }], substrate: { n: 1.46, k: 0, thicknessUm: 1000 } } };
     elements["source-name"].textContent = "Synthetic stack · generated locally";
     elements["use-t"].checked = true;
     renderLayers();
@@ -377,10 +377,13 @@ function configuration() {
     }
   }
   if (fittedParameters.length > 11) throw new Error(`Select at most 11 fitted parameters; ${fittedParameters.length} are selected.`);
+  const substrateThicknessUm = numberValue("substrate-thickness", 10, 1e6);
+  const minimumSubstrateThicknessUm = numberValue("wavelength-max", 196, 3000) / 100;
+  if (substrateThicknessUm < minimumSubstrateThicknessUm) throw new Error(`Substrate thickness must be at least ${format(minimumSubstrateThicknessUm, 3)} µm (10× the maximum wavelength).`);
   const settings = {
     layers: state.layers.map(({ id, name, model, components, ema, nk, regularize }) => ({ id, name, model, components, ema, nk, regularize })),
     activeLayerId: state.activeLayerId,
-    substrateIndex: numberValue("substrate-index", 0.001, 20), substrateExtinction: numberValue("substrate-extinction", 0, 100), substrateThicknessNm: 1000 * numberValue("substrate-thickness", 10, 1e6), incidence: elements.incidence.value,
+    substrateIndex: numberValue("substrate-index", 0.001, 20), substrateExtinction: numberValue("substrate-extinction", 0, 100), substrateThicknessNm: 1000 * substrateThicknessUm, incidence: elements.incidence.value,
     useReflectance, useTransmittance,
     sigmaReflectance: numberValue("sigma-r", 0.0001, 1), sigmaTransmittance: numberValue("sigma-t", 0.0001, 1),
     sigmaN: numberValue("sigma-n", 0.0001, 10), sigmaK: numberValue("sigma-k", 0.0001, 10),
@@ -502,9 +505,9 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.5.1", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-fit/v6", application: { name: "Reflectometry", version: "3.5.2", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
-    substrate: { refractiveIndex: { n: Number(elements["substrate-index"].value), k: Number(elements["substrate-extinction"].value) }, thicknessNm: 1000 * Number(elements["substrate-thickness"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
+    substrate: { refractiveIndex: { n: Number(elements["substrate-index"].value), k: Number(elements["substrate-extinction"].value) }, thicknessUm: Number(elements["substrate-thickness"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
     assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "finite phase-incoherent substrate", "uniform complex substrate index", "Beer–Lambert substrate attenuation", "incoherent rear-surface returns"],
   };
