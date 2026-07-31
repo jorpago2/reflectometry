@@ -10,6 +10,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[0], /url=multilayer\.html/);
   assert.match(files[1], /Build the stack/);
   assert.match(files[1], /id="reset-example"/);
+  assert.match(files[1], /id="saved-fit-file"/);
   assert.match(files[1], /R reference signal/);
   assert.match(files[1], /id="add-layer"/);
   assert.match(files[1], /id="substrate-extinction"/);
@@ -35,6 +36,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(styles, /\.parameter-help-popover\b/);
   assert.doesNotMatch(styles, /parameter-help-mark/);
   assert.match(files[2], /substrateThicknessNm: 1000 \* substrateThicknessUm/);
+  assert.match(files[2], /parseSavedFit/);
+  assert.match(files[2], /SAVED_FIT_SCHEMA/);
   assert.match(files[2], /thicknessUm: Number\(elements\["substrate-thickness"\]\.value\)/);
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));

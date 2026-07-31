@@ -9,6 +9,7 @@ import {
 } from "./scientific-core.js";
 import { MODEL_LABELS, modelParameterSpecs } from "./dielectric-models.js";
 import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./model-help.js";
+import { parseSavedFit, SAVED_FIT_SCHEMA } from "./saved-fit.js";
 
 const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
@@ -24,11 +25,13 @@ const MULTILAYER_MODEL_LABELS = {
 const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude", drudeSmith: "Drude–Smith", brendelBormann: "Brendel–Bormann", criticalPoint: "Critical point / Adachi" };
 const DEFAULT_COMPONENTS = { taucLorentz: 1, lorentz: 0, gaussian: false, cody: false, drude: false, drudeSmith: false, brendelBormann: false, criticalPoint: false };
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
+const SAVED_CONTROL_IDS = ["wavelength-min", "wavelength-max", "reference-threshold", "bin-width", "sample-snr", "subtract-background", "use-r", "use-t", "prefer-shape", "sigma-r", "sigma-t", "sigma-n", "sigma-k", "fit-r-gain", "fit-t-gain", "r-gain", "t-gain", "screening-points", "local-refinements"];
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { spectrum: null, fitData: null, evaluation: null, fitResult: null, source: null, layers: [], activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null };
 
 elements["reset-example"].addEventListener("click", loadSyntheticExample);
 elements["load-files"].addEventListener("click", loadLocalFiles);
+elements["saved-fit-file"].addEventListener("change", loadSavedFit);
 elements["add-layer"].addEventListener("click", () => {
   captureLayerInputs();
   if (state.layers.length >= 12) return showError(new Error("The coherent stack is limited to 12 layers."));
@@ -59,6 +62,8 @@ function makeLayer(model, thicknessNm, nk) {
   const ema = { method: "bruggeman", hostNk: null, inclusionNk: null, hostSource: null, inclusionSource: null };
   return { id, name: `Layer ${state.layers.length + 1}`, model, components, ema, nk, nkSource: null, regularize: false, specs, specCache: { ...specs } };
 }
+
+function modelLabel(model) { return MULTILAYER_MODEL_LABELS[model] ?? MODEL_LABELS[model] ?? model; }
 
 function layerSpecs(model, thicknessNm, nk, components, previous = {}) {
   const referenceIndex = nk ? nk.wavelengthNm.reduce((best, value, index) => Math.abs(value - 1064) < Math.abs(nk.wavelengthNm[best] - 1064) ? index : best, 0) : 0;
@@ -113,6 +118,96 @@ async function loadLocalFiles() {
   finally { setBusy(false); }
 }
 
+async function loadSavedFit(event) {
+  const file = event.target.files[0]; if (!file) return;
+  if (file.size > 50 * 1024 * 1024) { event.target.value = ""; return showError(new Error("Saved fit JSON files are limited to 50 MB.")); }
+  setBusy(true, "Opening saved fit…");
+  try { restoreSavedFit(parseSavedFit(await file.text()), file.name); }
+  catch (error) { showError(error); }
+  finally { event.target.value = ""; setBusy(false); }
+}
+
+function restoreSavedFit(saved, fileName) {
+  state.nextLayer = 1;
+  const layers = saved.stack.map((entry) => {
+    const thicknessNm = Number.isFinite(entry.parameters.thicknessNm) ? entry.parameters.thicknessNm : 100;
+    const layer = makeLayer(entry.opticalModel, thicknessNm, entry.nkTable);
+    layer.id = entry.id; layer.name = entry.name;
+    for (const name of ["taucLorentz", "lorentz"]) if (Number.isInteger(entry.dielectricComponents?.[name])) layer.components[name] = Math.max(0, Math.min(5, entry.dielectricComponents[name]));
+    for (const name of Object.keys(COMPONENT_LABELS)) layer.components[name] = Boolean(entry.dielectricComponents?.[name]);
+    layer.nk = entry.nkTable; layer.nkSource = entry.nkSource; layer.regularize = entry.regularizedToNk;
+    if (entry.effectiveMedium) layer.ema = { method: entry.effectiveMedium.method, hostNk: entry.effectiveMedium.hostNk, inclusionNk: entry.effectiveMedium.inclusionNk, hostSource: entry.effectiveMedium.hostSource, inclusionSource: entry.effectiveMedium.inclusionSource };
+    layer.specs = layerSpecs(layer.model, thicknessNm, layer.nk, layer.components);
+    for (const [name, specification] of Object.entries(layer.specs)) {
+      const setting = entry.parameterSettings[name];
+      if (setting) Object.assign(specification, setting);
+      if (Number.isFinite(entry.parameters[name])) specification.value = entry.parameters[name];
+    }
+    layer.specCache = { ...layer.specs };
+    return layer;
+  });
+  state.layers = layers; state.activeLayerId = saved.activeLayerId;
+  const usedIds = new Set(layers.map((layer) => layer.id)); state.nextLayer = 1; while (usedIds.has(`layer${state.nextLayer}`)) state.nextLayer += 1;
+  applySavedControls(saved.controls);
+  elements["substrate-index"].value = String(saved.substrate.n); elements["substrate-extinction"].value = String(saved.substrate.k); elements["substrate-thickness"].value = String(saved.substrate.thicknessUm); elements.incidence.value = saved.substrate.incidence;
+  elements["r-gain"].value = String(saved.gains.reflectance); elements["t-gain"].value = String(saved.gains.transmittance);
+  if (saved.spectrum) {
+    state.spectrum = saved.spectrum;
+    state.source = { ...(saved.source ?? {}), sampleName: saved.spectrum.sampleName };
+  }
+  const sampleName = saved.spectrum?.sampleName ?? state.source?.sampleName ?? fileName.replace(/\.json$/i, "");
+  elements["source-name"].textContent = `${sampleName} · ${saved.spectrum ? "restored saved fit" : "legacy fit configuration"}`;
+  renderLayers();
+  const missingTables = layers.filter((layer) => (TABLE_MODELS.has(layer.model) && !layer.nk) || (layer.model === "ema" && (!layer.ema.hostNk || !layer.ema.inclusionNk)));
+  if (missingTables.length) {
+    clearResult();
+    setStatus(`Loaded configuration from ${fileName}. Reload the missing n,k tables for: ${missingTables.map((layer) => layer.name).join(", ")}.`);
+    return;
+  }
+  const config = configuration(); const fitData = prepareCurrentData(); validateChannels(fitData, config.settings);
+  state.evaluation = evaluateOpticalModel(fitData, null, config.initial, config.settings);
+  const freshDiagnostics = diagnosticsOf(fitData, state.evaluation, config.settings);
+  const diagnostics = saved.spectrum ? mergeSavedDiagnostics(freshDiagnostics, saved.diagnostics) : freshDiagnostics;
+  const optimizer = normalizeSavedOptimizer(saved.optimizer);
+  state.fitResult = { parameters: config.initial, evaluation: state.evaluation, diagnostics, optimizer, preview: !saved.spectrum, configuration: config };
+  renderResult(saved.spectrum ? `Saved fit loaded from ${fileName}.` : `Legacy configuration loaded from ${fileName}; the current measurement remains active because this file contains no spectra.`);
+}
+
+function applySavedControls(controls) {
+  for (const id of SAVED_CONTROL_IDS) if (Object.hasOwn(controls, id)) {
+    if (elements[id].type === "checkbox") elements[id].checked = Boolean(controls[id]);
+    else elements[id].value = String(controls[id]);
+  }
+}
+
+function mergeSavedDiagnostics(fresh, saved) {
+  if (!saved) return fresh;
+  return {
+    ...fresh,
+    normalizedJacobianCondition: Number.isFinite(saved.normalizedJacobianCondition) ? saved.normalizedJacobianCondition : null,
+    parametersAtBounds: Array.isArray(saved.parametersAtBounds) ? saved.parametersAtBounds.map(String) : [],
+    nearEqualAlternativeMinima: Number.isFinite(saved.nearEqualAlternativeMinima) ? saved.nearEqualAlternativeMinima : null,
+    parameterStandardErrorsApproximate: saved.parameterStandardErrorsApproximate && typeof saved.parameterStandardErrorsApproximate === "object" ? saved.parameterStandardErrorsApproximate : {},
+  };
+}
+
+function normalizeSavedOptimizer(saved) {
+  const solver = saved?.selectedSolver;
+  return {
+    ...(saved ?? {}),
+    logarithmicallySampledParameters: Array.isArray(saved?.logarithmicallySampledParameters) ? saved.logarithmicallySampledParameters : [],
+    selectedSolver: solver && typeof solver === "object" ? { success: Boolean(solver.success), message: String(solver.message ?? "Saved fit loaded."), evaluations: Number.isFinite(solver.evaluations) ? solver.evaluations : 0, optimality: Number.isFinite(solver.optimality) ? solver.optimality : null } : { success: true, message: "Saved fit loaded.", evaluations: 0, optimality: null },
+  };
+}
+
+function clearResult() {
+  state.fitData = null; state.evaluation = null; state.fitResult = null;
+  for (const id of ["metric-thickness", "metric-rmse-r", "metric-rmse-t", "metric-parameters", "diagnostic-condition", "diagnostic-bounds", "diagnostic-power"]) elements[id].textContent = "—";
+  elements["diagnostic-convergence"].textContent = "Not evaluated"; elements["diagnostic-evaluations"].textContent = "Missing optical data";
+  for (const id of ["download-json", "download-csv", "download-nk"]) elements[id].disabled = true;
+  for (const canvas of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+}
+
 function renderLayers() {
   const cards = state.layers.map((layer, index) => {
     const card = document.createElement("article");
@@ -127,7 +222,8 @@ function renderLayers() {
     }
     header.append(order, name, actions);
     const selectors = document.createElement("div"); selectors.className = "field-pair";
-    selectors.append(selectControl("Optical model", "model", MULTILAYER_MODEL_LABELS, layer.model));
+    const modelChoices = Object.hasOwn(MULTILAYER_MODEL_LABELS, layer.model) ? MULTILAYER_MODEL_LABELS : { ...MULTILAYER_MODEL_LABELS, [layer.model]: modelLabel(layer.model) };
+    selectors.append(selectControl("Optical model", "model", modelChoices, layer.model));
     const modelHelp = renderModelHelp(layer);
     const components = document.createElement("fieldset"); components.className = "component-selector"; components.hidden = layer.model !== "composite";
     const legend = document.createElement("legend"); legend.textContent = "Additive dielectric components"; components.append(legend);
@@ -181,7 +277,7 @@ function renderStackDiagram() {
     const order = document.createElement("span"); order.className = "stack-layer-order"; order.textContent = String(index + 1).padStart(2, "0");
     const identity = document.createElement("div");
     const name = document.createElement("strong"); name.textContent = layer.name;
-    const model = document.createElement("small"); model.textContent = MULTILAYER_MODEL_LABELS[layer.model] ?? layer.model;
+    const model = document.createElement("small"); model.textContent = modelLabel(layer.model);
     identity.append(name, model);
     const thickness = document.createElement("span"); thickness.className = "stack-thickness"; thickness.textContent = `${format(layer.specs.thicknessNm?.value, 2)} nm`;
     item.append(order, identity, thickness); layers.push(item);
@@ -239,7 +335,7 @@ function closeParameterHelp() {
 function renderModelHelp(layer) {
   const guide = MODEL_GUIDES[layer.model];
   const details = document.createElement("details"); details.className = "model-help";
-  const summary = document.createElement("summary"); summary.textContent = `Model guide · ${MULTILAYER_MODEL_LABELS[layer.model]}`;
+  const summary = document.createElement("summary"); summary.textContent = `Model guide · ${modelLabel(layer.model)}`;
   const body = document.createElement("div"); body.className = "model-help-body";
   const description = document.createElement("p"); description.className = "model-help-summary"; description.textContent = guide.summary;
   body.append(description, equationBlock(guide.equation), helpFact("Typically represents", guide.represents), helpFact("Scope / limitation", guide.limitation));
@@ -504,9 +600,23 @@ function drawChart(canvas, x, series, options) {
 
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
+  captureLayerInputs();
   return {
-    schema: "reflectometry-browser-fit/v6", application: { name: "Reflectometry", version: "3.5.2", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
-    stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
+    schema: SAVED_FIT_SCHEMA, application: { name: "Reflectometry", version: "3.6.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source, activeLayerId: state.activeLayerId,
+    measurement: { spectrum: state.spectrum },
+    controls: Object.fromEntries(SAVED_CONTROL_IDS.map((id) => [id, elements[id].type === "checkbox" ? elements[id].checked : elements[id].value])),
+    stack: state.layers.map((layer) => ({
+      id: layer.id,
+      name: layer.name,
+      opticalModel: layer.model,
+      dielectricComponents: layer.model === "composite" ? { ...layer.components } : null,
+      effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource, hostNk: layer.ema.hostNk, inclusionNk: layer.ema.inclusionNk } : null,
+      nkSource: layer.nkSource,
+      nkTable: layer.nk,
+      regularizedToNk: layer.regularize,
+      parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])),
+      parameterSettings: Object.fromEntries(Object.entries(layer.specs).map(([name, specification]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
+    })),
     substrate: { refractiveIndex: { n: Number(elements["substrate-index"].value), k: Number(elements["substrate-extinction"].value) }, thicknessUm: Number(elements["substrate-thickness"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
     assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "finite phase-incoherent substrate", "uniform complex substrate index", "Beer–Lambert substrate attenuation", "incoherent rear-surface returns"],
@@ -531,7 +641,7 @@ function integerValue(id, minimum, maximum) { const value = numberValue(id, mini
 function format(value, digits = 3) { return Number.isFinite(value) ? Number(value).toFixed(digits).replace(/\.?0+$/, "") : "—"; }
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
-function setBusy(busy, message = "") { for (const id of ["fit-button", "preview-button", "reset-example", "load-files", "add-layer"]) elements[id].disabled = busy; if (message) setStatus(message); }
+function setBusy(busy, message = "") { for (const id of ["fit-button", "preview-button", "reset-example", "load-files", "saved-fit-file", "add-layer"]) elements[id].disabled = busy; if (message) setStatus(message); }
 function setStatus(message) { elements.status.textContent = message; }
 function showError(error) { setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`); }
 function safeName(value) { return String(value ?? "sample").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sample"; }

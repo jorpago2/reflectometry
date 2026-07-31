@@ -22,7 +22,7 @@ Open `http://localhost:4173`; it redirects to the only application, the generic 
 - Optional affine spectral-shape residuals and n,k regularization.
 - Scrambled Sobol screening followed by bounded robust trust-region reflective refinement in a Web Worker.
 - Local identifiability, approximate uncertainty, bound, convergence, alternative-minimum, and energy-balance diagnostics.
-- Reproducible JSON, spectra CSV, and layer-resolved n,k CSV exports.
+- Reproducible JSON fit export/import, spectra CSV, and layer-resolved n,k CSV exports. Current JSON files embed the raw measurement, stack, n,k tables, fitted values, bounds, and controls; v5/v6 files remain importable with their original limitations.
 - A deterministic browser-generated synthetic stack for immediate testing; no material-specific presets or bundled measurement datasets.
 
 The inverse fit is a diagnostic estimator. Approximate local uncertainties do not replace experimental uncertainty propagation, and model parameters may remain non-identifiable from R/T data alone.
