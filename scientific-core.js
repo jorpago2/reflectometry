@@ -1,4 +1,7 @@
+import { refractiveIndexModel } from "./dielectric-models.js";
+
 const EPSILON = Number.EPSILON;
+const LOG_PARAMETERS = new Set(["amplitudeEv", "amplitude1Ev", "amplitude2Ev", "broadeningEv", "broadening1Ev", "broadening2Ev", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
 
 export function parseNumericTable(text, minimumColumns = 2) {
   const rows = String(text)
@@ -7,7 +10,7 @@ export function parseNumericTable(text, minimumColumns = 2) {
     .filter((line) => line && !line.startsWith("#") && !line.startsWith(";"))
     .map((line) => line.replaceAll(";", " ").split(/\s+/).map((field) => Number(field.replace(",", "."))))
     .filter((row) => row.length >= minimumColumns && row.every(Number.isFinite));
-  if (!rows.length) throw new Error(`No se encontró una tabla numérica con ${minimumColumns} columnas.`);
+  if (!rows.length) throw new Error(`No numeric table with ${minimumColumns} columns was found.`);
   const width = Math.min(...rows.map((row) => row.length));
   return rows.map((row) => row.slice(0, width));
 }
@@ -18,7 +21,7 @@ export function loadNkTable(text) {
   rows.sort((a, b) => a[0] - b[0]);
   const wavelengthNm = rows.map((row) => row[0] * factor);
   if (wavelengthNm.some((value, index) => index && value <= wavelengthNm[index - 1])) {
-    throw new Error("La tabla n,k contiene longitudes de onda repetidas o desordenadas.");
+    throw new Error("The n,k table contains repeated or unordered wavelengths.");
   }
   return {
     wavelengthNm,
@@ -33,7 +36,7 @@ export function createSpectrum({ sampleName, sampleR, sampleT, silicon, openBeam
   const si = parseNumericTable(silicon).map((row) => row.slice(0, 2));
   const open = parseNumericTable(openBeam).map((row) => row.slice(0, 2));
   if (![t, si, open].every((table) => sameGrid(r, table))) {
-    throw new Error("La muestra y las referencias no comparten la misma malla espectral.");
+    throw new Error("The sample and reference spectra do not share the same wavelength grid.");
   }
   const model = parseNumericTable(siliconModel).map((row) => row.slice(0, 2)).sort((a, b) => a[0] - b[0]);
   const wavelengthNm = r.map((row) => row[0]);
@@ -73,12 +76,12 @@ function standardDeviation(values) {
 export function robustBackground(wavelengthNm, counts, minimumNm = 195, maximumNm = 250) {
   const values = counts.filter((value, index) => wavelengthNm[index] >= minimumNm && wavelengthNm[index] <= maximumNm);
   if (values.length < 20 || values.some((value) => !Number.isFinite(value))) {
-    throw new Error("Se necesitan al menos 20 puntos finitos entre 195 y 250 nm para estimar el fondo.");
+    throw new Error("At least 20 finite points from 195 to 250 nm are required to estimate the background.");
   }
   const level = median(values);
   let sigma = 1.4826 * median(values.map((value) => Math.abs(value - level)));
   if (sigma <= EPSILON) sigma = standardDeviation(values);
-  if (sigma <= EPSILON) throw new Error("La estimación del ruido de fondo es cero.");
+  if (sigma <= EPSILON) throw new Error("The background-noise estimate is zero.");
   return { level, sigma };
 }
 
@@ -92,10 +95,10 @@ export function prepareFitData(spectrum, options) {
     subtractBackground = false,
   } = options;
   if (!(referenceThresholdFraction >= 0 && referenceThresholdFraction < 1)) {
-    throw new Error("El umbral de referencia debe estar entre 0 y 100 %.");
+    throw new Error("The reference threshold must be between 0 and 100%.");
   }
   if (!(wavelengthMinNm < wavelengthMaxNm) || !(binWidthNm > 0) || sampleSnrMinimum < 0) {
-    throw new Error("El intervalo espectral, el bin y el SNR deben ser válidos.");
+    throw new Error("The wavelength range, bin width, and SNR must be valid.");
   }
   const channels = {
     sampleR: spectrum.sampleReflectanceCounts,
@@ -135,7 +138,7 @@ export function prepareFitData(spectrum, options) {
     && corrected.sampleT[index] - (subtractBackground ? 0 : background.sampleT.level) >= sampleSnrMinimum * background.sampleT.sigma
   ));
   const validIndices = spectrum.wavelengthNm.map((_, index) => index).filter((index) => reflectanceMask[index] || transmittanceMask[index]);
-  if (validIndices.length < 10) throw new Error("Quedan menos de 10 puntos calibrados válidos.");
+  if (validIndices.length < 10) throw new Error("Fewer than 10 valid calibrated points remain.");
 
   const bins = new Map();
   for (const index of validIndices) {
@@ -183,20 +186,17 @@ export function restrictToNkRange(data, nk) {
   for (const [key, values] of Object.entries(data)) {
     filtered[key] = Array.isArray(values) && values.length === keep.length ? values.filter((_, index) => keep[index]) : values;
   }
-  if (filtered.wavelengthNm.length < 10) throw new Error("Menos de 10 bins coinciden con la tabla n,k.");
+  if (filtered.wavelengthNm.length < 10) throw new Error("Fewer than 10 bins overlap the n,k table.");
   return filtered;
 }
 
-export function evaluateTabulated(data, nk, parameters, settings) {
+export function evaluateOpticalModel(data, nk, parameters, settings) {
   validateModelInputs(parameters, settings);
-  const n = interpolate(nk.wavelengthNm, nk.n, data.wavelengthNm);
-  const k = interpolate(nk.wavelengthNm, nk.k, data.wavelengthNm);
-  const modelN = settings.model === "scaled" ? n.map((value) => value * parameters.nScale) : n;
-  const modelK = settings.model === "scaled" ? k.map((value) => value * parameters.kScale) : k;
+  const index = refractiveIndexModel(settings.model, data.wavelengthNm, parameters, nk);
   const optical = filmOnThickSubstrate(
     data.wavelengthNm,
-    modelN,
-    modelK,
+    index.n,
+    index.k,
     parameters.thicknessNm,
     settings.substrateIndex,
     settings.incidence,
@@ -205,21 +205,23 @@ export function evaluateTabulated(data, nk, parameters, settings) {
     ...optical,
     reflectanceScaled: optical.reflectance.map((value) => value * parameters.rGain),
     transmittanceScaled: optical.transmittance.map((value) => value * parameters.tGain),
-    n: modelN,
-    k: modelK,
+    n: index.n,
+    k: index.k,
   };
 }
 
+export const evaluateTabulated = evaluateOpticalModel;
+
 function validateModelInputs(parameters, settings) {
-  const values = [parameters.thicknessNm, parameters.nScale, parameters.kScale, parameters.rGain, parameters.tGain, settings.substrateIndex];
-  if (values.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error("Los parámetros ópticos deben ser finitos y positivos.");
-  if (settings.substrateIndex <= 1) throw new Error("El índice del sustrato debe ser mayor que 1.");
-  if (!new Set(["film", "substrate"]).has(settings.incidence)) throw new Error("Geometría de incidencia no válida.");
+  if (Object.values(parameters).some((value) => !Number.isFinite(value))) throw new Error("Optical parameters must be finite.");
+  if (!(parameters.thicknessNm > 0) || !(parameters.rGain > 0) || !(parameters.tGain > 0)) throw new Error("Thickness and channel gains must be positive.");
+  if (settings.substrateIndex <= 1) throw new Error("The substrate refractive index must be greater than 1.");
+  if (!new Set(["film", "substrate"]).has(settings.incidence)) throw new Error("Unsupported incidence geometry.");
 }
 
 export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateIndex, incidence = "film") {
   if (!(thicknessNm > 0) || !(substrateIndex > 1) || wavelengthNm.length !== n.length || n.length !== k.length) {
-    throw new Error("Malla o parámetros TMM no válidos.");
+    throw new Error("Invalid TMM grid or parameters.");
   }
   const rearReflectance = ((substrateIndex - 1) / (substrateIndex + 1)) ** 2;
   const rearTransmittance = 1 - rearReflectance;
@@ -243,7 +245,7 @@ export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateI
 }
 
 function coherentSingleFilm(wavelengthNm, n, k, thicknessNm, incidentIndex, exitIndex) {
-  if (!(wavelengthNm > 0) || !(n > 0) || k < 0) throw new Error("Índice complejo o longitud de onda no físicos.");
+  if (!(wavelengthNm > 0) || !(n > 0) || k < 0) throw new Error("Non-physical wavelength or complex refractive index.");
   const film = { re: n, im: k };
   const phase = complexScale(film, 2 * Math.PI * thicknessNm / wavelengthNm);
   const propagation = complexExpI(complexScale(phase, 2));
@@ -277,52 +279,60 @@ function complexExpI(value) {
 }
 function complexAbs2(value) { return value.re ** 2 + value.im ** 2; }
 
-export function fitTabulated(data, nk, configuration, progress = () => {}) {
+export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const { settings, initial, bounds } = configuration;
-  const names = settings.model === "scaled" ? ["thicknessNm", "nScale", "kScale"] : ["thicknessNm"];
+  const fittedParameters = configuration.fittedParameters
+    ?? (settings.model === "scaled" ? ["thicknessNm", "nScale", "kScale", "rGain", "tGain"] : ["thicknessNm", "rGain", "tGain"]);
+  if (!fittedParameters.length) throw new Error("Select at least one parameter to fit.");
+  const names = fittedParameters.filter((name) => name !== "rGain" && name !== "tGain");
   const lower = names.map((name) => bounds[name][0]);
   const upper = names.map((name) => bounds[name][1]);
-  const toPhysical = (point) => Object.fromEntries(names.map((name, index) => [name, lower[index] + point[index] * (upper[index] - lower[index])]));
+  const toPhysical = (point) => Object.fromEntries(names.map((name, index) => [
+    name,
+    LOG_PARAMETERS.has(name)
+      ? Math.exp(Math.log(lower[index]) + point[index] * (Math.log(upper[index]) - Math.log(lower[index])))
+      : lower[index] + point[index] * (upper[index] - lower[index]),
+  ]));
   const objective = (point) => {
     const variable = toPhysical(point);
-    const parameters = {
-      thicknessNm: variable.thicknessNm,
-      nScale: variable.nScale ?? 1,
-      kScale: variable.kScale ?? 1,
-      rGain: 1,
-      tGain: 1,
-    };
-    const evaluated = evaluateTabulated(data, nk, parameters, settings);
-    parameters.rGain = settings.useReflectance
+    const parameters = { ...initial, ...variable };
+    const evaluated = evaluateOpticalModel(data, nk, parameters, settings);
+    parameters.rGain = settings.useReflectance && fittedParameters.includes("rGain")
       ? robustOptimalGain(evaluated.reflectance, data.reflectance, data.reflectanceValid, bounds.rGain, settings.sigmaReflectance)
-      : 1;
-    parameters.tGain = settings.useTransmittance
+      : parameters.rGain;
+    parameters.tGain = settings.useTransmittance && fittedParameters.includes("tGain")
       ? robustOptimalGain(evaluated.transmittance, data.transmittance, data.transmittanceValid, bounds.tGain, settings.sigmaTransmittance)
-      : 1;
-    const scaled = evaluateTabulated(data, nk, parameters, settings);
+      : parameters.tGain;
+    const scaled = evaluateOpticalModel(data, nk, parameters, settings);
     return { cost: robustCost(data, scaled, settings), parameters, evaluated: scaled };
   };
 
-  const initialPoint = names.map((name, index) => (initial[name] - lower[index]) / (upper[index] - lower[index]));
+  const initialPoint = names.map((name, index) => LOG_PARAMETERS.has(name)
+    ? (Math.log(initial[name]) - Math.log(lower[index])) / (Math.log(upper[index]) - Math.log(lower[index]))
+    : (initial[name] - lower[index]) / (upper[index] - lower[index]));
   // ponytail: Halton keeps this dependency-free; port the Python Sobol sequence if identical screening paths become necessary.
-  const screeningPoints = names.length === 1 ? 192 : 384;
+  const screeningPoints = names.length <= 1 ? 192 : 384;
   const candidates = [{ point: initialPoint, ...objective(initialPoint) }];
-  for (let index = 1; index < screeningPoints; index += 1) {
-    const point = names.map((_, dimension) => halton(index, [2, 3, 5][dimension]));
+  const primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+  for (let index = 1; index < screeningPoints && names.length; index += 1) {
+    const point = names.map((_, dimension) => halton(index, primes[dimension]));
     candidates.push({ point, ...objective(point) });
     if (index % 48 === 0) progress(Math.round(index / screeningPoints * 45));
   }
   candidates.sort((a, b) => a.cost - b.cost);
   let best = candidates[0];
-  for (let index = 0; index < Math.min(6, candidates.length); index += 1) {
+  const refinementCount = Math.min(6, candidates.length);
+  for (let index = 0; index < refinementCount; index += 1) {
     const refinedPoint = nelderMead(candidates[index].point, (point) => objective(point).cost);
     const refined = { point: refinedPoint, ...objective(refinedPoint) };
     if (refined.cost < best.cost) best = refined;
-    progress(50 + Math.round((index + 1) / 6 * 50));
+    progress(50 + Math.round((index + 1) / refinementCount * 50));
   }
   const diagnostics = diagnosticsOf(data, best.evaluated, settings);
-  return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, screeningPoints, localRefinements: 6 };
+  return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, screeningPoints, localRefinements: refinementCount };
 }
+
+export const fitTabulated = fitOpticalModel;
 
 function robustOptimalGain(modeled, measured, valid, [minimum, maximum], sigma) {
   const derivative = (gain) => modeled.reduce((sum, value, index) => {
@@ -354,7 +364,7 @@ function robustCost(data, evaluation, settings) {
       if (data.transmittanceValid[index]) residuals.push((evaluation.transmittanceScaled[index] - value) / settings.sigmaTransmittance);
     });
   }
-  if (!residuals.length) throw new Error("Selecciona reflectancia, transmitancia o ambas.");
+  if (!residuals.length) throw new Error("Select reflectance, transmittance, or both.");
   return residuals.reduce((sum, value) => sum + 2 * (Math.sqrt(1 + value ** 2) - 1), 0);
 }
 

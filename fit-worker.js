@@ -1,8 +1,8 @@
-import { fitTabulated } from "./scientific-core.js";
+import { fitOpticalModel } from "./scientific-core.js";
 
 self.addEventListener("message", ({ data }) => {
   try {
-    const result = fitTabulated(data.fitData, data.nk, data.configuration, (progress) => {
+    const result = fitOpticalModel(data.fitData, data.nk, data.configuration, (progress) => {
       self.postMessage({ type: "progress", progress });
     });
     self.postMessage({ type: "result", result });

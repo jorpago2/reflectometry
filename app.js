@@ -1,10 +1,15 @@
 import {
   createSpectrum,
-  evaluateTabulated,
+  evaluateOpticalModel,
   loadNkTable,
   prepareFitData,
   restrictToNkRange,
 } from "./scientific-core.js";
+import {
+  MODEL_LABELS,
+  modelParameterSpecs,
+  validateModelAvailability,
+} from "./dielectric-models.js";
 
 const DEMOS = {
   agst: { label: "aGST", thickness: 250, sampleR: "agst-ref.txt", sampleT: "agst-tr.txt", nk: "aGST.txt" },
@@ -16,18 +21,15 @@ const DEMOS = {
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const required = ["load-demo", "load-files", "preview-button", "fit-button", "rt-chart", "nk-chart", "status"];
-if (required.some((id) => !elements[id])) throw new Error("La interfaz está incompleta.");
+if (required.some((id) => !elements[id])) throw new Error("The interface is incomplete.");
 
-const state = { spectrum: null, nk: null, fitData: null, evaluation: null, fitResult: null, source: null, worker: null };
+const state = { spectrum: null, nk: null, fitData: null, evaluation: null, fitResult: null, source: null, worker: null, sampleId: "agst", parameterSpecs: {} };
 
 elements["load-demo"].addEventListener("click", () => loadDemo(elements["demo-sample"].value));
 elements["load-files"].addEventListener("click", loadLocalFiles);
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
-elements.model.addEventListener("change", () => {
-  elements["scale-fields"].hidden = elements.model.value !== "scaled";
-  previewModel();
-});
+elements.model.addEventListener("change", () => { rebuildParameterEditor(); previewModel(); });
 elements["download-json"].addEventListener("click", downloadJson);
 elements["download-csv"].addEventListener("click", downloadCsv);
 window.addEventListener("resize", () => state.evaluation && drawAll());
@@ -35,7 +37,7 @@ window.addEventListener("resize", () => state.evaluation && drawAll());
 async function loadDemo(id) {
   const demo = DEMOS[id];
   if (!demo) return;
-  setBusy(true, `Cargando ${demo.label}…`);
+  setBusy(true, `Loading ${demo.label}…`);
   try {
     const paths = {
       sampleR: `examples/${demo.sampleR}`,
@@ -47,14 +49,15 @@ async function loadDemo(id) {
     };
     const entries = await Promise.all(Object.entries(paths).map(async ([name, path]) => {
       const response = await fetch(new URL(path, import.meta.url));
-      if (!response.ok) throw new Error(`No se pudo cargar ${path}.`);
+      if (!response.ok) throw new Error(`Could not load ${path}.`);
       return [name, await response.text(), path];
     }));
     const texts = Object.fromEntries(entries.map(([name, text]) => [name, text]));
     await setSource(texts, demo.label, Object.fromEntries(entries.map(([name, , path]) => [name, path])));
-    setNominalThickness(demo.thickness);
+    state.sampleId = id;
+    rebuildParameterEditor();
     elements["use-t"].checked = id !== "cgst";
-    elements["source-name"].textContent = `${demo.label} · datos de demostración incluidos`;
+    elements["source-name"].textContent = `${demo.label} · included demonstration data`;
     previewModel();
   } catch (error) {
     showError(error);
@@ -74,14 +77,16 @@ async function loadLocalFiles() {
   };
   const files = Object.fromEntries(Object.entries(fields).map(([name, id]) => [name, elements[id].files[0]]));
   const missing = Object.entries(files).filter(([, file]) => !file).map(([name]) => name);
-  if (missing.length) return showError(new Error("Selecciona los seis archivos antes de procesar."));
-  setBusy(true, "Leyendo archivos locales…");
+  if (missing.length) return showError(new Error("Select all six files before processing."));
+  setBusy(true, "Reading local files…");
   try {
     const texts = Object.fromEntries(await Promise.all(Object.entries(files).map(async ([name, file]) => [name, await file.text()])));
     const names = Object.fromEntries(Object.entries(files).map(([name, file]) => [name, file.name]));
-    const sampleName = files.sampleR.name.replace(/-ref\.txt$/i, "") || "muestra";
+    const sampleName = files.sampleR.name.replace(/-ref\.txt$/i, "") || "sample";
     await setSource(texts, sampleName, names);
-    elements["source-name"].textContent = `${sampleName} · archivos locales`;
+    state.sampleId = normalizedSampleId(sampleName);
+    rebuildParameterEditor();
+    elements["source-name"].textContent = `${sampleName} · local files`;
     previewModel();
   } catch (error) {
     showError(error);
@@ -101,14 +106,8 @@ async function setSource(texts, sampleName, names) {
   state.fitResult = null;
 }
 
-function setNominalThickness(value) {
-  elements.thickness.value = String(value);
-  elements["thickness-min"].value = String(value * 0.5);
-  elements["thickness-max"].value = String(value * 1.5);
-}
-
 function prepareCurrentData() {
-  if (!state.spectrum || !state.nk) throw new Error("Carga primero una muestra y su tabla n,k.");
+  if (!state.spectrum || !state.nk) throw new Error("Load a sample and its n,k table first.");
   const data = prepareFitData(state.spectrum, {
     wavelengthMinNm: numberValue("wavelength-min", 195, 3000),
     wavelengthMaxNm: numberValue("wavelength-max", 196, 3000),
@@ -117,14 +116,14 @@ function prepareCurrentData() {
     sampleSnrMinimum: numberValue("sample-snr", 0, 100),
     subtractBackground: elements["subtract-background"].checked,
   });
-  state.fitData = restrictToNkRange(data, state.nk);
+  state.fitData = new Set(["fixed", "scaled"]).has(elements.model.value) ? restrictToNkRange(data, state.nk) : data;
   return state.fitData;
 }
 
 function currentSettings() {
   const useReflectance = elements["use-r"].checked;
   const useTransmittance = elements["use-t"].checked;
-  if (!useReflectance && !useTransmittance) throw new Error("Selecciona R, T o ambos canales.");
+  if (!useReflectance && !useTransmittance) throw new Error("Select R, T, or both channels.");
   return {
     model: elements.model.value,
     substrateIndex: numberValue("substrate-index", 1.001, 5),
@@ -138,36 +137,108 @@ function currentSettings() {
 
 function validateSelectedChannels(data, settings) {
   if (settings.useReflectance && data.reflectanceValid.filter(Boolean).length < 10) {
-    throw new Error("Menos de 10 bins de reflectancia superan las máscaras de señal y referencia.");
+    throw new Error("Fewer than 10 reflectance bins pass the sample/reference masks.");
   }
   if (settings.useTransmittance && data.transmittanceValid.filter(Boolean).length < 10) {
-    throw new Error("Menos de 10 bins de transmitancia superan las máscaras; desactiva T o revisa el SNR.");
+    throw new Error("Fewer than 10 transmittance bins pass the masks; disable T or revise the SNR threshold.");
   }
+}
+
+function normalizedSampleId(name) {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return ({ agst: "agst", cgst: "cgst", asb2se3: "asb2sb3", csb2se3: "csb2sb3", asb2sb3: "asb2sb3", csb2sb3: "csb2sb3", vo2: "vo2" })[normalized] ?? "custom";
+}
+
+function rebuildParameterEditor() {
+  const availability = { cody: new Set(["agst", "asb2sb3"]).has(state.sampleId), "drude-tl": state.sampleId === "vo2" };
+  [...elements.model.options].forEach((option) => {
+    if (option.value in availability) option.disabled = !availability[option.value];
+  });
+  if (elements.model.selectedOptions[0]?.disabled) elements.model.value = "fixed";
+  const closest = state.nk ? state.nk.wavelengthNm.reduce((best, value, index) => Math.abs(value - 1064) < Math.abs(state.nk.wavelengthNm[best] - 1064) ? index : best, 0) : 0;
+  state.parameterSpecs = modelParameterSpecs(elements.model.value, state.sampleId, { n: state.nk?.n[closest] ?? 3, k: state.nk?.k[closest] ?? 0.1 });
+  const rows = Object.entries(state.parameterSpecs).map(([name, specification]) => {
+    const row = document.createElement("div");
+    row.className = "parameter-row";
+    const fit = document.createElement("input");
+    fit.type = "checkbox";
+    fit.id = `fit-${name}`;
+    fit.checked = specification.fit;
+    fit.setAttribute("aria-label", `Fit ${specification.label}`);
+    const label = document.createElement("label");
+    label.className = "parameter-name";
+    label.htmlFor = `parameter-${name}`;
+    label.textContent = specification.label;
+    if (specification.unit) {
+      const unit = document.createElement("span");
+      unit.className = "parameter-unit";
+      unit.textContent = specification.unit;
+      label.append(unit);
+    }
+    row.append(fit, label);
+    for (const [kind, value] of [["parameter", specification.value], ["minimum", specification.minimum], ["maximum", specification.maximum]]) {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.id = `${kind}-${name}`;
+      input.value = String(value);
+      input.step = "any";
+      input.setAttribute("aria-label", `${kind} ${specification.label}`);
+      row.append(input);
+    }
+    return row;
+  });
+  elements["model-parameters"].replaceChildren(...rows);
+  const notes = {
+    fixed: "Uses the ellipsometry table without changing n or k; thickness and channel gains can be fitted.",
+    scaled: "Scales tabulated n and k independently. This phenomenological correction is not inherently Kramers–Kronig consistent.",
+    constant: "Assumes wavelength-independent n and k. Use only over a narrow spectral band.",
+    tl1: "One causal Tauc–Lorentz transition. The default fit releases thickness and oscillator amplitude only.",
+    tl2: "Two passive Tauc–Lorentz transitions sharing one bandgap.",
+    "tl-gaussian": "A causal Tauc–Lorentz background plus one Gaussian interband transition.",
+    cody: "Causal Cody–Lorentz absorption with an Urbach tail; restricted to amorphous GST and Sb₂Se₃.",
+    "drude-tl": "Free-carrier Drude response plus a causal Tauc–Lorentz background; restricted to VO₂.",
+  };
+  elements["model-note"].textContent = notes[elements.model.value];
 }
 
 function currentParameters() {
-  return {
-    thicknessNm: numberValue("thickness", 1, 5000),
-    nScale: elements.model.value === "scaled" ? numberValue("n-scale", 0.85, 1.15) : 1,
-    kScale: elements.model.value === "scaled" ? numberValue("k-scale", 0.5, 2) : 1,
-    rGain: 1,
-    tGain: 1,
-  };
+  return Object.fromEntries(Object.keys(state.parameterSpecs).map((name) => {
+    const value = Number(document.querySelector(`#parameter-${name}`)?.value);
+    if (!Number.isFinite(value)) throw new Error(`${state.parameterSpecs[name].label} must be finite.`);
+    return [name, value];
+  }));
 }
 
 function currentBounds(initial) {
-  const minimum = numberValue("thickness-min", 1, 5000);
-  const maximum = numberValue("thickness-max", 2, 10000);
-  if (!(minimum < maximum) || initial.thicknessNm < minimum || initial.thicknessNm > maximum) {
-    throw new Error("El espesor inicial debe estar dentro de unas cotas válidas.");
+  const bounds = {};
+  const fittedParameters = [];
+  for (const name of Object.keys(state.parameterSpecs)) {
+    const minimum = Number(document.querySelector(`#minimum-${name}`)?.value);
+    const maximum = Number(document.querySelector(`#maximum-${name}`)?.value);
+    if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum >= maximum || initial[name] < minimum || initial[name] > maximum) {
+      throw new Error(`${state.parameterSpecs[name].label} must have a finite value inside valid bounds.`);
+    }
+    bounds[name] = [minimum, maximum];
+    if (document.querySelector(`#fit-${name}`)?.checked) fittedParameters.push(name);
   }
-  return {
-    thicknessNm: [minimum, maximum],
-    nScale: [0.85, 1.15],
-    kScale: [0.5, 2],
-    rGain: [0.1, 10],
-    tGain: [0.1, 10],
-  };
+  if (!fittedParameters.length) throw new Error("Select at least one parameter to fit.");
+  validatePhysicalBounds(elements.model.value, initial, bounds, fittedParameters);
+  return { bounds, fittedParameters };
+}
+
+function validatePhysicalBounds(model, values, bounds, fitted) {
+  const activeMaximum = (name) => fitted.includes(name) ? bounds[name][1] : values[name];
+  const activeMinimum = (name) => fitted.includes(name) ? bounds[name][0] : values[name];
+  const oscillators = model === "tl2"
+    ? [["resonance1Ev", "broadening1Ev"], ["resonance2Ev", "broadening2Ev"]]
+    : new Set(["tl1", "tl-gaussian", "drude-tl"]).has(model) ? [["resonanceEv", "broadeningEv"]] : [];
+  for (const [resonance, width] of oscillators) {
+    if (activeMinimum(resonance) <= activeMaximum("bandgapEv")) throw new Error(`Set min(${resonance}) above max(bandgap).`);
+    if (activeMaximum(width) >= 2 * activeMinimum(resonance)) throw new Error(`Set max(${width}) below 2·min(${resonance}).`);
+  }
+  if (model === "cody" && (activeMinimum("transitionEv") <= activeMaximum("bandgapEv") || activeMinimum("resonanceEv") <= activeMaximum("bandgapEv"))) {
+    throw new Error("Set min(transition) and min(resonance) above max(bandgap).");
+  }
 }
 
 function previewModel() {
@@ -176,9 +247,10 @@ function previewModel() {
     const parameters = currentParameters();
     const settings = currentSettings();
     validateSelectedChannels(fitData, settings);
-    state.evaluation = evaluateTabulated(fitData, state.nk, parameters, settings);
+    validateModelAvailability(settings.model, state.sampleId);
+    state.evaluation = evaluateOpticalModel(fitData, state.nk, parameters, settings);
     state.fitResult = { parameters, evaluation: state.evaluation, diagnostics: diagnostics(fitData, state.evaluation, settings), preview: true };
-    renderResult(state.fitResult, "Modelo actualizado; todavía no se han optimizado parámetros.");
+    renderResult(state.fitResult, "Model updated; parameters have not been optimized yet.");
   } catch (error) {
     showError(error);
   }
@@ -190,15 +262,16 @@ function fitModel() {
     const initial = currentParameters();
     const settings = currentSettings();
     validateSelectedChannels(fitData, settings);
-    const bounds = currentBounds(initial);
+    validateModelAvailability(settings.model, state.sampleId);
+    const { bounds, fittedParameters } = currentBounds(initial);
     if (state.worker) state.worker.terminate();
     state.worker = new Worker(new URL("./fit-worker.js", import.meta.url), { type: "module" });
     state.worker.addEventListener("message", handleWorkerMessage);
     state.worker.addEventListener("error", (event) => finishFitError(event.message));
     elements["fit-progress"].hidden = false;
     elements["fit-progress"].value = 0;
-    setBusy(true, "Explorando el espacio de parámetros…");
-    state.worker.postMessage({ fitData, nk: state.nk, configuration: { settings, initial, bounds } });
+    setBusy(true, "Screening the parameter space…");
+    state.worker.postMessage({ fitData, nk: state.nk, configuration: { settings, initial, bounds, fittedParameters } });
   } catch (error) {
     showError(error);
   }
@@ -207,7 +280,7 @@ function fitModel() {
 function handleWorkerMessage({ data }) {
   if (data.type === "progress") {
     elements["fit-progress"].value = data.progress;
-    setStatus(`Ajustando parámetros… ${data.progress} %`);
+    setStatus(`Fitting parameters… ${data.progress}%`);
     return;
   }
   if (data.type === "error") return finishFitError(data.message);
@@ -215,12 +288,13 @@ function handleWorkerMessage({ data }) {
     state.fitResult = data.result;
     state.evaluation = data.result.evaluation;
     const parameters = data.result.parameters;
-    elements.thickness.value = parameters.thicknessNm.toFixed(3);
-    elements["n-scale"].value = parameters.nScale.toFixed(5);
-    elements["k-scale"].value = parameters.kScale.toFixed(5);
+    for (const [name, value] of Object.entries(parameters)) {
+      const input = document.querySelector(`#parameter-${name}`);
+      if (input) input.value = Number(value).toPrecision(8);
+    }
     setBusy(false);
     elements["fit-progress"].hidden = true;
-    renderResult(data.result, "Ajuste completado en el dispositivo.");
+    renderResult(data.result, "Fit completed on this device.");
     state.worker.terminate();
     state.worker = null;
   }
@@ -242,7 +316,8 @@ function renderResult(result, message) {
   elements["metric-bins"].textContent = `${values.reflectanceBins} / ${values.transmittanceBins}`;
   elements["download-json"].disabled = false;
   elements["download-csv"].disabled = false;
-  elements["provenance-text"].textContent = `${state.source.sampleName}; modelo ${elements.model.value}; d=${format(parameters.thicknessNm, 3)} nm; n×${format(parameters.nScale, 5)}; k×${format(parameters.kScale, 5)}; ganancias R/T=${format(parameters.rGain, 5)}/${format(parameters.tGain, 5)}.`;
+  const parameterText = Object.entries(parameters).map(([name, value]) => `${name}=${format(value, 5)}`).join("; ");
+  elements["provenance-text"].textContent = `${state.source.sampleName}; ${MODEL_LABELS[elements.model.value]}; ${parameterText}.`;
   setStatus(message);
   drawAll();
 }
@@ -338,9 +413,10 @@ function diagnostics(data, evaluation, settings) {
 }
 
 function exportPayload() {
-  if (!state.fitResult || !state.fitData) throw new Error("No hay resultados para exportar.");
+  if (!state.fitResult || !state.fitData) throw new Error("No results are available for export.");
   return {
     schema: "reflectometry-browser-fit/v1",
+    application: { name: "Reflectometry", version: "0.2.0", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {
@@ -350,7 +426,15 @@ function exportPayload() {
       sampleSnrMinimum: Number(elements["sample-snr"].value),
       subtractBackground: elements["subtract-background"].checked,
     },
-    model: { ...currentSettings(), parameters: state.fitResult.parameters },
+    model: {
+      ...currentSettings(),
+      parameters: state.fitResult.parameters,
+      parameterConfiguration: Object.fromEntries(Object.keys(state.parameterSpecs).map((name) => [name, {
+        fit: Boolean(document.querySelector(`#fit-${name}`)?.checked),
+        minimum: Number(document.querySelector(`#minimum-${name}`)?.value),
+        maximum: Number(document.querySelector(`#maximum-${name}`)?.value),
+      }])),
+    },
     diagnostics: state.fitResult.diagnostics,
     optimizer: state.fitResult.preview ? null : { method: "Halton screening + bounded Nelder-Mead", screeningPoints: state.fitResult.screeningPoints, localRefinements: state.fitResult.localRefinements },
     assumptions: ["normal incidence", "single coherent homogeneous isotropic film", "optically thick incoherent substrate"],
@@ -391,7 +475,7 @@ function format(value, digits) { return Number.isFinite(value) ? Number(value).t
 
 function numberValue(id, minimum, maximum) {
   const value = Number(elements[id].value);
-  if (!Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`${elements[id].closest("label")?.textContent.trim() || id}: valor fuera de rango.`);
+  if (!Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`${elements[id].closest("label")?.textContent.trim() || id}: value outside the allowed range.`);
   return value;
 }
 
@@ -406,6 +490,15 @@ function setBusy(busy, message = null) {
   elements["load-files"].disabled = busy;
   elements["preview-button"].disabled = busy;
   elements["fit-button"].disabled = busy;
+  document.querySelectorAll(".controls input, .controls select").forEach((control) => {
+    if (busy) {
+      control.dataset.disabledBeforeBusy = String(control.disabled);
+      control.disabled = true;
+    } else if ("disabledBeforeBusy" in control.dataset) {
+      control.disabled = control.dataset.disabledBeforeBusy === "true";
+      delete control.dataset.disabledBeforeBusy;
+    }
+  });
   if (message) setStatus(message);
 }
 

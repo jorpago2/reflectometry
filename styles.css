@@ -95,6 +95,18 @@ input[type="file"] { min-height: auto; padding: 0.55rem; font-size: 0.72rem; }
 .check input { width: 1rem; min-height: 1rem; accent-color: var(--acid); }
 .check span { color: #bdd0c9; }
 .channel-row { display: flex; gap: 1.2rem; }
+.model-note { margin: 0.65rem 0 1rem; color: var(--muted); font-size: 0.76rem; line-height: 1.5; }
+.compact-pair { margin-top: 0.4rem; }
+.parameter-header, .parameter-row { display: grid; grid-template-columns: 2.2rem minmax(6.5rem, 1fr) repeat(3, minmax(3.4rem, 0.65fr)); gap: 0.4rem; align-items: center; }
+.parameter-header { padding: 0.2rem 0 0.45rem; color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.parameter-row { padding: 0.35rem 0; border-top: 1px solid rgb(37 71 61 / 0.58); }
+.parameter-row label { display: block; margin: 0; overflow-wrap: anywhere; }
+.parameter-row input[type="checkbox"] { width: 1rem; min-height: 1rem; accent-color: var(--acid); }
+.parameter-row input[type="number"] { min-width: 0; min-height: 2.15rem; padding: 0.38rem 0.42rem; font-family: ui-monospace, monospace; font-size: 0.68rem; }
+.parameter-name { color: #bdd0c9; font-size: 0.7rem; }
+.parameter-unit { display: block; color: var(--dim); font-size: 0.58rem; }
+.parameter-help { margin: 0.45rem 0 0.8rem; }
+.parameter-help p { margin: 0.2rem 0 0.7rem; font-size: 0.72rem; line-height: 1.5; }
 details { color: var(--muted); }
 summary { cursor: pointer; padding: 0.7rem 0; color: var(--cyan); font-size: 0.8rem; }
 .file-grid { padding-top: 0.5rem; }
@@ -159,6 +171,8 @@ footer { padding: 1.5rem clamp(1rem, 4vw, 4rem); display: flex; justify-content:
 @media (max-width: 25rem) {
   .field-pair, .actions { grid-template-columns: 1fr; }
   .privacy { display: none; }
+  .parameter-header { display: none; }
+  .parameter-row { grid-template-columns: 2rem 1fr repeat(3, minmax(3.1rem, 0.7fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

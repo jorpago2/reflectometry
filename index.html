@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Ajuste local de espectros de reflectancia y transmitancia para estimar el índice complejo de películas delgadas.">
+  <meta name="description" content="Local reflectance and transmittance fitting for estimating the complex refractive index of thin films.">
   <meta name="theme-color" content="#071512">
   <title>Reflectometry · Thin-film optical fitting</title>
   <meta property="og:type" content="website">
   <meta property="og:title" content="Reflectometry · Thin-film optical fitting">
-  <meta property="og:description" content="Calibración R/T y ajuste óptico de películas delgadas directamente en el navegador.">
+  <meta property="og:description" content="R/T calibration and thin-film optical fitting directly in your browser.">
   <meta property="og:url" content="https://jorpago2.github.io/reflectometry/">
   <meta property="og:image" content="https://jorpago2.github.io/reflectometry/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -16,32 +16,32 @@
 </head>
 <body>
   <header class="masthead">
-    <a class="brand" href="./" aria-label="Reflectometry, inicio">
+    <a class="brand" href="./" aria-label="Reflectometry home">
       <span class="brand-mark" aria-hidden="true">Rλ</span>
       <span><strong>Reflectometry</strong><small>Thin-film optical fitting</small></span>
     </a>
-    <p class="privacy"><span aria-hidden="true">●</span> Cálculo local · ningún archivo sale del dispositivo</p>
+    <p class="privacy"><span aria-hidden="true">●</span> Local computation · files never leave your device</p>
   </header>
 
   <main>
     <section class="hero" aria-labelledby="page-title">
       <div>
         <p class="eyebrow">OPTICAL METROLOGY / BROWSER LAB</p>
-        <h1 id="page-title">De señales espectrales a <em>n</em> + i<em>k</em></h1>
-        <p class="lede">Calibra R/T, modela una película coherente sobre vidrio grueso y ajusta espesor e índice tabulado sin instalar software.</p>
+        <h1 id="page-title">From spectral signals to <em>n</em> + i<em>k</em></h1>
+        <p class="lede">Calibrate R/T, model a coherent film on thick glass, and fit physically constrained optical constants without installing software.</p>
       </div>
       <dl class="profile">
-        <div><dt>MODELO</dt><dd>Película única</dd></div>
-        <div><dt>GEOMETRÍA</dt><dd>Incidencia normal</dd></div>
-        <div><dt>MOTOR</dt><dd>JavaScript + Worker</dd></div>
+        <div><dt>MODEL</dt><dd>Single thin film</dd></div>
+        <div><dt>GEOMETRY</dt><dd>Normal incidence</dd></div>
+        <div><dt>ENGINE</dt><dd>JavaScript + Worker</dd></div>
       </dl>
     </section>
 
     <div class="workspace">
-      <aside class="controls" aria-label="Datos y parámetros">
+      <aside class="controls" aria-label="Data and parameters">
         <section class="control-section source-section">
-          <div class="section-heading"><span>01</span><h2>Datos</h2></div>
-          <label for="demo-sample">Ejemplo incluido</label>
+          <div class="section-heading"><span>01</span><h2>Data</h2></div>
+          <label for="demo-sample">Included example</label>
           <div class="inline-control">
             <select id="demo-sample">
               <option value="agst">aGST · 250 nm</option>
@@ -50,65 +50,68 @@
               <option value="csb2sb3">cSb₂Se₃ · 200 nm</option>
               <option value="vo2">VO₂ · 150 nm</option>
             </select>
-            <button id="load-demo" class="secondary" type="button">Cargar</button>
+            <button id="load-demo" class="secondary" type="button">Load</button>
           </div>
 
           <details>
-            <summary>Cargar mis seis archivos TXT</summary>
+            <summary>Load my six TXT files</summary>
             <div class="file-grid">
-              <label>Muestra R<input id="file-sample-r" type="file" accept=".txt,text/plain"></label>
-              <label>Muestra T<input id="file-sample-t" type="file" accept=".txt,text/plain"></label>
-              <label>Referencia Si<input id="file-silicon" type="file" accept=".txt,text/plain"></label>
-              <label>Haz abierto<input id="file-open" type="file" accept=".txt,text/plain"></label>
-              <label>R de Si tabulada<input id="file-si-model" type="file" accept=".txt,text/plain"></label>
-              <label>Tabla n,k<input id="file-nk" type="file" accept=".txt,text/plain"></label>
+              <label>Sample R<input id="file-sample-r" type="file" accept=".txt,text/plain"></label>
+              <label>Sample T<input id="file-sample-t" type="file" accept=".txt,text/plain"></label>
+              <label>Si reference<input id="file-silicon" type="file" accept=".txt,text/plain"></label>
+              <label>Open beam<input id="file-open" type="file" accept=".txt,text/plain"></label>
+              <label>Tabulated Si R<input id="file-si-model" type="file" accept=".txt,text/plain"></label>
+              <label>n,k table<input id="file-nk" type="file" accept=".txt,text/plain"></label>
             </div>
-            <button id="load-files" class="secondary full" type="button">Procesar archivos locales</button>
+            <button id="load-files" class="secondary full" type="button">Process local files</button>
           </details>
-          <p id="source-name" class="source-name">Preparando el ejemplo…</p>
+          <p id="source-name" class="source-name">Preparing the example…</p>
         </section>
 
         <section class="control-section">
-          <div class="section-heading"><span>02</span><h2>Calibración</h2></div>
+          <div class="section-heading"><span>02</span><h2>Calibration</h2></div>
           <div class="field-pair">
-            <label>λ mínima <span>nm</span><input id="wavelength-min" type="number" value="300" min="195" max="2500" step="10"></label>
-            <label>λ máxima <span>nm</span><input id="wavelength-max" type="number" value="1100" min="200" max="3000" step="10"></label>
+            <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" value="300" min="195" max="2500" step="10"></label>
+            <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" value="1100" min="200" max="3000" step="10"></label>
           </div>
           <div class="field-pair">
-            <label>Umbral referencia <span>%</span><input id="reference-threshold" type="number" value="5" min="0" max="99" step="1"></label>
-            <label>Bin mediano <span>nm</span><input id="bin-width" type="number" value="2" min="0.1" max="100" step="0.5"></label>
+            <label>Reference threshold <span>%</span><input id="reference-threshold" type="number" value="5" min="0" max="99" step="1"></label>
+            <label>Median bin <span>nm</span><input id="bin-width" type="number" value="2" min="0.1" max="100" step="0.5"></label>
           </div>
-          <label>SNR mínimo de muestra <span>σ</span><input id="sample-snr" type="number" value="5" min="0" max="100" step="0.5"></label>
-          <label class="check"><input id="subtract-background" type="checkbox" checked><span>Restar fondo estimado en 195–250 nm</span></label>
+          <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" value="5" min="0" max="100" step="0.5"></label>
+          <label class="check"><input id="subtract-background" type="checkbox" checked><span>Subtract background estimated from 195–250 nm</span></label>
         </section>
 
         <section class="control-section">
-          <div class="section-heading"><span>03</span><h2>Modelo óptico</h2></div>
-          <label for="model">Índice de la película</label>
+          <div class="section-heading"><span>03</span><h2>Optical model</h2></div>
+          <label for="model">Film refractive index</label>
           <select id="model">
-            <option value="fixed">n,k tabulado fijo</option>
-            <option value="scaled">n,k tabulado escalado</option>
+            <option value="fixed">Fixed tabulated n,k</option>
+            <option value="scaled">Scaled tabulated n,k</option>
+            <option value="constant">Constant n,k (narrow band)</option>
+            <option value="tl1">Tauc–Lorentz (1 oscillator, causal)</option>
+            <option value="tl2">Tauc–Lorentz (2 oscillators, causal)</option>
+            <option value="tl-gaussian">Tauc–Lorentz + Gaussian (causal)</option>
+            <option value="cody">Cody–Lorentz (amorphous, causal)</option>
+            <option value="drude-tl">Drude + Tauc–Lorentz (VO₂ metal)</option>
           </select>
-          <div class="field-pair">
-            <label>Espesor inicial <span>nm</span><input id="thickness" type="number" value="250" min="1" max="5000" step="1"></label>
-            <label>Índice sustrato<input id="substrate-index" type="number" value="1.46" min="1.001" max="5" step="0.01"></label>
+          <p id="model-note" class="model-note">Uses the measured ellipsometry table without changing n or k.</p>
+          <div class="field-pair compact-pair">
+            <label>Substrate index<input id="substrate-index" type="number" value="1.46" min="1.001" max="5" step="0.01"></label>
+            <label for="incidence">Incidence<select id="incidence">
+              <option value="film">Film side</option>
+              <option value="substrate">Substrate side</option>
+            </select></label>
           </div>
-          <div class="field-pair">
-            <label>Espesor mínimo <span>nm</span><input id="thickness-min" type="number" value="125" min="1" max="5000" step="1"></label>
-            <label>Espesor máximo <span>nm</span><input id="thickness-max" type="number" value="375" min="2" max="10000" step="1"></label>
-          </div>
-          <div id="scale-fields" class="field-pair" hidden>
-            <label>Escala n<input id="n-scale" type="number" value="1" min="0.85" max="1.15" step="0.001"></label>
-            <label>Escala k<input id="k-scale" type="number" value="1" min="0.5" max="2" step="0.001"></label>
-          </div>
-          <label for="incidence">Incidencia</label>
-          <select id="incidence">
-            <option value="film">Desde la película</option>
-            <option value="substrate">Desde el sustrato</option>
-          </select>
-          <div class="channel-row" role="group" aria-label="Canales incluidos">
-            <label class="check"><input id="use-r" type="checkbox" checked><span>Ajustar R</span></label>
-            <label class="check"><input id="use-t" type="checkbox" checked><span>Ajustar T</span></label>
+          <div class="parameter-header" aria-hidden="true"><span>Fit</span><span>Parameter</span><span>Value</span><span>Min</span><span>Max</span></div>
+          <div id="model-parameters" class="parameter-table"></div>
+          <details class="parameter-help">
+            <summary>Parameter guidance</summary>
+            <p>Start with the default fitted parameters only. Releasing centers, widths, bandgap, and gains together can make thickness and n,k non-identifiable.</p>
+          </details>
+          <div class="channel-row" role="group" aria-label="Included channels">
+            <label class="check"><input id="use-r" type="checkbox" checked><span>Fit R</span></label>
+            <label class="check"><input id="use-t" type="checkbox" checked><span>Fit T</span></label>
           </div>
           <div class="field-pair">
             <label>σR<input id="sigma-r" type="number" value="0.02" min="0.0001" max="1" step="0.005"></label>
@@ -117,55 +120,55 @@
         </section>
 
         <div class="actions">
-          <button id="preview-button" class="secondary" type="button">Actualizar modelo</button>
-          <button id="fit-button" class="primary" type="button">Ajustar parámetros <span aria-hidden="true">→</span></button>
+          <button id="preview-button" class="secondary" type="button">Update model</button>
+          <button id="fit-button" class="primary" type="button">Fit parameters <span aria-hidden="true">→</span></button>
         </div>
       </aside>
 
-      <section class="results" aria-label="Resultados del ajuste">
+      <section class="results" aria-label="Fit results">
         <div class="status-row">
-          <p id="status" role="status" aria-live="polite">Cargando datos de demostración…</p>
-          <progress id="fit-progress" max="100" value="0" hidden aria-label="Progreso del ajuste"></progress>
+          <p id="status" role="status" aria-live="polite">Loading demonstration data…</p>
+          <progress id="fit-progress" max="100" value="0" hidden aria-label="Fit progress"></progress>
           <div class="export-actions">
             <button id="download-json" class="text-button" type="button" disabled>JSON</button>
             <button id="download-csv" class="text-button" type="button" disabled>CSV</button>
           </div>
         </div>
 
-        <div class="metrics" aria-label="Resumen numérico">
-          <article><span>ESPESOR</span><strong id="metric-thickness">—</strong><small>nm</small></article>
-          <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fracción</small></article>
-          <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fracción</small></article>
-          <article><span>BINS R / T</span><strong id="metric-bins">—</strong><small>válidos</small></article>
+        <div class="metrics" aria-label="Numerical summary">
+          <article><span>THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
+          <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
+          <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
+          <article><span>R / T BINS</span><strong id="metric-bins">—</strong><small>valid</small></article>
         </div>
 
         <article class="plot-card">
           <div class="plot-heading">
-            <div><p>CALIBRATED SPECTRA</p><h2>Reflectancia y transmitancia</h2></div>
-            <div class="legend" aria-hidden="true"><span class="r-data">R datos</span><span class="r-model">R modelo</span><span class="t-data">T datos</span><span class="t-model">T modelo</span></div>
+            <div><p>CALIBRATED SPECTRA</p><h2>Reflectance and transmittance</h2></div>
+            <div class="legend" aria-hidden="true"><span class="r-data">R data</span><span class="r-model">R model</span><span class="t-data">T data</span><span class="t-model">T model</span></div>
           </div>
-          <canvas id="rt-chart" role="img" aria-label="Gráfica de reflectancia y transmitancia medidas y modeladas"></canvas>
+          <canvas id="rt-chart" role="img" aria-label="Measured and modeled reflectance and transmittance chart"></canvas>
         </article>
 
         <article class="plot-card">
           <div class="plot-heading">
-            <div><p>OPTICAL CONSTANTS</p><h2>Índice complejo de la película</h2></div>
+            <div><p>OPTICAL CONSTANTS</p><h2>Complex film refractive index</h2></div>
             <div class="legend" aria-hidden="true"><span class="n-line">n</span><span class="k-line">k</span></div>
           </div>
-          <canvas id="nk-chart" role="img" aria-label="Gráfica del índice de refracción n y coeficiente de extinción k"></canvas>
+          <canvas id="nk-chart" role="img" aria-label="Refractive index n and extinction coefficient k chart"></canvas>
         </article>
 
         <details class="provenance">
-          <summary>Supuestos y trazabilidad del cálculo</summary>
-          <p>Película homogénea, isótropa y coherente a incidencia normal; sustrato de vidrio ópticamente grueso con retornos incoherentes. El ajuste usa pérdidas robustas y una búsqueda global-local determinista.</p>
-          <p id="provenance-text">Todavía no hay un cálculo disponible.</p>
+          <summary>Model assumptions and calculation provenance</summary>
+          <p>Homogeneous, isotropic, coherent film at normal incidence; optically thick glass substrate with incoherent returns. The fit uses a robust loss and deterministic global-local search.</p>
+          <p id="provenance-text">No calculation is available yet.</p>
         </details>
       </section>
     </div>
   </main>
 
   <footer>
-    <p>Herramienta experimental · Verifica unidades, geometría y calibración antes de interpretar n,k.</p>
+    <p>Experimental tool · Verify units, geometry, and calibration before interpreting n,k.</p>
     <p>Jorge Parra · Universitat de València</p>
   </footer>
 
