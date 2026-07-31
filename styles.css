@@ -394,8 +394,7 @@ details[open] { padding-bottom: 14px; }
 .parameter-row { padding: 6px 0; border-top: 1px solid var(--line); }
 .parameter-row input[type="checkbox"] { width: 16px; min-height: 16px; }
 .parameter-row input[type="number"] { min-width: 0; min-height: 34px; padding: 5px; font: 700 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.parameter-name { min-width: 0; color: var(--ink); font: 700 10px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
-.parameter-help-mark { width: 14px; height: 14px; margin-left: 4px; display: inline-grid; place-items: center; border: 1px solid var(--orange); border-radius: 50%; color: var(--orange); font-size: 8px; vertical-align: 1px; }
+.parameter-name { position: relative; min-width: 0; color: var(--ink); font: 700 10px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
 .parameter-unit { display: block; color: var(--muted); font-size: 8px; }
 .parameter-uncertainty { color: var(--muted); font: 700 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
 .warning { color: var(--orange); }
@@ -430,6 +429,38 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .secondary { background: var(--panel); }
 .full { width: 100%; }
 .icon-button, .text-button { min-height: 30px; padding: 5px 8px; font-size: 9px; }
+
+.parameter-name > .parameter-help-button {
+  width: 24px;
+  min-height: 24px;
+  margin-left: 4px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-color: var(--orange);
+  border-radius: 50%;
+  color: var(--orange);
+  font: 800 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  vertical-align: 1px;
+}
+
+.parameter-name > .parameter-help-button:hover:not(:disabled),
+.parameter-name > .parameter-help-button[aria-expanded="true"] { border-color: var(--ink); background: var(--ink); color: white; }
+
+.parameter-help-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  left: 0;
+  width: min(260px, calc(100vw - 72px));
+  padding: 9px 10px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: white;
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--orange) 45%, transparent);
+  font: 700 10px/1.45 Arial, Helvetica, sans-serif;
+  text-transform: none;
+}
 
 .actions {
   position: sticky;
@@ -671,10 +702,6 @@ footer {
   .stack-thickness { grid-column: 2; }
   canvas { height: 245px; }
   footer { flex-direction: column; }
-}
-
-@media (hover: none), (pointer: coarse) {
-  .parameter-help-mark { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

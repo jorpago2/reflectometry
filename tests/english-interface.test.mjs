@@ -28,7 +28,11 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /https:\/\/doi\.org\//);
   const modelSelector = files[2].match(/const MULTILAYER_MODEL_LABELS = \{([\s\S]*?)\n\};/)[1];
   assert.doesNotMatch(modelSelector, /\btl1\b|\btl2\b|tl-gaussian|drude-tl|MODEL_LABELS\.cody/);
-  assert.match(styles, /@media \(hover: none\), \(pointer: coarse\) \{\s*\.parameter-help-mark \{ display: none; \}/);
+  assert.match(files[2], /className = "parameter-help-button"/);
+  assert.match(files[2], /function handleParameterHelp/);
+  assert.match(files[2], /aria-expanded/);
+  assert.match(styles, /\.parameter-help-popover\b/);
+  assert.doesNotMatch(styles, /parameter-help-mark/);
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);

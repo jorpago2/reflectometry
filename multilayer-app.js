@@ -40,6 +40,9 @@ elements["add-layer"].addEventListener("click", () => {
 });
 elements.layers.addEventListener("change", handleLayerChange);
 elements.layers.addEventListener("click", handleLayerClick);
+elements.layers.addEventListener("click", handleParameterHelp);
+document.addEventListener("click", (event) => !event.target.closest(".parameter-help-button, .parameter-help-popover") && closeParameterHelp());
+document.addEventListener("keydown", (event) => event.key === "Escape" && closeParameterHelp());
 for (const id of ["substrate-index", "substrate-extinction", "substrate-thickness", "incidence"]) elements[id].addEventListener("change", renderStackDiagram);
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
@@ -204,8 +207,10 @@ function parameterRow(layer, parameter, specification) {
   const row = document.createElement("div"); row.className = "parameter-row"; row.dataset.parameter = parameter;
   const fit = document.createElement("input"); fit.type = "checkbox"; fit.dataset.kind = "fit"; fit.checked = specification.fit; fit.setAttribute("aria-label", `Fit ${layer.name} ${specification.label}`);
   const description = parameterDescription(parameter);
-  const label = document.createElement("span"); label.className = "parameter-name"; label.textContent = specification.label; label.title = description; label.tabIndex = 0; label.setAttribute("aria-label", `${specification.label}: ${description}`);
-  const helpMark = document.createElement("span"); helpMark.className = "parameter-help-mark"; helpMark.textContent = "?"; helpMark.setAttribute("aria-hidden", "true"); label.append(helpMark);
+  const label = document.createElement("span"); label.className = "parameter-name"; label.append(document.createTextNode(specification.label));
+  const helpId = `${layer.id}-${parameter}-help`;
+  const helpButton = document.createElement("button"); helpButton.type = "button"; helpButton.className = "parameter-help-button"; helpButton.textContent = "?"; helpButton.setAttribute("aria-label", `Help for ${specification.label}`); helpButton.setAttribute("aria-controls", helpId); helpButton.setAttribute("aria-expanded", "false"); label.append(helpButton);
+  const help = document.createElement("span"); help.id = helpId; help.className = "parameter-help-popover"; help.setAttribute("role", "tooltip"); help.hidden = true; help.textContent = description; label.append(help);
   if (specification.unit) { const unit = document.createElement("span"); unit.className = "parameter-unit"; unit.textContent = specification.unit; label.append(unit); }
   row.append(fit, label);
   for (const [kind, value] of [["value", specification.value], ["minimum", specification.minimum], ["maximum", specification.maximum]]) {
@@ -213,6 +218,22 @@ function parameterRow(layer, parameter, specification) {
   }
   const uncertainty = document.createElement("span"); uncertainty.className = "parameter-uncertainty"; uncertainty.textContent = specification.uncertainty ?? "—"; row.append(uncertainty);
   return row;
+}
+
+function handleParameterHelp(event) {
+  const button = event.target.closest(".parameter-help-button"); if (!button) return;
+  event.stopPropagation();
+  const help = document.getElementById(button.getAttribute("aria-controls")); if (!help) return;
+  const open = help.hidden; closeParameterHelp();
+  help.hidden = !open; button.setAttribute("aria-expanded", String(open));
+  if (open) button.setAttribute("aria-describedby", help.id);
+}
+
+function closeParameterHelp() {
+  for (const button of elements.layers.querySelectorAll('.parameter-help-button[aria-expanded="true"]')) {
+    const help = document.getElementById(button.getAttribute("aria-controls")); if (help) help.hidden = true;
+    button.setAttribute("aria-expanded", "false"); button.removeAttribute("aria-describedby");
+  }
 }
 
 function renderModelHelp(layer) {
@@ -481,7 +502,7 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.5.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.5.1", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: { n: Number(elements["substrate-index"].value), k: Number(elements["substrate-extinction"].value) }, thicknessNm: 1000 * Number(elements["substrate-thickness"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
