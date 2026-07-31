@@ -24,8 +24,12 @@ test("ships an English-only application interface", async () => {
   assert.match(files[4], /Select at most 11 fitted parameters/);
   assert.match(files[4], /Additive dielectric components/);
   assert.match(files[4], /Tauc–Lorentz oscillators/);
+  assert.match(files[4], /Lorentz oscillators/);
+  assert.match(files[4], /Brendel–Bormann/);
+  assert.match(files[4], /Drude–Smith/);
+  assert.match(files[4], /Effective-medium constituents/);
   assert.match(files[4], /count <= 5/);
-  assert.match(files[4], /Tauc–Lorentz \(0–5 oscillators\) \+ optional components/);
+  assert.match(files[4], /Independent dielectric components/);
   assert.doesNotMatch(files.join("\n"), /robust Gauss.Newton/i);
   assert.doesNotMatch(files.join("\n"), /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

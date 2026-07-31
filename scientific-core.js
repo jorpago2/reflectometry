@@ -2,7 +2,7 @@ import { refractiveIndexModel } from "./dielectric-models.js";
 import { scrambledSobolPoints } from "./sobol.js";
 
 const EPSILON = Number.EPSILON;
-const LOG_PARAMETERS = new Set(["amplitude", "amplitudeEv", "amplitude1Ev", "amplitude2Ev", "broadeningEv", "broadening1Ev", "broadening2Ev", "fwhmEv", "gammaEv", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
+const LOG_PARAMETERS = new Set(["amplitude", "amplitudeEv", "amplitude1Ev", "amplitude2Ev", "strength", "broadeningEv", "broadening1Ev", "broadening2Ev", "fwhmEv", "gammaEv", "sigmaEv", "urbachEnergyEv", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
 const CAUSAL_ELLIPSOMETRY_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
 const baseParameterName = (name) => name.includes("__") ? name.slice(name.lastIndexOf("__") + 2) : name;
 const isLogParameter = (name) => LOG_PARAMETERS.has(baseParameterName(name));
@@ -220,7 +220,7 @@ export const evaluateTabulated = evaluateOpticalModel;
 function evaluateMultilayerModel(data, parameters, settings) {
   const layerIndices = settings.layers.map((layer) => {
     const layerParameters = parametersForLayer(parameters, layer.id);
-    const index = refractiveIndexModel(layer.model, data.wavelengthNm, layerParameters, layer.nk ?? null, { components: layer.components });
+    const index = refractiveIndexModel(layer.model, data.wavelengthNm, layerParameters, layer.nk ?? null, { components: layer.components, ema: layer.ema });
     return { id: layer.id, name: layer.name, model: layer.model, thicknessNm: layerParameters.thicknessNm, n: index.n, k: index.k };
   });
   const optical = filmStackOnThickSubstrate(data.wavelengthNm, layerIndices, settings.substrateIndex, settings.incidence);
@@ -687,7 +687,7 @@ export function fitResidualVector(data, nk, parameters, evaluation, settings) {
   if (settings.layers?.length) {
     for (const layer of settings.layers.filter((candidate) => candidate.regularize)) {
       if (layer.model === "drude-tl") throw new Error(`Layer ${layer.name}: a Drude model cannot be regularized toward an insulating n,k table.`);
-      const comparison = indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model, layer.components);
+      const comparison = indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model, { components: layer.components, ema: layer.ema });
       if (!comparison) throw new Error(`Layer ${layer.name}: regularization requires an n,k table with at least 10 points from 300 to 1100 nm.`);
       residuals.push(...comparison.deltaN.map((value) => value / settings.sigmaN));
       residuals.push(...comparison.deltaK.map((value) => value / settings.sigmaK));
@@ -706,18 +706,18 @@ function indexComparison(nk, parameters, settings) {
   if (settings.layers?.length) {
     const layer = settings.layers.find((candidate) => candidate.id === settings.activeLayerId && candidate.nk)
       ?? settings.layers.find((candidate) => candidate.nk);
-    return layer ? indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model, layer.components) : null;
+    return layer ? indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model, { components: layer.components, ema: layer.ema }) : null;
   }
   return indexComparisonForModel(nk, parameters, settings.model);
 }
 
-function indexComparisonForModel(nk, parameters, model, components = undefined) {
+function indexComparisonForModel(nk, parameters, model, options = {}) {
   if (!nk) return null;
   const selected = nk.wavelengthNm.map((value) => value >= 300 && value <= 1100);
   const wavelengthNm = nk.wavelengthNm.filter((_, index) => selected[index]);
   if (wavelengthNm.length < 10) return null;
   const reference = { n: nk.n.filter((_, index) => selected[index]), k: nk.k.filter((_, index) => selected[index]) };
-  const modeled = refractiveIndexModel(model, wavelengthNm, parameters, nk, { components });
+  const modeled = refractiveIndexModel(model, wavelengthNm, parameters, nk, options);
   const deltaN = modeled.n.map((value, index) => value - reference.n[index]);
   const deltaK = modeled.k.map((value, index) => value - reference.k[index]);
   return { wavelengthNm, reference, modeled, deltaN, deltaK, diagnostics: indexDiagnostics(wavelengthNm, deltaN, deltaK) };

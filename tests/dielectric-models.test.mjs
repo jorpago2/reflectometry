@@ -2,15 +2,24 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  brendelBormannDielectric,
+  cauchyRefractiveIndex,
   codyLorentzDielectric,
   compositeDielectric,
+  criticalPointDielectric,
   drudeDielectric,
+  drudeSmithDielectric,
   drudeTaucLorentzDielectric,
+  effectiveMediumRefractiveIndex,
+  forouhiBloomerRefractiveIndex,
   gaussianOscillatorDielectric,
+  kkSplineDielectric,
+  lorentzOscillatorDielectric,
   modelParameterSpecs,
   multiTaucLorentzDielectric,
   passiveRefractiveIndex,
   refractiveIndexModel,
+  sellmeierRefractiveIndex,
   taucGaussianDielectric,
   taucLorentzDielectric,
 } from "../dielectric-models.js";
@@ -91,6 +100,49 @@ test("uses the Python-derived ellipsometry seeds for bundled samples", () => {
   const dielectric = compositeDielectric(wavelengthNm, fiveParameters, { taucLorentz: 5 });
   assert.ok(dielectric.epsilon1.every(Number.isFinite) && dielectric.epsilon2.every(Number.isFinite));
   assert.throws(() => modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 6 }), /0 to 5/);
+});
+
+test("evaluates every generic optical model with passive finite results", () => {
+  const drude = drudeDielectric(wavelengthNm, 4, 0.5);
+  const drudeSmithLimit = drudeSmithDielectric(wavelengthNm, 4, 0.5, 0);
+  assertArrayClose(drudeSmithLimit.epsilon1, drude.epsilon1);
+  assertArrayClose(drudeSmithLimit.epsilon2, drude.epsilon2);
+
+  for (const dielectric of [
+    lorentzOscillatorDielectric(wavelengthNm, 2, 3, 0.5),
+    brendelBormannDielectric(wavelengthNm, { strength: 2, resonanceEv: 3, gammaEv: 0.5, sigmaEv: 0.3 }),
+    criticalPointDielectric(wavelengthNm, { amplitude: 2, energyEv: 3, broadeningEv: 0.2 }),
+    kkSplineDielectric(wavelengthNm, { epsilonInf: 2, splineEpsilon2_1: 0.1, splineEpsilon2_2: 0.5, splineEpsilon2_3: 1, splineEpsilon2_4: 1, splineEpsilon2_5: 0.2 }),
+  ]) {
+    assert.ok(dielectric.epsilon1.every(Number.isFinite));
+    assert.ok(dielectric.epsilon2.every((value) => Number.isFinite(value) && value >= 0));
+  }
+
+  const cauchy = cauchyRefractiveIndex([500], { cauchyA: 1.5, cauchyBUm2: 0.01, cauchyCUm4: 0, urbachK0: 0, urbachReferenceEv: 1.5, urbachEnergyEv: 0.1 });
+  assert.ok(Math.abs(cauchy.n[0] - 1.54) < 1e-12 && cauchy.k[0] === 0);
+  const silica = sellmeierRefractiveIndex([589.3], { sellmeierB1: 0.6961663, sellmeierC1Um2: 0.00467915, sellmeierB2: 0.4079426, sellmeierC2Um2: 0.0135121, sellmeierB3: 0.8974794, sellmeierC3Um2: 97.934 });
+  assert.ok(Math.abs(silica.n[0] - 1.4584) < 1e-4 && silica.k[0] === 0);
+  const forouhi = forouhiBloomerRefractiveIndex([800, 1500], { nInfinity: 1.5, amplitudeEv: 1, bEv: 3, cEv2: 4, bandgapEv: 1 });
+  assert.ok(forouhi.n.every((value) => Number.isFinite(value) && value > 0));
+  assert.equal(forouhi.k[1], 0);
+
+  const hostNk = { wavelengthNm: [300, 1200], n: [1.5, 1.5], k: [0, 0] };
+  const inclusionNk = { wavelengthNm: [300, 1200], n: [2.5, 2.5], k: [0.2, 0.2] };
+  for (const method of ["bruggeman", "maxwell-garnett"]) {
+    const host = effectiveMediumRefractiveIndex(wavelengthNm, { volumeFraction: 0 }, { method, hostNk, inclusionNk });
+    const inclusion = effectiveMediumRefractiveIndex(wavelengthNm, { volumeFraction: 1 }, { method, hostNk, inclusionNk });
+    assertArrayClose(host.n, wavelengthNm.map(() => 1.5));
+    assertArrayClose(inclusion.n, wavelengthNm.map(() => 2.5));
+    assertArrayClose(inclusion.k, wavelengthNm.map(() => 0.2));
+  }
+  const realHost = loadNkTable(readFileSync(new URL("../examples/aGST.txt", import.meta.url), "utf8"));
+  const realInclusion = loadNkTable(readFileSync(new URL("../examples/cGST.txt", import.meta.url), "utf8"));
+  const absorbingMixture = effectiveMediumRefractiveIndex(wavelengthNm, { volumeFraction: 0.5 }, { method: "bruggeman", hostNk: realHost, inclusionNk: realInclusion });
+  assert.ok(absorbingMixture.k.every((value) => Number.isFinite(value) && value >= 0));
+
+  const lorentzSpecs = modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { taucLorentz: 0, lorentz: 5 });
+  assert.ok(lorentzSpecs["lorentz5__strength"]);
+  assert.throws(() => modelParameterSpecs("composite", "agst", { n: 3, k: 0.1 }, 250, { lorentz: 6 }), /0 to 5 Lorentz/);
 });
 
 test("fits a dynamic ellipsometry seed from the loaded n,k table", () => {

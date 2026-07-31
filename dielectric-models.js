@@ -9,7 +9,12 @@ export const MODEL_LABELS = {
   "tl-gaussian": "Tauc–Lorentz + Gaussian (causal)",
   cody: "Cody–Lorentz (amorphous, causal)",
   "drude-tl": "Drude + Tauc–Lorentz (VO₂ metal)",
-  composite: "Independent components / 0–5 TL oscillators",
+  composite: "Independent dielectric components",
+  cauchy: "Cauchy + optional Urbach absorption",
+  sellmeier: "Sellmeier (3 resonances, transparent)",
+  "forouhi-bloomer": "Forouhi–Bloomer (amorphous)",
+  "kk-spline": "Kramers–Kronig constrained B-spline",
+  ema: "Effective-medium mixture",
 };
 
 export const NOMINAL_THICKNESS_NM = {
@@ -102,6 +107,13 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
         });
       }
     }
+    const lorentzCount = components.lorentz ?? 0;
+    if (!Number.isInteger(lorentzCount) || lorentzCount < 0 || lorentzCount > 5) throw new Error("Select from 0 to 5 Lorentz oscillators.");
+    for (let oscillator = 1; oscillator <= lorentzCount; oscillator += 1) add(`lorentz${oscillator}`, {
+      strength: parameter(`Lorentz ${oscillator} · strength`, "", [2 / oscillator, 1e-4, 100], true),
+      resonanceEv: parameter(`Lorentz ${oscillator} · E₀`, "eV", [1.5 + oscillator, 0.1, 12]),
+      gammaEv: parameter(`Lorentz ${oscillator} · γ`, "eV", [0.5, 0.005, 5]),
+    });
     if (components.gaussian) add("gaussian", {
       amplitude: parameter("Gaussian · amplitude", "", [5, 1e-4, 150], true),
       centerEnergyEv: parameter("Gaussian · center", "eV", [3.8, 0.2, 10]),
@@ -120,8 +132,68 @@ export function modelParameterSpecs(model, sample, referenceAt1064 = { n: 3, k: 
       plasmaEnergyEv: parameter("Drude · plasma energy", "eV", [4.16, 0.05, 12], true),
       gammaEv: parameter("Drude · γ", "eV", [0.67, 0.005, 5]),
     });
+    if (components.drudeSmith) add("drudeSmith", {
+      plasmaEnergyEv: parameter("Drude–Smith · plasma energy", "eV", [4.16, 0.05, 12], true),
+      gammaEv: parameter("Drude–Smith · γ", "eV", [0.67, 0.005, 5]),
+      backscattering: parameter("Drude–Smith · c₁", "", [-0.5, -1, 0], true),
+    });
+    if (components.brendelBormann) add("brendelBormann", {
+      strength: parameter("Brendel–Bormann · strength", "", [2, 1e-4, 100], true),
+      resonanceEv: parameter("Brendel–Bormann · E₀", "eV", [3, 0.1, 12]),
+      gammaEv: parameter("Brendel–Bormann · γ", "eV", [0.5, 0.005, 5]),
+      sigmaEv: parameter("Brendel–Bormann · σ", "eV", [0.3, 0.005, 4]),
+    });
+    if (components.criticalPoint) add("criticalPoint", {
+      amplitude: parameter("Critical point · amplitude", "", [2, 1e-4, 100], true),
+      energyEv: parameter("Critical point · E₀", "eV", [3, 0.1, 12]),
+      broadeningEv: parameter("Critical point · Γ", "eV", [0.2, 0.005, 3]),
+    });
     return specifications;
   }
+  if (model === "cauchy") return {
+    thicknessNm: common.thicknessNm,
+    cauchyA: parameter("Cauchy A", "", [1.5, 1, 6], true),
+    cauchyBUm2: parameter("Cauchy B", "µm²", [0.01, -1, 2]),
+    cauchyCUm4: parameter("Cauchy C", "µm⁴", [0, -1, 2]),
+    urbachK0: parameter("Urbach k₀", "", [0, 0, 2]),
+    urbachReferenceEv: parameter("Urbach reference", "eV", [1.5, 0.1, 10]),
+    urbachEnergyEv: parameter("Urbach energy", "eV", [0.1, 0.005, 2]),
+    rGain: common.rGain, tGain: common.tGain,
+  };
+  if (model === "sellmeier") return {
+    thicknessNm: common.thicknessNm,
+    sellmeierB1: parameter("Sellmeier B₁", "", [0.6961663, 0, 10], true),
+    sellmeierC1Um2: parameter("Sellmeier C₁", "µm²", [0.00467915, 1e-6, 1]),
+    sellmeierB2: parameter("Sellmeier B₂", "", [0.4079426, 0, 10]),
+    sellmeierC2Um2: parameter("Sellmeier C₂", "µm²", [0.0135121, 1e-6, 4]),
+    sellmeierB3: parameter("Sellmeier B₃", "", [0.8974794, 0, 20]),
+    sellmeierC3Um2: parameter("Sellmeier C₃", "µm²", [97.934, 4.01, 400]),
+    rGain: common.rGain, tGain: common.tGain,
+  };
+  if (model === "forouhi-bloomer") return {
+    thicknessNm: common.thicknessNm,
+    nInfinity: parameter("Forouhi–Bloomer n∞", "", [1.5, 1, 6], true),
+    amplitudeEv: parameter("Forouhi–Bloomer A", "eV", [1, 1e-4, 100], true),
+    bEv: parameter("Forouhi–Bloomer B", "eV", [3, 0.05, 12]),
+    cEv2: parameter("Forouhi–Bloomer C", "eV²", [4, 0.01, 100]),
+    bandgapEv: parameter("Forouhi–Bloomer E_g", "eV", [1, 0, 5]),
+    rGain: common.rGain, tGain: common.tGain,
+  };
+  if (model === "kk-spline") return {
+    thicknessNm: common.thicknessNm,
+    epsilonInf: parameter("ε∞", "", [2, 0.5, 20]),
+    splineEpsilon2_1: parameter("ε₂ knot · 0.50 eV", "", [0.1, 0, 100], true),
+    splineEpsilon2_2: parameter("ε₂ knot · 1.63 eV", "", [0.5, 0, 100], true),
+    splineEpsilon2_3: parameter("ε₂ knot · 2.75 eV", "", [1, 0, 100], true),
+    splineEpsilon2_4: parameter("ε₂ knot · 3.88 eV", "", [1, 0, 100], true),
+    splineEpsilon2_5: parameter("ε₂ knot · 5.00 eV", "", [0.2, 0, 100], true),
+    rGain: common.rGain, tGain: common.tGain,
+  };
+  if (model === "ema") return {
+    thicknessNm: common.thicknessNm,
+    volumeFraction: parameter("Inclusion volume fraction", "", [0.5, 0, 1], true),
+    rGain: common.rGain, tGain: common.tGain,
+  };
   if (model === "fixed") return common;
   if (model === "scaled") return {
     thicknessNm: common.thicknessNm,
@@ -217,6 +289,10 @@ export function validateModelAvailability(model, sample) {
 
 export function refractiveIndexModel(model, wavelengthNm, parameters, nk, options = {}) {
   if (model === "constant") return { n: wavelengthNm.map(() => parameters.n), k: wavelengthNm.map(() => parameters.k) };
+  if (model === "cauchy") return cauchyRefractiveIndex(wavelengthNm, parameters);
+  if (model === "sellmeier") return sellmeierRefractiveIndex(wavelengthNm, parameters);
+  if (model === "forouhi-bloomer") return forouhiBloomerRefractiveIndex(wavelengthNm, parameters);
+  if (model === "ema") return effectiveMediumRefractiveIndex(wavelengthNm, parameters, options.ema);
   if (model === "fixed" || model === "scaled") {
     if (!nk) throw new Error("The selected model requires a matching ellipsometry n,k table.");
     const { n, k } = tabulatedRefractiveIndex(nk, wavelengthNm);
@@ -231,6 +307,7 @@ export function refractiveIndexModel(model, wavelengthNm, parameters, nk, option
   else if (model === "cody") dielectric = codyLorentzDielectric(wavelengthNm, parameters);
   else if (model === "drude-tl") dielectric = drudeTaucLorentzDielectric(wavelengthNm, parameters);
   else if (model === "composite") dielectric = compositeDielectric(wavelengthNm, parameters, options.components);
+  else if (model === "kk-spline") dielectric = kkSplineDielectric(wavelengthNm, parameters);
   else throw new Error(`Unsupported optical model: ${model}.`);
   return passiveRefractiveIndex(dielectric);
 }
@@ -240,8 +317,11 @@ export function compositeDielectric(wavelengthNm, parameters, components = {}) {
   if (!(parameters.epsilonInf > 0)) throw new Error("The composite model requires a finite positive ε∞.");
   const taucLorentzCount = components.taucLorentz ?? Number(Boolean(components.tl1)) + Number(Boolean(components.tl2));
   if (!Number.isInteger(taucLorentzCount) || taucLorentzCount < 0 || taucLorentzCount > 5) throw new Error("Select from 0 to 5 Tauc–Lorentz oscillators.");
-  const enabled = ["gaussian", "cody", "drude"].filter((name) => components[name]);
-  if (!taucLorentzCount && !enabled.length) throw new Error("Select at least one dielectric component.");
+  const lorentzCount = components.lorentz ?? 0;
+  if (!Number.isInteger(lorentzCount) || lorentzCount < 0 || lorentzCount > 5) throw new Error("Select from 0 to 5 Lorentz oscillators.");
+  const enabled = ["gaussian", "cody", "drude", "drudeSmith", "brendelBormann", "criticalPoint"].filter((name) => components[name]);
+  if (!taucLorentzCount && !lorentzCount && !enabled.length) throw new Error("Select at least one dielectric component.");
+  if (components.drude && components.drudeSmith) throw new Error("Choose Drude or Drude–Smith, not both.");
   const epsilon1 = wavelengthNm.map(() => parameters.epsilonInf);
   const epsilon2 = wavelengthNm.map(() => 0);
   const values = (prefix) => Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(`${prefix}__`)).map(([name, value]) => [name.slice(prefix.length + 2), value]));
@@ -253,15 +333,201 @@ export function compositeDielectric(wavelengthNm, parameters, components = {}) {
     const componentParameters = values(`tl${oscillator}`);
     add(taucLorentzDielectric(wavelengthNm, 1, componentParameters.amplitudeEv, componentParameters.resonanceEv, componentParameters.broadeningEv, componentParameters.bandgapEv), true);
   }
+  for (let oscillator = 1; oscillator <= lorentzCount; oscillator += 1) {
+    const componentParameters = values(`lorentz${oscillator}`);
+    add(lorentzOscillatorDielectric(wavelengthNm, componentParameters.strength, componentParameters.resonanceEv, componentParameters.gammaEv));
+  }
   for (const component of enabled) {
     const componentParameters = values(component);
     if (component === "gaussian") add(gaussianOscillatorDielectric(wavelengthNm, componentParameters.amplitude, componentParameters.centerEnergyEv, componentParameters.fwhmEv));
     else if (component === "cody") add(codyLorentzDielectric(wavelengthNm, { ...componentParameters, epsilonInf: 1 }), true);
     else if (component === "drude") add(drudeDielectric(wavelengthNm, componentParameters.plasmaEnergyEv, componentParameters.gammaEv));
+    else if (component === "drudeSmith") add(drudeSmithDielectric(wavelengthNm, componentParameters.plasmaEnergyEv, componentParameters.gammaEv, componentParameters.backscattering));
+    else if (component === "brendelBormann") add(brendelBormannDielectric(wavelengthNm, componentParameters));
+    else if (component === "criticalPoint") add(criticalPointDielectric(wavelengthNm, componentParameters));
     else throw new Error(`Unsupported dielectric component: ${component}.`);
   }
   return { epsilon1, epsilon2 };
 }
+
+export function lorentzOscillatorDielectric(wavelengthNm, strength, resonanceEv, gammaEv) {
+  validatePositiveWavelengths(wavelengthNm);
+  if (![strength, resonanceEv, gammaEv].every((value) => Number.isFinite(value) && value > 0)) throw new Error("Lorentz strength, resonance, and damping must be finite and positive.");
+  const epsilon1 = []; const epsilon2 = [];
+  for (const wavelength of wavelengthNm) {
+    const energy = PHOTON_ENERGY_EV_NM / wavelength;
+    const denominator = (resonanceEv ** 2 - energy ** 2) ** 2 + gammaEv ** 2 * energy ** 2;
+    epsilon1.push(strength * resonanceEv ** 2 * (resonanceEv ** 2 - energy ** 2) / denominator);
+    epsilon2.push(strength * resonanceEv ** 2 * gammaEv * energy / denominator);
+  }
+  return { epsilon1, epsilon2 };
+}
+
+export function drudeSmithDielectric(wavelengthNm, plasmaEnergyEv, gammaEv, backscattering) {
+  if (!Number.isFinite(backscattering) || backscattering < -1 || backscattering > 0) throw new Error("Drude–Smith c₁ must be from −1 to 0.");
+  const drude = drudeDielectric(wavelengthNm, plasmaEnergyEv, gammaEv);
+  const epsilon1 = []; const epsilon2 = [];
+  wavelengthNm.forEach((wavelength, index) => {
+    const energy = PHOTON_ENERGY_EV_NM / wavelength;
+    const denominator = gammaEv ** 2 + energy ** 2;
+    const correction = { re: 1 + backscattering * gammaEv ** 2 / denominator, im: backscattering * gammaEv * energy / denominator };
+    const value = dielectricComplexMul({ re: drude.epsilon1[index], im: drude.epsilon2[index] }, correction);
+    epsilon1.push(value.re); epsilon2.push(value.im);
+  });
+  return { epsilon1, epsilon2 };
+}
+
+const HERMITE_NODES = [-3.436159118837738, -2.53273167423279, -1.756683649299882, -1.036610829789514, -0.342901327223705, 0.342901327223705, 1.036610829789514, 1.756683649299882, 2.53273167423279, 3.436159118837738];
+const HERMITE_WEIGHTS = [0.000007640432856, 0.001343645746781, 0.033874394455481, 0.240138611082315, 0.610862633735326, 0.610862633735326, 0.240138611082315, 0.033874394455481, 0.001343645746781, 0.000007640432856];
+
+export function brendelBormannDielectric(wavelengthNm, parameters) {
+  const { strength, resonanceEv, gammaEv, sigmaEv } = parameters;
+  if (![strength, resonanceEv, gammaEv, sigmaEv].every((value) => Number.isFinite(value) && value > 0)) throw new Error("Brendel–Bormann parameters must be finite and positive.");
+  const samples = HERMITE_NODES.map((node, index) => ({ resonance: resonanceEv + Math.SQRT2 * sigmaEv * node, weight: HERMITE_WEIGHTS[index] / Math.sqrt(Math.PI) })).filter((sample) => sample.resonance > 0);
+  const normalization = samples.reduce((sum, sample) => sum + sample.weight, 0);
+  const epsilon1 = wavelengthNm.map(() => 0); const epsilon2 = wavelengthNm.map(() => 0);
+  for (const sample of samples) {
+    const dielectric = lorentzOscillatorDielectric(wavelengthNm, strength, sample.resonance, gammaEv);
+    dielectric.epsilon1.forEach((value, index) => { epsilon1[index] += value * sample.weight / normalization; epsilon2[index] += dielectric.epsilon2[index] * sample.weight / normalization; });
+  }
+  return { epsilon1, epsilon2 };
+}
+
+export function criticalPointDielectric(wavelengthNm, parameters) {
+  const { amplitude, energyEv, broadeningEv } = parameters;
+  if (![amplitude, energyEv, broadeningEv].every((value) => Number.isFinite(value) && value > 0)) throw new Error("Critical-point parameters must be finite and positive.");
+  const epsilon1 = []; const epsilon2 = [];
+  for (const wavelength of wavelengthNm) {
+    const energy = PHOTON_ENERGY_EV_NM / wavelength;
+    const normalized = { re: energy / energyEv, im: broadeningEv / energyEv };
+    const argument = dielectricComplexSub({ re: 1, im: 0 }, dielectricComplexMul(normalized, normalized));
+    const value = dielectricComplexScale(dielectricComplexLog(argument), -amplitude);
+    epsilon1.push(value.re); epsilon2.push(value.im);
+  }
+  return { epsilon1, epsilon2 };
+}
+
+export function cauchyRefractiveIndex(wavelengthNm, parameters) {
+  validatePositiveWavelengths(wavelengthNm);
+  if (![parameters.cauchyA, parameters.cauchyBUm2, parameters.cauchyCUm4, parameters.urbachK0, parameters.urbachReferenceEv, parameters.urbachEnergyEv].every(Number.isFinite)
+    || parameters.cauchyA <= 0 || parameters.urbachK0 < 0 || parameters.urbachEnergyEv <= 0) throw new Error("Invalid Cauchy–Urbach parameters.");
+  const n = []; const k = [];
+  for (const wavelength of wavelengthNm) {
+    const wavelengthUm = wavelength / 1000;
+    const index = parameters.cauchyA + parameters.cauchyBUm2 / wavelengthUm ** 2 + parameters.cauchyCUm4 / wavelengthUm ** 4;
+    const extinction = parameters.urbachK0 * Math.exp(Math.min(100, (PHOTON_ENERGY_EV_NM / wavelength - parameters.urbachReferenceEv) / parameters.urbachEnergyEv));
+    if (!(index > 0) || !Number.isFinite(extinction)) throw new Error("Cauchy–Urbach produced non-physical optical constants.");
+    n.push(index); k.push(extinction);
+  }
+  return { n, k };
+}
+
+export function sellmeierRefractiveIndex(wavelengthNm, parameters) {
+  validatePositiveWavelengths(wavelengthNm);
+  const coefficients = [1, 2, 3].map((index) => [parameters[`sellmeierB${index}`], parameters[`sellmeierC${index}Um2`]]);
+  if (!coefficients.flat().every(Number.isFinite) || coefficients.some(([b, c]) => b < 0 || c <= 0)) throw new Error("Sellmeier coefficients must be finite with B ≥ 0 and C > 0.");
+  const n = wavelengthNm.map((wavelength) => {
+    const square = (wavelength / 1000) ** 2;
+    const indexSquared = 1 + coefficients.reduce((sum, [b, c]) => sum + b * square / (square - c), 0);
+    if (!(indexSquared > 0) || coefficients.some(([, c]) => Math.abs(square - c) < 1e-10)) throw new Error("A Sellmeier pole lies in the calculation range.");
+    return Math.sqrt(indexSquared);
+  });
+  return { n, k: wavelengthNm.map(() => 0) };
+}
+
+export function forouhiBloomerRefractiveIndex(wavelengthNm, parameters) {
+  validatePositiveWavelengths(wavelengthNm);
+  const { nInfinity, amplitudeEv, bEv, cEv2, bandgapEv } = parameters;
+  if (![nInfinity, amplitudeEv, bEv, cEv2, bandgapEv].every(Number.isFinite) || nInfinity < 1 || amplitudeEv <= 0 || bandgapEv < 0 || 4 * cEv2 <= bEv ** 2) throw new Error("Forouhi–Bloomer requires n∞ ≥ 1, A > 0, E_g ≥ 0, and 4C > B².");
+  const q = 0.5 * Math.sqrt(4 * cEv2 - bEv ** 2);
+  const b0 = amplitudeEv / q * (-(bEv ** 2) / 2 + bandgapEv * bEv - bandgapEv ** 2 + cEv2);
+  const c0 = amplitudeEv / q * ((bandgapEv ** 2 + cEv2) * bEv / 2 - 2 * bandgapEv * cEv2);
+  const n = []; const k = [];
+  for (const wavelength of wavelengthNm) {
+    const energy = PHOTON_ENERGY_EV_NM / wavelength;
+    const denominator = energy ** 2 - bEv * energy + cEv2;
+    n.push(nInfinity + (b0 * energy + c0) / denominator);
+    k.push(energy > bandgapEv ? amplitudeEv * (energy - bandgapEv) ** 2 / denominator : 0);
+  }
+  if (n.some((value) => !(value > 0)) || k.some((value) => value < 0 || !Number.isFinite(value))) throw new Error("Forouhi–Bloomer produced non-physical optical constants.");
+  return { n, k };
+}
+
+export function effectiveMediumRefractiveIndex(wavelengthNm, parameters, ema) {
+  if (!ema?.hostNk || !ema?.inclusionNk || !new Set(["bruggeman", "maxwell-garnett"]).has(ema.method)) throw new Error("EMA requires host and inclusion n,k tables and a supported mixing rule.");
+  const fraction = parameters.volumeFraction;
+  if (!Number.isFinite(fraction) || fraction < 0 || fraction > 1) throw new Error("EMA volume fraction must be from 0 to 1.");
+  const host = tabulatedRefractiveIndex(ema.hostNk, wavelengthNm); const inclusion = tabulatedRefractiveIndex(ema.inclusionNk, wavelengthNm);
+  const epsilon1 = []; const epsilon2 = [];
+  wavelengthNm.forEach((_, index) => {
+    const hostEpsilon = indexToDielectric(host.n[index], host.k[index]); const inclusionEpsilon = indexToDielectric(inclusion.n[index], inclusion.k[index]);
+    let effective;
+    if (ema.method === "maxwell-garnett") {
+      const numerator = dielectricComplexAdd(dielectricComplexAdd(inclusionEpsilon, dielectricComplexScale(hostEpsilon, 2)), dielectricComplexScale(dielectricComplexSub(inclusionEpsilon, hostEpsilon), 2 * fraction));
+      const denominator = dielectricComplexSub(dielectricComplexAdd(inclusionEpsilon, dielectricComplexScale(hostEpsilon, 2)), dielectricComplexScale(dielectricComplexSub(inclusionEpsilon, hostEpsilon), fraction));
+      effective = dielectricComplexMul(hostEpsilon, dielectricComplexDiv(numerator, denominator));
+    } else {
+      const linear = dielectricComplexAdd(dielectricComplexScale(hostEpsilon, 2 - 3 * fraction), dielectricComplexScale(inclusionEpsilon, 3 * fraction - 1));
+      const discriminant = dielectricComplexAdd(dielectricComplexMul(linear, linear), dielectricComplexScale(dielectricComplexMul(hostEpsilon, inclusionEpsilon), 8));
+      const root = dielectricComplexSqrt(discriminant);
+      const candidates = [root, dielectricComplexScale(root, -1)].map((value) => dielectricComplexScale(dielectricComplexAdd(linear, value), 0.25));
+      const mixture = dielectricComplexAdd(dielectricComplexScale(hostEpsilon, 1 - fraction), dielectricComplexScale(inclusionEpsilon, fraction));
+      effective = candidates.filter((candidate) => candidate.im >= -1e-12).sort((a, b) => dielectricComplexDistance(a, mixture) - dielectricComplexDistance(b, mixture))[0];
+      if (!effective) throw new Error("Bruggeman EMA has no passive physical branch for these constituents.");
+    }
+    epsilon1.push(effective.re); epsilon2.push(effective.im);
+  });
+  return passiveRefractiveIndex({ epsilon1, epsilon2 });
+}
+
+const KK_SPLINE_ENERGIES_EV = [0.5, 1.625, 2.75, 3.875, 5];
+const kkSplineCache = new WeakMap();
+
+export function kkSplineDielectric(wavelengthNm, parameters) {
+  validatePositiveWavelengths(wavelengthNm);
+  if (!(parameters.epsilonInf > 0)) throw new Error("KK B-spline ε∞ must be positive.");
+  const amplitudes = KK_SPLINE_ENERGIES_EV.map((_, index) => parameters[`splineEpsilon2_${index + 1}`]);
+  if (!amplitudes.every((value) => Number.isFinite(value) && value >= 0)) throw new Error("KK B-spline ε₂ knots must be finite and non-negative.");
+  let basis = kkSplineCache.get(wavelengthNm);
+  if (!basis) { basis = precomputeKkSplineBasis(wavelengthNm); kkSplineCache.set(wavelengthNm, basis); }
+  return {
+    epsilon1: wavelengthNm.map((_, row) => parameters.epsilonInf + amplitudes.reduce((sum, amplitude, column) => sum + amplitude * basis.real[column][row], 0)),
+    epsilon2: wavelengthNm.map((_, row) => amplitudes.reduce((sum, amplitude, column) => sum + amplitude * basis.imaginary[column][row], 0)),
+  };
+}
+
+function precomputeKkSplineBasis(wavelengthNm) {
+  const step = KK_SPLINE_ENERGIES_EV[1] - KK_SPLINE_ENERGIES_EV[0];
+  const cubic = (energy, center) => { const distance = Math.abs((energy - center) / step); return distance < 1 ? 2 / 3 - distance ** 2 + distance ** 3 / 2 : distance < 2 ? (2 - distance) ** 3 / 6 : 0; };
+  const maximum = 30; const bins = 800; const delta = maximum / bins; const integrationEnergy = Array.from({ length: bins }, (_, index) => (index + 0.5) * delta);
+  const energies = wavelengthNm.map((wavelength) => PHOTON_ENERGY_EV_NM / wavelength);
+  const real = []; const imaginary = [];
+  for (const center of KK_SPLINE_ENERGIES_EV) {
+    const basisAtGrid = integrationEnergy.map((energy) => cubic(energy, center));
+    imaginary.push(energies.map((energy) => cubic(energy, center)));
+    real.push(energies.map((energy) => {
+      const fAtEnergy = energy * cubic(energy, center);
+      let integral = 0;
+      integrationEnergy.forEach((value, index) => {
+        const denominator = value ** 2 - energy ** 2;
+        if (Math.abs(denominator) > 1e-8) integral += delta * (value * basisAtGrid[index] - fAtEnergy) / denominator;
+      });
+      integral += fAtEnergy / (2 * energy) * Math.log(Math.abs((maximum - energy) / (maximum + energy)));
+      return 2 / Math.PI * integral;
+    }));
+  }
+  return { real, imaginary };
+}
+
+function indexToDielectric(n, k) { return { re: n ** 2 - k ** 2, im: 2 * n * k }; }
+function dielectricComplexAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
+function dielectricComplexSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
+function dielectricComplexScale(a, scale) { return { re: a.re * scale, im: a.im * scale }; }
+function dielectricComplexMul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
+function dielectricComplexDiv(a, b) { const denominator = b.re ** 2 + b.im ** 2; return { re: (a.re * b.re + a.im * b.im) / denominator, im: (a.im * b.re - a.re * b.im) / denominator }; }
+function dielectricComplexSqrt(value) { const magnitude = Math.hypot(value.re, value.im); return { re: Math.sqrt(Math.max(0, (magnitude + value.re) / 2)), im: Math.sign(value.im || 1) * Math.sqrt(Math.max(0, (magnitude - value.re) / 2)) }; }
+function dielectricComplexLog(value) { return { re: Math.log(Math.hypot(value.re, value.im)), im: Math.atan2(value.im, value.re) }; }
+function dielectricComplexDistance(a, b) { return Math.hypot(a.re - b.re, a.im - b.im); }
 
 export function tabulatedRefractiveIndex(nk, wavelengthNm) {
   if (!nk?.wavelengthNm?.length || nk.wavelengthNm.length !== nk.n?.length || nk.n.length !== nk.k?.length) throw new Error("Invalid ellipsometry n,k table.");

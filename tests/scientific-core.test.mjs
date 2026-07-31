@@ -62,6 +62,20 @@ test("evaluates independently parameterized layers", () => {
   assert.ok(evaluated.transmittance.every((value) => value >= 0 && value <= 1));
 });
 
+test("passes effective-medium constituent tables through the multilayer solver", () => {
+  const wavelengthNm = [450, 550, 650];
+  const hostNk = { wavelengthNm: [400, 700], n: [1.5, 1.5], k: [0, 0] };
+  const inclusionNk = { wavelengthNm: [400, 700], n: [2.5, 2.5], k: [0.2, 0.2] };
+  const evaluation = evaluateOpticalModel({ wavelengthNm }, null, { layer1__thicknessNm: 100, layer1__volumeFraction: 0.4, rGain: 1, tGain: 1 }, {
+    substrateIndex: 1.5,
+    incidence: "film",
+    activeLayerId: "layer1",
+    layers: [{ id: "layer1", name: "EMA", model: "ema", ema: { method: "bruggeman", hostNk, inclusionNk } }],
+  });
+  assert.ok(evaluation.n.every((value) => Number.isFinite(value) && value > 1.5 && value < 2.5));
+  assert.ok(evaluation.k.every((value) => Number.isFinite(value) && value >= 0));
+});
+
 test("recovers a synthetic multilayer thickness with namespaced parameters", () => {
   const wavelengthNm = Array.from({ length: 41 }, (_, index) => 420 + 15 * index);
   const valid = wavelengthNm.map(() => true);

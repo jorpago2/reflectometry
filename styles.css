@@ -125,6 +125,7 @@ summary { cursor: pointer; padding: 0.7rem 0; color: var(--cyan); font-size: 0.8
 .layer-actions { display: flex; gap: 0.2rem; }
 .layer-actions button { width: 2rem; min-height: 2rem; padding: 0; border-color: var(--line); background: transparent; color: var(--cyan); }
 .layer-reference { display: grid; grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.7fr); gap: 0.6rem; align-items: center; }
+.layer-reference[hidden] { display: none; }
 .layer-reference label { margin-bottom: 0.4rem; }
 .layer-reference p { margin: 0; color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.65rem; overflow-wrap: anywhere; }
 .layer-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.55rem; }
@@ -135,6 +136,8 @@ summary { cursor: pointer; padding: 0.7rem 0; color: var(--cyan); font-size: 0.8
 .component-selector label { margin: 0; }
 .component-selector .oscillator-count { display: flex; align-items: center; gap: 0.5rem; width: 100%; color: #bdd0c9; }
 .component-selector .oscillator-count select { width: 4rem; min-height: 2rem; padding: 0.3rem 0.45rem; }
+.ema-selector > label { flex: 1 1 13rem; }
+.ema-selector > p { flex: 1 1 8rem; margin: auto 0 0; color: var(--muted); font-family: ui-monospace, monospace; font-size: 0.65rem; overflow-wrap: anywhere; }
 .layer-model-hint { margin: -0.25rem 0 0.7rem; color: var(--acid); font-size: 0.7rem; line-height: 1.45; }
 .layer-model-hint[hidden] { display: none; }
 .global-parameter-grid { display: grid; grid-template-columns: minmax(0, 1fr) 7rem; gap: 0.55rem; align-items: center; margin-bottom: 0.8rem; }

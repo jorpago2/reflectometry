@@ -20,15 +20,20 @@ const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
   scaled: MODEL_LABELS.scaled,
   constant: MODEL_LABELS.constant,
-  composite: "Tauc–Lorentz (0–5 oscillators) + optional components",
+  composite: "Independent dielectric components",
+  cauchy: MODEL_LABELS.cauchy,
+  sellmeier: MODEL_LABELS.sellmeier,
+  "forouhi-bloomer": MODEL_LABELS["forouhi-bloomer"],
+  "kk-spline": MODEL_LABELS["kk-spline"],
+  ema: MODEL_LABELS.ema,
   tl1: "Preset · Tauc–Lorentz (1 oscillator)",
   tl2: "Preset · Tauc–Lorentz (2 oscillators)",
   "tl-gaussian": "Preset · Tauc–Lorentz + Gaussian",
   cody: MODEL_LABELS.cody,
   "drude-tl": "Preset · Drude + Tauc–Lorentz",
 };
-const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude" };
-const DEFAULT_COMPONENTS = { taucLorentz: 1, gaussian: false, cody: false, drude: false };
+const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude", drudeSmith: "Drude–Smith", brendelBormann: "Brendel–Bormann", criticalPoint: "Critical point / Adachi" };
+const DEFAULT_COMPONENTS = { taucLorentz: 1, lorentz: 0, gaussian: false, cody: false, drude: false, drudeSmith: false, brendelBormann: false, criticalPoint: false };
 const CAUSAL_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -59,7 +64,20 @@ function makeLayer(preset, model, thicknessNm, nk) {
   const id = `layer${state.nextLayer++}`;
   const components = { ...DEFAULT_COMPONENTS };
   const specs = layerSpecs(model, preset, thicknessNm, nk, components);
-  return { id, name: `Layer ${state.layers.length + 1}`, preset, model, components, nk, nkSource: nk ? `${PRESET_LABELS[preset]} bundled table` : null, regularize: false, specs, specCache: { ...specs } };
+  const ema = { method: "bruggeman", hostPreset: "agst", inclusionPreset: "cgst", hostNk: null, inclusionNk: null, hostSource: null, inclusionSource: null };
+  return { id, name: `Layer ${state.layers.length + 1}`, preset, model, components, ema, nk, nkSource: nk ? `${PRESET_LABELS[preset]} bundled table` : null, regularize: false, specs, specCache: { ...specs } };
+}
+
+async function loadEmaPreset(layer, role, preset) {
+  layer.ema[`${role}Preset`] = preset;
+  if (!DEMOS[preset]) { layer.ema[`${role}Nk`] = null; layer.ema[`${role}Source`] = null; return; }
+  layer.ema[`${role}Nk`] = loadNkTable(await fetchText(`examples/${DEMOS[preset].nk}`));
+  layer.ema[`${role}Source`] = `${PRESET_LABELS[preset]} bundled table`;
+}
+
+async function ensureEmaTables(layer) {
+  if (!layer.ema.hostNk) await loadEmaPreset(layer, "host", layer.ema.hostPreset);
+  if (!layer.ema.inclusionNk) await loadEmaPreset(layer, "inclusion", layer.ema.inclusionPreset);
 }
 
 function layerSpecs(model, preset, thicknessNm, nk, components, previous = {}) {
@@ -137,24 +155,37 @@ function renderLayers() {
     header.append(order, name, actions);
     const selectors = document.createElement("div"); selectors.className = "field-pair";
     selectors.append(selectControl("Material preset", "preset", PRESET_LABELS, layer.preset), selectControl("Optical model", "model", MULTILAYER_MODEL_LABELS, layer.model));
-    const modelHint = document.createElement("p"); modelHint.className = "layer-model-hint"; modelHint.hidden = layer.model !== "composite"; modelHint.textContent = "Choose the number of Tauc–Lorentz oscillators below (0–5), then add Gaussian, Cody–Lorentz, or Drude if needed.";
+    const modelHint = document.createElement("p"); modelHint.className = "layer-model-hint"; modelHint.hidden = layer.model !== "composite"; modelHint.textContent = "Combine up to five Tauc–Lorentz and five Lorentz oscillators with independent absorption or free-carrier components.";
     const components = document.createElement("fieldset"); components.className = "component-selector"; components.hidden = layer.model !== "composite";
     const legend = document.createElement("legend"); legend.textContent = "Additive dielectric components"; components.append(legend);
-    const oscillatorControl = document.createElement("label"); oscillatorControl.className = "oscillator-count"; oscillatorControl.textContent = "Tauc–Lorentz oscillators";
-    const oscillatorCount = document.createElement("select"); oscillatorCount.dataset.field = "tl-count";
-    for (let count = 0; count <= 5; count += 1) { const option = document.createElement("option"); option.value = String(count); option.textContent = String(count); option.selected = count === layer.components.taucLorentz; oscillatorCount.append(option); }
-    oscillatorControl.append(oscillatorCount); components.append(oscillatorControl);
+    for (const [field, key, label] of [["tl-count", "taucLorentz", "Tauc–Lorentz oscillators"], ["lorentz-count", "lorentz", "Lorentz oscillators"]]) {
+      const oscillatorControl = document.createElement("label"); oscillatorControl.className = "oscillator-count"; oscillatorControl.textContent = label;
+      const oscillatorCount = document.createElement("select"); oscillatorCount.dataset.field = field;
+      for (let count = 0; count <= 5; count += 1) { const option = document.createElement("option"); option.value = String(count); option.textContent = String(count); option.selected = count === layer.components[key]; oscillatorCount.append(option); }
+      oscillatorControl.append(oscillatorCount); components.append(oscillatorControl);
+    }
     for (const [component, label] of Object.entries(COMPONENT_LABELS)) {
       const control = checkControl(label, "component", layer.components[component], false); control.querySelector("input").dataset.component = component; components.append(control);
     }
     const reference = document.createElement("div"); reference.className = "layer-reference";
+    reference.hidden = layer.model === "ema";
     const fileLabel = document.createElement("label"); fileLabel.textContent = "Layer n,k table";
     const file = document.createElement("input"); file.type = "file"; file.accept = ".txt,text/plain"; file.dataset.field = "nk-file"; fileLabel.append(file);
     const source = document.createElement("p"); source.textContent = layer.nkSource ?? "No n,k table loaded.";
     reference.append(fileLabel, source);
+    const ema = document.createElement("fieldset"); ema.className = "component-selector ema-selector"; ema.hidden = layer.model !== "ema";
+    const emaLegend = document.createElement("legend"); emaLegend.textContent = "Effective-medium constituents"; ema.append(emaLegend);
+    ema.append(selectControl("Mixing rule", "ema-method", { bruggeman: "Bruggeman (symmetric)", "maxwell-garnett": "Maxwell–Garnett (inclusions in host)" }, layer.ema.method));
+    for (const role of ["host", "inclusion"]) {
+      const presetControl = selectControl(`${role[0].toUpperCase()}${role.slice(1)} material`, `ema-${role}-preset`, PRESET_LABELS, layer.ema[`${role}Preset`]);
+      const fileControl = document.createElement("label"); fileControl.textContent = `${role[0].toUpperCase()}${role.slice(1)} n,k table`;
+      const emaFile = document.createElement("input"); emaFile.type = "file"; emaFile.accept = ".txt,text/plain"; emaFile.dataset.field = `ema-${role}-file`; fileControl.append(emaFile);
+      const emaSource = document.createElement("p"); emaSource.textContent = layer.ema[`${role}Source`] ?? "No n,k table loaded.";
+      ema.append(presetControl, fileControl, emaSource);
+    }
     const flags = document.createElement("div"); flags.className = "layer-flags";
     flags.append(checkControl("Active n,k plot", "active", state.activeLayerId === layer.id, false, "radio"));
-    flags.append(checkControl("Regularize to n,k", "regularize", layer.regularize, !layer.nk || layer.model === "fixed" || layer.model === "drude-tl"));
+    flags.append(checkControl("Regularize to n,k", "regularize", layer.regularize, !layer.nk || layer.model === "fixed" || layer.model === "drude-tl" || layer.model === "ema"));
     if (layer.nk && CAUSAL_MODELS.has(layer.model)) {
       const seed = document.createElement("button"); seed.type = "button"; seed.className = "text-button"; seed.dataset.action = "seed"; seed.textContent = "Seed model from n,k"; flags.append(seed);
     }
@@ -162,7 +193,7 @@ function renderLayers() {
     for (const text of ["Fit", "Parameter", "Value", "Min", "Max", "1σ"]) { const span = document.createElement("span"); span.textContent = text; tableHeader.append(span); }
     const table = document.createElement("div"); table.className = "parameter-table";
     for (const [parameter, specification] of Object.entries(layer.specs)) table.append(parameterRow(layer, parameter, specification));
-    card.append(header, selectors, modelHint, components, reference, flags, tableHeader, table);
+    card.append(header, selectors, modelHint, components, ema, reference, flags, tableHeader, table);
     return card;
   });
   elements.layers.replaceChildren(...cards);
@@ -204,10 +235,28 @@ async function handleLayerChange(event) {
   if (field === "active") { state.activeLayerId = layer.id; drawAll(); return; }
   if (field === "regularize") { layer.regularize = event.target.checked; return; }
   if (field === "component") {
-    captureLayerInputs(); layer.components[event.target.dataset.component] = event.target.checked; rebuildLayerSpecs(layer); renderLayers(); previewModel(); return;
+    captureLayerInputs();
+    const component = event.target.dataset.component; layer.components[component] = event.target.checked;
+    if (event.target.checked && component === "drude") layer.components.drudeSmith = false;
+    if (event.target.checked && component === "drudeSmith") layer.components.drude = false;
+    rebuildLayerSpecs(layer); renderLayers(); previewModel(); return;
   }
-  if (field === "tl-count") {
-    captureLayerInputs(); layer.components.taucLorentz = Number(event.target.value); rebuildLayerSpecs(layer); renderLayers(); previewModel(); return;
+  if (field === "tl-count" || field === "lorentz-count") {
+    captureLayerInputs(); layer.components[field === "tl-count" ? "taucLorentz" : "lorentz"] = Number(event.target.value); rebuildLayerSpecs(layer); renderLayers(); previewModel(); return;
+  }
+  if (field === "ema-method") { layer.ema.method = event.target.value; previewModel(); return; }
+  if (field === "ema-host-preset" || field === "ema-inclusion-preset") {
+    const role = field.includes("host") ? "host" : "inclusion";
+    try { captureLayerInputs(); await loadEmaPreset(layer, role, event.target.value); renderLayers(); previewModel(); } catch (error) { showError(error); }
+    return;
+  }
+  if (field === "ema-host-file" || field === "ema-inclusion-file") {
+    if (!event.target.files[0]) return;
+    const role = field.includes("host") ? "host" : "inclusion";
+    try {
+      captureLayerInputs(); layer.ema[`${role}Nk`] = loadNkTable(await event.target.files[0].text()); layer.ema[`${role}Source`] = event.target.files[0].name; layer.ema[`${role}Preset`] = "custom"; renderLayers(); previewModel();
+    } catch (error) { showError(error); }
+    return;
   }
   if (field === "nk-file") {
     if (!event.target.files[0]) return;
@@ -216,7 +265,10 @@ async function handleLayerChange(event) {
     return;
   }
   captureLayerInputs();
-  if (field === "model") { layer.model = event.target.value; layer.regularize = false; rebuildLayerSpecs(layer); renderLayers(); previewModel(); }
+  if (field === "model") {
+    try { layer.model = event.target.value; layer.regularize = false; if (layer.model === "ema") await ensureEmaTables(layer); rebuildLayerSpecs(layer); renderLayers(); previewModel(); }
+    catch (error) { showError(error); }
+  }
   if (field === "preset") {
     layer.preset = event.target.value; layer.nk = null; layer.nkSource = null; layer.regularize = false;
     try { if (DEMOS[layer.preset]) { const text = await fetchText(`examples/${DEMOS[layer.preset].nk}`); layer.nk = loadNkTable(text); layer.nkSource = `${PRESET_LABELS[layer.preset]} bundled table`; } }
@@ -275,7 +327,8 @@ function configuration() {
   if (elements["fit-t-gain"].checked && useTransmittance) fittedParameters.push("tGain");
   for (const layer of state.layers) {
     if (TABLE_MODELS.has(layer.model) && !layer.nk) throw new Error(`${layer.name}: ${MODEL_LABELS[layer.model]} requires an n,k table.`);
-    if (layer.model === "composite" && !layer.components.taucLorentz && !["gaussian", "cody", "drude"].some((name) => layer.components[name])) throw new Error(`${layer.name}: select at least one dielectric component.`);
+    if (layer.model === "composite" && !layer.components.taucLorentz && !layer.components.lorentz && !Object.keys(COMPONENT_LABELS).some((name) => layer.components[name])) throw new Error(`${layer.name}: select at least one dielectric component.`);
+    if (layer.model === "ema" && (!layer.ema.hostNk || !layer.ema.inclusionNk)) throw new Error(`${layer.name}: load both EMA constituent n,k tables.`);
     for (const [name, specification] of Object.entries(layer.specs)) {
       const key = `${layer.id}__${name}`; const { value, minimum, maximum } = specification;
       if (![value, minimum, maximum].every(Number.isFinite) || minimum >= maximum || value < minimum || value > maximum) throw new Error(`${layer.name}: ${specification.label} must have a finite value inside valid bounds.`);
@@ -284,7 +337,7 @@ function configuration() {
   }
   if (fittedParameters.length > 11) throw new Error(`Select at most 11 fitted parameters; ${fittedParameters.length} are selected.`);
   const settings = {
-    layers: state.layers.map(({ id, name, preset, model, components, nk, regularize }) => ({ id, name, preset, model, components, nk, regularize })),
+    layers: state.layers.map(({ id, name, preset, model, components, ema, nk, regularize }) => ({ id, name, preset, model, components, ema, nk, regularize })),
     activeLayerId: state.activeLayerId,
     substrateIndex: numberValue("substrate-index", 1.001, 5), incidence: elements.incidence.value,
     useReflectance, useTransmittance,
@@ -303,6 +356,10 @@ function prepareCurrentData() {
     sampleSnrMinimum: numberValue("sample-snr", 0, 100), subtractBackground: elements["subtract-background"].checked,
   });
   for (const layer of state.layers.filter((candidate) => TABLE_MODELS.has(candidate.model))) data = restrictToNkRange(data, layer.nk);
+  for (const layer of state.layers.filter((candidate) => candidate.model === "ema")) {
+    data = restrictToNkRange(data, layer.ema.hostNk);
+    data = restrictToNkRange(data, layer.ema.inclusionNk);
+  }
   state.fitData = data; return data;
 }
 
@@ -404,8 +461,8 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-multilayer-fit/v2", application: { name: "Reflectometry Multilayer", version: "1.2.1", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
-    stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, materialPreset: layer.preset, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
+    schema: "reflectometry-browser-multilayer-fit/v3", application: { name: "Reflectometry Multilayer", version: "2.0.0", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
+    stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, materialPreset: layer.preset, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostPreset: layer.ema.hostPreset, hostSource: layer.ema.hostSource, inclusionPreset: layer.ema.inclusionPreset, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: Number(elements["substrate-index"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
     assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "optically thick substrate with incoherent rear returns", "constant real substrate refractive index"],
