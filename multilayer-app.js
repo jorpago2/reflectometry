@@ -45,7 +45,7 @@ elements["add-layer"].addEventListener("click", () => {
 });
 elements.layers.addEventListener("change", handleLayerChange);
 elements.layers.addEventListener("click", handleLayerClick);
-for (const id of ["substrate-index", "incidence"]) elements[id].addEventListener("change", renderStackDiagram);
+for (const id of ["substrate-index", "substrate-extinction", "substrate-thickness", "incidence"]) elements[id].addEventListener("change", renderStackDiagram);
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
 elements["download-json"].addEventListener("click", downloadJson);
@@ -85,7 +85,7 @@ function loadSyntheticExample() {
     layer.name = "Generic layer";
     state.layers = [layer];
     state.activeLayerId = layer.id;
-    state.source = { sampleName: "Synthetic stack", type: "deterministic browser-generated example", truth: { layers: [{ thicknessNm: 150, n: 2, k: 0.05 }], substrateIndex: 1.46 } };
+    state.source = { sampleName: "Synthetic stack", type: "deterministic browser-generated example", truth: { layers: [{ thicknessNm: 150, n: 2, k: 0.05 }], substrate: { n: 1.46, k: 0, thicknessNm: 1e6 } } };
     elements["source-name"].textContent = "Synthetic stack · generated locally";
     elements["use-t"].checked = true;
     renderLayers();
@@ -192,7 +192,7 @@ function renderStackDiagram() {
     item.append(order, identity, thickness); layers.push(item);
   }
   elements["stack-layers"].replaceChildren(...layers);
-  elements["stack-substrate-index"].textContent = `optically thick · n = ${format(Number(elements["substrate-index"].value), 3)}`;
+  elements["stack-substrate-index"].textContent = `N = ${format(Number(elements["substrate-index"].value), 3)} + ${format(Number(elements["substrate-extinction"].value), 3)}i · ${format(Number(elements["substrate-thickness"].value), 3)} µm`;
 }
 
 function selectControl(labelText, field, choices, value) {
@@ -322,7 +322,7 @@ function configuration() {
   const settings = {
     layers: state.layers.map(({ id, name, model, components, ema, nk, regularize }) => ({ id, name, model, components, ema, nk, regularize })),
     activeLayerId: state.activeLayerId,
-    substrateIndex: numberValue("substrate-index", 1.001, 5), incidence: elements.incidence.value,
+    substrateIndex: numberValue("substrate-index", 0.001, 20), substrateExtinction: numberValue("substrate-extinction", 0, 100), substrateThicknessNm: 1000 * numberValue("substrate-thickness", 10, 1e6), incidence: elements.incidence.value,
     useReflectance, useTransmittance,
     sigmaReflectance: numberValue("sigma-r", 0.0001, 1), sigmaTransmittance: numberValue("sigma-t", 0.0001, 1),
     sigmaN: numberValue("sigma-n", 0.0001, 10), sigmaK: numberValue("sigma-k", 0.0001, 10),
@@ -444,11 +444,11 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-fit/v4", application: { name: "Reflectometry", version: "3.2.2", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.3.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
-    substrate: { refractiveIndex: Number(elements["substrate-index"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
+    substrate: { refractiveIndex: { n: Number(elements["substrate-index"].value), k: Number(elements["substrate-extinction"].value) }, thicknessNm: 1000 * Number(elements["substrate-thickness"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
-    assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "optically thick substrate with incoherent rear returns", "constant real substrate refractive index"],
+    assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "finite phase-incoherent substrate", "uniform complex substrate index", "Beer–Lambert substrate attenuation", "incoherent rear-surface returns"],
   };
 }
 

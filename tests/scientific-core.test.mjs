@@ -52,6 +52,25 @@ test("multilayer TMM reproduces the single-film solver and conserves lossless po
   assert.ok(Number.isFinite(opaque.reflectance[0]) && Number.isFinite(opaque.transmittance[0]));
 });
 
+test("complex substrates include incoherent Beer–Lambert absorption", () => {
+  const wavelengthNm = [500, 700];
+  const airLayer = [{ n: [1, 1], k: [0, 0], thicknessNm: 100 }];
+  const thin = filmStackOnThickSubstrate(wavelengthNm, airLayer, 1.5, "film", 0.1, 1e4);
+  const thick = filmStackOnThickSubstrate(wavelengthNm, airLayer, 1.5, "film", 0.1, 1e7);
+  const fresnelReflectance = ((1 - 1.5) ** 2 + 0.1 ** 2) / ((1 + 1.5) ** 2 + 0.1 ** 2);
+  assert.ok(thick.transmittance.every((value, index) => value < thin.transmittance[index]));
+  assertArrayClose(thick.reflectance, wavelengthNm.map(() => fresnelReflectance), 2e-15);
+  const transparentThin = filmStackOnThickSubstrate(wavelengthNm, airLayer, 1.5, "film", 0, 1e4);
+  const transparentThick = filmStackOnThickSubstrate(wavelengthNm, airLayer, 1.5, "film", 0, 1e6);
+  assertArrayClose(transparentThin.reflectance, transparentThick.reflectance, 2e-15);
+  assertArrayClose(transparentThin.transmittance, transparentThick.transmittance, 2e-15);
+  for (const incidence of ["film", "substrate"]) {
+    const optical = filmStackOnThickSubstrate(wavelengthNm, airLayer, 1.5, incidence, 0.1, 1e4);
+    optical.reflectance.forEach((value, index) => assert.ok(value >= 0 && optical.transmittance[index] >= 0 && value + optical.transmittance[index] <= 1 + 1e-12));
+  }
+  assert.throws(() => filmStackOnThickSubstrate(wavelengthNm, airLayer, 1.5, "film", 0.1, 1000), /at least ten wavelengths/);
+});
+
 test("evaluates independently parameterized layers", () => {
   const wavelengthNm = [450, 550, 650];
   const data = { wavelengthNm };

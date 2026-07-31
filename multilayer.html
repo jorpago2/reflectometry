@@ -6,7 +6,7 @@
   <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer.">
   <meta name="theme-color" content="#f3f0e8">
   <title>Reflectometry · Generic multilayer fitting</title>
-  <link rel="stylesheet" href="styles.css?v=3.2.2">
+  <link rel="stylesheet" href="styles.css?v=3.3.0">
 </head>
 <body>
   <header class="masthead">
@@ -30,7 +30,7 @@
         <dl class="profile">
           <div><dt>STACK</dt><dd>Up to 12 coherent layers</dd></div>
           <div><dt>GEOMETRY</dt><dd>Normal incidence</dd></div>
-          <div><dt>SUBSTRATE</dt><dd>Optically thick</dd></div>
+          <div><dt>SUBSTRATE</dt><dd>Finite, incoherent n + ik</dd></div>
         </dl>
       </div>
     </section>
@@ -66,9 +66,11 @@
 
         <section class="control-section">
           <div class="section-heading"><span>02</span><h2>Layer stack</h2></div>
-          <p class="model-note">Order: incident medium at the top, substrate at the bottom. Every layer is homogeneous, isotropic, and coherent.</p>
+          <p class="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Substrate thickness must be at least 10× the maximum fitted wavelength.</p>
           <div class="field-pair compact-pair">
-            <label>Substrate index<input id="substrate-index" type="number" value="1.46" min="1.001" max="5" step="0.01"></label>
+            <label>Substrate n<input id="substrate-index" type="number" value="1.46" min="0.001" max="20" step="0.01"></label>
+            <label>Substrate k<input id="substrate-extinction" type="number" value="0" min="0" max="100" step="0.001"></label>
+            <label>Substrate thickness <span>µm</span><input id="substrate-thickness" type="number" value="1000" min="10" max="1000000" step="1"></label>
             <label>Incidence<select id="incidence"><option value="film">Stack side</option><option value="substrate">Substrate side</option></select></label>
           </div>
           <div id="layers" class="layer-list"></div>
@@ -139,11 +141,11 @@
         <section class="plot-card"><div class="plot-heading"><div><p>MEASUREMENT / MODEL</p><h2>Reflectance and transmittance</h2></div><div class="legend"><span class="r-data">R data</span><span class="r-model">R model</span><span class="t-data">T data</span><span class="t-model">T model</span></div></div><canvas id="rt-chart" role="img" aria-label="Reflectance and transmittance spectra"></canvas></section>
         <section class="plot-card"><div class="plot-heading"><div><p>MODEL − DATA</p><h2>Spectral residuals</h2></div></div><canvas id="residual-chart" role="img" aria-label="Spectral residuals"></canvas></section>
         <section class="plot-card"><div class="plot-heading"><div><p id="nk-layer-label">ACTIVE LAYER</p><h2>Complex refractive index</h2></div><div class="legend"><span class="n-line">n</span><span class="k-line">k</span></div></div><canvas id="nk-chart" role="img" aria-label="Active-layer refractive index"></canvas></section>
-        <section class="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic layers; coherent propagation inside the stack; optically thick substrate with incoherent rear-surface returns; constant real substrate index. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Surface roughness, gradients, anisotropy, scattering, oblique incidence, and finite substrate absorption are not included.</p></details></section>
+        <section class="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent substrate with uniform n + ik, Beer–Lambert attenuation, and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Surface roughness, gradients, anisotropy, scattering, oblique incidence, and substrate-index dispersion are not included.</p></details></section>
       </section>
     </div>
   </main>
-  <footer><span>Reflectometry · v3.2.2</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
-  <script type="module" src="multilayer-app.js?v=3.2.2"></script>
+  <footer><span>Reflectometry · v3.3.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js?v=3.3.0"></script>
 </body>
 </html>

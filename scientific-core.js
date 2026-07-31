@@ -222,6 +222,8 @@ export function evaluateOpticalModel(data, nk, parameters, settings) {
     parameters.thicknessNm,
     settings.substrateIndex,
     settings.incidence,
+    settings.substrateExtinction ?? 0,
+    settings.substrateThicknessNm ?? 1e6,
   );
   return {
     ...optical,
@@ -240,7 +242,7 @@ function evaluateMultilayerModel(data, parameters, settings) {
     const index = refractiveIndexModel(layer.model, data.wavelengthNm, layerParameters, layer.nk ?? null, { components: layer.components, ema: layer.ema });
     return { id: layer.id, name: layer.name, model: layer.model, thicknessNm: layerParameters.thicknessNm, n: index.n, k: index.k };
   });
-  const optical = filmStackOnThickSubstrate(data.wavelengthNm, layerIndices, settings.substrateIndex, settings.incidence);
+  const optical = filmStackOnThickSubstrate(data.wavelengthNm, layerIndices, settings.substrateIndex, settings.incidence, settings.substrateExtinction ?? 0, settings.substrateThicknessNm ?? 1e6);
   const active = layerIndices.find((layer) => layer.id === settings.activeLayerId) ?? layerIndices[0];
   return {
     ...optical,
@@ -267,59 +269,43 @@ function validateModelInputs(parameters, settings) {
       if (!(parameters[`${layer.id}__thicknessNm`] > 0)) throw new Error(`Layer ${layer.name} must have a positive thickness.`);
     }
   } else if (!(parameters.thicknessNm > 0)) throw new Error("Film thickness must be positive.");
-  if (settings.substrateIndex <= 1) throw new Error("The substrate refractive index must be greater than 1.");
+  if (!(settings.substrateIndex > 0) || !((settings.substrateExtinction ?? 0) >= 0) || !((settings.substrateThicknessNm ?? 1e6) > 0)) throw new Error("The substrate must have n > 0, k ≥ 0, and positive thickness.");
   if (!new Set(["film", "substrate"]).has(settings.incidence)) throw new Error("Unsupported incidence geometry.");
 }
 
-export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateIndex, incidence = "film") {
-  if (!(thicknessNm > 0) || !(substrateIndex > 1) || wavelengthNm.length !== n.length || n.length !== k.length) {
-    throw new Error("Invalid TMM grid or parameters.");
-  }
-  const rearReflectance = ((substrateIndex - 1) / (substrateIndex + 1)) ** 2;
-  const rearTransmittance = 1 - rearReflectance;
-  const reflectance = [];
-  const transmittance = [];
-  for (let index = 0; index < wavelengthNm.length; index += 1) {
-    if (incidence === "film") {
-      const forward = coherentSingleFilm(wavelengthNm[index], n[index], k[index], thicknessNm, 1, substrateIndex);
-      const reverse = coherentSingleFilm(wavelengthNm[index], n[index], k[index], thicknessNm, substrateIndex, 1);
-      const denominator = 1 - rearReflectance * reverse.reflectance;
-      reflectance.push(forward.reflectance + forward.transmittance * reverse.transmittance * rearReflectance / denominator);
-      transmittance.push(forward.transmittance * rearTransmittance / denominator);
-    } else {
-      const stack = coherentSingleFilm(wavelengthNm[index], n[index], k[index], thicknessNm, substrateIndex, 1);
-      const denominator = 1 - rearReflectance * stack.reflectance;
-      reflectance.push(rearReflectance + rearTransmittance ** 2 * stack.reflectance / denominator);
-      transmittance.push(rearTransmittance * stack.transmittance / denominator);
-    }
-  }
-  return { reflectance, transmittance };
+export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateIndex, incidence = "film", substrateExtinction = 0, substrateThicknessNm = 1e6) {
+  return filmStackOnThickSubstrate(wavelengthNm, [{ n, k, thicknessNm }], substrateIndex, incidence, substrateExtinction, substrateThicknessNm);
 }
 
-export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, incidence = "film") {
-  if (!Array.isArray(layers) || !layers.length || layers.length > 12 || !(substrateIndex > 1) || !new Set(["film", "substrate"]).has(incidence)) {
+export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, incidence = "film", substrateExtinction = 0, substrateThicknessNm = 1e6) {
+  if (!Array.isArray(layers) || !layers.length || layers.length > 12 || !(substrateIndex > 0) || !(substrateExtinction >= 0) || !(substrateThicknessNm > 0) || !new Set(["film", "substrate"]).has(incidence)) {
     throw new Error("Invalid multilayer TMM stack or substrate.");
   }
+  if (!wavelengthNm.length || wavelengthNm.some((value) => !(value > 0)) || substrateThicknessNm < 10 * Math.max(...wavelengthNm)) throw new Error("The phase-incoherent substrate thickness must be at least ten wavelengths.");
   for (const layer of layers) {
     if (!(layer.thicknessNm > 0) || layer.n.length !== wavelengthNm.length || layer.k.length !== wavelengthNm.length) throw new Error("Every layer must define positive thickness and n,k on the calculation grid.");
   }
-  const rearReflectance = ((substrateIndex - 1) / (substrateIndex + 1)) ** 2;
-  const rearTransmittance = 1 - rearReflectance;
+  const air = { re: 1, im: 0 };
+  const substrate = { re: substrateIndex, im: substrateExtinction };
+  const rear = interfacePower(substrate, air);
+  const entrance = interfacePower(air, substrate);
   const reflectance = [];
   const transmittance = [];
   for (let index = 0; index < wavelengthNm.length; index += 1) {
     const slice = layers.map((layer) => ({ n: layer.n[index], k: layer.k[index], thicknessNm: layer.thicknessNm }));
+    const attenuation = Math.exp(-4 * Math.PI * substrateExtinction * substrateThicknessNm / wavelengthNm[index]);
+    const roundTripAttenuation = attenuation ** 2;
     if (incidence === "film") {
-      const forward = coherentFilmStack(wavelengthNm[index], slice, 1, substrateIndex);
-      const reverse = coherentFilmStack(wavelengthNm[index], [...slice].reverse(), substrateIndex, 1);
-      const denominator = 1 - rearReflectance * reverse.reflectance;
-      reflectance.push(forward.reflectance + forward.transmittance * reverse.transmittance * rearReflectance / denominator);
-      transmittance.push(forward.transmittance * rearTransmittance / denominator);
+      const forward = coherentFilmStack(wavelengthNm[index], slice, air, substrate);
+      const reverse = coherentFilmStack(wavelengthNm[index], [...slice].reverse(), substrate, air);
+      const denominator = 1 - rear.reflectance * reverse.reflectance * roundTripAttenuation;
+      reflectance.push(forward.reflectance + forward.transmittance * reverse.transmittance * rear.reflectance * roundTripAttenuation / denominator);
+      transmittance.push(forward.transmittance * attenuation * rear.transmittance / denominator);
     } else {
-      const stack = coherentFilmStack(wavelengthNm[index], [...slice].reverse(), substrateIndex, 1);
-      const denominator = 1 - rearReflectance * stack.reflectance;
-      reflectance.push(rearReflectance + rearTransmittance ** 2 * stack.reflectance / denominator);
-      transmittance.push(rearTransmittance * stack.transmittance / denominator);
+      const stack = coherentFilmStack(wavelengthNm[index], [...slice].reverse(), substrate, air);
+      const denominator = 1 - rear.reflectance * stack.reflectance * roundTripAttenuation;
+      reflectance.push(entrance.reflectance + entrance.transmittance * rear.transmittance * stack.reflectance * roundTripAttenuation / denominator);
+      transmittance.push(entrance.transmittance * attenuation * stack.transmittance / denominator);
     }
   }
   return { reflectance, transmittance };
@@ -327,7 +313,7 @@ export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, 
 
 export function calibrateSharedGains(records, settings) {
   if (!Array.isArray(records) || !records.length) throw new Error("Shared calibration requires sample records with n,k tables.");
-  if (!(settings.substrateIndex > 1) || !new Set(["film", "substrate"]).has(settings.incidence) || !(settings.sigmaReflectance > 0) || !(settings.sigmaTransmittance > 0)) throw new Error("Shared calibration settings are invalid.");
+  if (!(settings.substrateIndex > 0) || !((settings.substrateExtinction ?? 0) >= 0) || !((settings.substrateThicknessNm ?? 1e6) > 0) || !new Set(["film", "substrate"]).has(settings.incidence) || !(settings.sigmaReflectance > 0) || !(settings.sigmaTransmittance > 0)) throw new Error("Shared calibration settings are invalid.");
   const usable = records.map((record) => ({
     ...record,
     useReflectance: record.data.reflectanceValid.filter(Boolean).length >= 0.5 * record.data.wavelengthNm.length,
@@ -396,33 +382,12 @@ export function calibrateSharedGains(records, settings) {
   };
 }
 
-function coherentSingleFilm(wavelengthNm, n, k, thicknessNm, incidentIndex, exitIndex) {
-  if (!(wavelengthNm > 0) || !(n > 0) || k < 0) throw new Error("Non-physical wavelength or complex refractive index.");
-  const film = { re: n, im: k };
-  const phase = complexScale(film, 2 * Math.PI * thicknessNm / wavelengthNm);
-  const propagation = complexExpI(complexScale(phase, 2));
-  const r01 = complexDiv(complexSub({ re: incidentIndex, im: 0 }, film), complexAdd({ re: incidentIndex, im: 0 }, film));
-  const r12 = complexDiv(complexSub(film, { re: exitIndex, im: 0 }), complexAdd(film, { re: exitIndex, im: 0 }));
-  const denominator = complexAdd({ re: 1, im: 0 }, complexMul(complexMul(r01, r12), propagation));
-  const reflectionAmplitude = complexDiv(complexAdd(r01, complexMul(r12, propagation)), denominator);
-  const numerator = complexScale(complexMul(film, complexExpI(phase)), 4 * incidentIndex);
-  const transmissionDenominator = complexMul(
-    complexMul(complexAdd({ re: incidentIndex, im: 0 }, film), complexAdd(film, { re: exitIndex, im: 0 })),
-    denominator,
-  );
-  const transmissionAmplitude = complexDiv(numerator, transmissionDenominator);
-  return {
-    reflectance: complexAbs2(reflectionAmplitude),
-    transmittance: (exitIndex / incidentIndex) * complexAbs2(transmissionAmplitude),
-  };
-}
-
 function coherentFilmStack(wavelengthNm, layers, incidentIndex, exitIndex) {
-  if (!(wavelengthNm > 0) || !(incidentIndex > 0) || !(exitIndex > 0)) throw new Error("Non-physical multilayer boundary conditions.");
+  if (!(wavelengthNm > 0) || !(incidentIndex.re > 0) || incidentIndex.im < 0 || !(exitIndex.re > 0) || exitIndex.im < 0) throw new Error("Non-physical multilayer boundary conditions.");
   for (const layer of layers) {
     if (!(layer.n > 0) || layer.k < 0 || !(layer.thicknessNm > 0)) throw new Error("Non-physical multilayer optical constants.");
   }
-  const media = [{ re: incidentIndex, im: 0 }, ...layers.map((layer) => ({ re: layer.n, im: layer.k })), { re: exitIndex, im: 0 }];
+  const media = [incidentIndex, ...layers.map((layer) => ({ re: layer.n, im: layer.k })), exitIndex];
   const last = media.length - 2;
   let reflectionAmplitude = fresnelReflection(media[last], media[last + 1]);
   let transmissionAmplitude = fresnelTransmission(media[last], media[last + 1]);
@@ -436,12 +401,18 @@ function coherentFilmStack(wavelengthNm, layers, incidentIndex, exitIndex) {
   }
   return {
     reflectance: complexAbs2(reflectionAmplitude),
-    transmittance: (exitIndex / incidentIndex) * complexAbs2(transmissionAmplitude),
+    transmittance: (exitIndex.re / incidentIndex.re) * complexAbs2(transmissionAmplitude),
   };
 }
 
 function fresnelReflection(left, right) { return complexDiv(complexSub(left, right), complexAdd(left, right)); }
 function fresnelTransmission(left, right) { return complexDiv(complexScale(left, 2), complexAdd(left, right)); }
+function interfacePower(left, right) {
+  return {
+    reflectance: complexAbs2(fresnelReflection(left, right)),
+    transmittance: (right.re / left.re) * complexAbs2(fresnelTransmission(left, right)),
+  };
+}
 
 function complexAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
 function complexSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }

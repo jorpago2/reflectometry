@@ -1,6 +1,6 @@
 # Reflectometry
 
-Material-agnostic static browser tool for calibrated reflectance/transmittance fitting of coherent multilayer stacks on an optically thick substrate.
+Material-agnostic static browser tool for calibrated reflectance/transmittance fitting of coherent multilayer stacks on a finite phase-incoherent substrate.
 
 ## Run locally
 
@@ -18,7 +18,7 @@ Open `http://localhost:4173`; it redirects to the only application, the generic 
 - Fixed, independently scaled, constant, Cauchy–Urbach, Sellmeier, Forouhi–Bloomer, and five-knot Kramers–Kronig B-spline models.
 - Independent additive dielectric components: 0–5 Tauc–Lorentz and 0–5 Lorentz oscillators plus Gaussian, Cody–Lorentz, Drude, Drude–Smith, Brendel–Bormann, and critical-point terms.
 - Bruggeman and Maxwell–Garnett effective-medium models using two user-supplied n,k tables.
-- Coherent transfer-matrix solver with incoherent rear-surface substrate returns and either-side illumination.
+- Coherent transfer-matrix solver with a uniform complex substrate index, Beer–Lambert substrate absorption, incoherent rear-surface returns, and either-side illumination.
 - Optional affine spectral-shape residuals and n,k regularization.
 - Scrambled Sobol screening followed by bounded robust trust-region reflective refinement in a Web Worker.
 - Local identifiability, approximate uncertainty, bound, convergence, alternative-minimum, and energy-balance diagnostics.
