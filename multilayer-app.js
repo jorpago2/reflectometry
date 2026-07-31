@@ -20,15 +20,9 @@ const MULTILAYER_MODEL_LABELS = {
   "forouhi-bloomer": MODEL_LABELS["forouhi-bloomer"],
   "kk-spline": MODEL_LABELS["kk-spline"],
   ema: MODEL_LABELS.ema,
-  tl1: MODEL_LABELS.tl1,
-  tl2: MODEL_LABELS.tl2,
-  "tl-gaussian": MODEL_LABELS["tl-gaussian"],
-  cody: MODEL_LABELS.cody,
-  "drude-tl": MODEL_LABELS["drude-tl"],
 };
 const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude", drudeSmith: "Drude–Smith", brendelBormann: "Brendel–Bormann", criticalPoint: "Critical point / Adachi" };
 const DEFAULT_COMPONENTS = { taucLorentz: 1, lorentz: 0, gaussian: false, cody: false, drude: false, drudeSmith: false, brendelBormann: false, criticalPoint: false };
-const CAUSAL_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { spectrum: null, fitData: null, evaluation: null, fitResult: null, source: null, layers: [], activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null };
@@ -161,9 +155,6 @@ function renderLayers() {
     const flags = document.createElement("div"); flags.className = "layer-flags";
     flags.append(checkControl("Active n,k plot", "active", state.activeLayerId === layer.id, false, "radio"));
     flags.append(checkControl("Regularize to n,k", "regularize", layer.regularize, !layer.nk || layer.model === "fixed" || layer.model === "ema"));
-    if (layer.nk && CAUSAL_MODELS.has(layer.model)) {
-      const seed = document.createElement("button"); seed.type = "button"; seed.className = "text-button"; seed.dataset.action = "seed"; seed.textContent = "Seed model from n,k"; flags.append(seed);
-    }
     const tableHeader = document.createElement("div"); tableHeader.className = "parameter-header";
     for (const text of ["Fit", "Parameter", "Value", "Min", "Max", "1σ"]) { const span = document.createElement("span"); span.textContent = text; tableHeader.append(span); }
     const table = document.createElement("div"); table.className = "parameter-table";
@@ -331,24 +322,6 @@ function handleLayerClick(event) {
   captureLayerInputs();
   if (button.dataset.action === "remove") { const [removed] = state.layers.splice(index, 1); if (state.activeLayerId === removed.id) state.activeLayerId = state.layers[Math.max(0, index - 1)].id; renderLayers(); previewModel(); }
   if (button.dataset.action === "up" || button.dataset.action === "down") { const target = index + (button.dataset.action === "up" ? -1 : 1); [state.layers[index], state.layers[target]] = [state.layers[target], state.layers[index]]; renderLayers(); previewModel(); }
-  if (button.dataset.action === "seed") seedLayer(state.layers[index]);
-}
-
-async function seedLayer(layer) {
-  if (!layer.nk || !CAUSAL_MODELS.has(layer.model)) return;
-  setBusy(true, `Seeding ${layer.name} from its n,k table…`);
-  const worker = new Worker(new URL("./fit-worker.js", import.meta.url), { type: "module" });
-  try {
-    const result = await new Promise((resolve, reject) => {
-      worker.addEventListener("message", ({ data }) => data.type === "seed-result" ? resolve(data.result) : data.type === "error" && reject(new Error(data.message)));
-      worker.addEventListener("error", (event) => reject(new Error(event.message)));
-      worker.postMessage({ operation: "ellipsometry-seed", nk: layer.nk, model: layer.model, specifications: layer.specs });
-    });
-    for (const [name, value] of Object.entries(result.parameters)) if (layer.specs[name]) layer.specs[name].value = value;
-    renderLayers(); previewModel();
-    setStatus(`${layer.name} seeded from n,k: RMSE(n/k) ${format(result.diagnostics.rmseDeltaN, 4)} / ${format(result.diagnostics.rmseDeltaK, 4)}.`);
-  } catch (error) { showError(error); }
-  finally { worker.terminate(); setBusy(false); }
 }
 
 function captureLayerInputs() {
@@ -508,7 +481,7 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.4.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-fit/v5", application: { name: "Reflectometry", version: "3.5.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, effectiveMedium: layer.model === "ema" ? { method: layer.ema.method, hostSource: layer.ema.hostSource, inclusionSource: layer.ema.inclusionSource } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: { n: Number(elements["substrate-index"].value), k: Number(elements["substrate-extinction"].value) }, thicknessNm: 1000 * Number(elements["substrate-thickness"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
