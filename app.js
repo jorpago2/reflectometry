@@ -838,7 +838,7 @@ function exportPayload() {
   const reference = modelReferenceMetadata(elements.model.value, state.sampleId);
   return {
     schema: "reflectometry-browser-fit/v1",
-    application: { name: "Reflectometry", version: "1.2.0", url: "https://jorpago2.github.io/reflectometry/" },
+    application: { name: "Reflectometry", version: "1.2.1", url: "https://jorpago2.github.io/reflectometry/" },
     generatedAt: new Date().toISOString(),
     source: state.source,
     calibration: {

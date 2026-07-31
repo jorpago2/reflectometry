@@ -16,6 +16,17 @@ const DEMOS = {
   vo2: { label: "VO₂", thickness: 150, sampleR: "vo2-ref.txt", sampleT: "vo2-tr.txt", nk: "VO2_22C.txt" },
 };
 const PRESET_LABELS = { custom: "Custom", agst: "aGST", cgst: "cGST", asb2sb3: "aSb₂Se₃", csb2sb3: "cSb₂Se₃", vo2: "VO₂" };
+const MULTILAYER_MODEL_LABELS = {
+  fixed: MODEL_LABELS.fixed,
+  scaled: MODEL_LABELS.scaled,
+  constant: MODEL_LABELS.constant,
+  composite: "Tauc–Lorentz (0–5 oscillators) + optional components",
+  tl1: "Preset · Tauc–Lorentz (1 oscillator)",
+  tl2: "Preset · Tauc–Lorentz (2 oscillators)",
+  "tl-gaussian": "Preset · Tauc–Lorentz + Gaussian",
+  cody: MODEL_LABELS.cody,
+  "drude-tl": "Preset · Drude + Tauc–Lorentz",
+};
 const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude" };
 const DEFAULT_COMPONENTS = { taucLorentz: 1, gaussian: false, cody: false, drude: false };
 const CAUSAL_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
@@ -125,7 +136,8 @@ function renderLayers() {
     }
     header.append(order, name, actions);
     const selectors = document.createElement("div"); selectors.className = "field-pair";
-    selectors.append(selectControl("Material preset", "preset", PRESET_LABELS, layer.preset), selectControl("Optical model", "model", MODEL_LABELS, layer.model));
+    selectors.append(selectControl("Material preset", "preset", PRESET_LABELS, layer.preset), selectControl("Optical model", "model", MULTILAYER_MODEL_LABELS, layer.model));
+    const modelHint = document.createElement("p"); modelHint.className = "layer-model-hint"; modelHint.hidden = layer.model !== "composite"; modelHint.textContent = "Choose the number of Tauc–Lorentz oscillators below (0–5), then add Gaussian, Cody–Lorentz, or Drude if needed.";
     const components = document.createElement("fieldset"); components.className = "component-selector"; components.hidden = layer.model !== "composite";
     const legend = document.createElement("legend"); legend.textContent = "Additive dielectric components"; components.append(legend);
     const oscillatorControl = document.createElement("label"); oscillatorControl.className = "oscillator-count"; oscillatorControl.textContent = "Tauc–Lorentz oscillators";
@@ -150,7 +162,7 @@ function renderLayers() {
     for (const text of ["Fit", "Parameter", "Value", "Min", "Max", "1σ"]) { const span = document.createElement("span"); span.textContent = text; tableHeader.append(span); }
     const table = document.createElement("div"); table.className = "parameter-table";
     for (const [parameter, specification] of Object.entries(layer.specs)) table.append(parameterRow(layer, parameter, specification));
-    card.append(header, selectors, components, reference, flags, tableHeader, table);
+    card.append(header, selectors, modelHint, components, reference, flags, tableHeader, table);
     return card;
   });
   elements.layers.replaceChildren(...cards);
@@ -392,7 +404,7 @@ function drawChart(canvas, x, series, options) {
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   return {
-    schema: "reflectometry-browser-multilayer-fit/v2", application: { name: "Reflectometry Multilayer", version: "1.2.0", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
+    schema: "reflectometry-browser-multilayer-fit/v2", application: { name: "Reflectometry Multilayer", version: "1.2.1", url: "https://jorpago2.github.io/reflectometry/multilayer.html" }, generatedAt: new Date().toISOString(), source: state.source,
     stack: state.layers.map((layer) => ({ id: layer.id, name: layer.name, materialPreset: layer.preset, opticalModel: layer.model, dielectricComponents: layer.model === "composite" ? { ...layer.components } : null, nkSource: layer.nkSource, regularizedToNk: layer.regularize, parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])) })),
     substrate: { refractiveIndex: Number(elements["substrate-index"].value), incidence: elements.incidence.value }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
