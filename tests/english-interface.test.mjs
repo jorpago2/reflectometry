@@ -3,11 +3,16 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("ships one English-only material-agnostic multilayer interface", async () => {
-  const files = await Promise.all(["index.html", "multilayer.html", "multilayer-app.js", "model-help.js", "scientific-core.js", "dielectric-models.js"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
-  const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  const files = await Promise.all(["index.html", "src/App.tsx", "src/multilayer-app.ts", "src/model-help.ts", "src/scientific-core.ts", "src/dielectric-models.ts"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
+  const main = await readFile(new URL("../src/main.tsx", import.meta.url), "utf8");
+  const vite = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
   const combined = files.join("\n");
   assert.match(files[0], /<html lang="en">/);
-  assert.match(files[0], /url=multilayer\.html/);
+  assert.match(files[0], /src="\/src\/main\.tsx"/);
+  assert.match(main, /createRoot/);
+  assert.match(files[1], /useEffect/);
+  assert.match(vite, /base: "\/reflectometry\/"/);
   assert.match(files[1], /Build the stack/);
   assert.match(files[1], /id="reset-example"/);
   assert.match(files[1], /id="saved-fit-file"/);
@@ -20,9 +25,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /LAYERS N,K/);
   for (const id of ["undo-button", "redo-button", "bootstrap-button", "print-report", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
   for (const id of ["rt-chart", "residual-chart", "nk-chart"]) {
-    assert.match(files[1], new RegExp(`id="${id}"[^>]*tabindex="0"`));
-    assert.match(files[1], new RegExp(`data-reset-chart="${id}"`));
+    assert.match(files[1], new RegExp(`canvasId="${id}"`));
   }
+  assert.match(files[1], /data-reset-chart=\{canvasId\}/);
   assert.match(files[2], /Independent dielectric components/);
   assert.match(files[2], /function renderStackDiagram/);
   assert.match(files[2], /Tauc–Lorentz oscillators/);

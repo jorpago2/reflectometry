@@ -6,10 +6,10 @@ import {
   loadNkTable,
   prepareFitData,
   restrictToNkRange,
-} from "./scientific-core.js";
-import { MODEL_LABELS, modelParameterSpecs } from "./dielectric-models.js";
-import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./model-help.js";
-import { parseSavedFit, SAVED_FIT_SCHEMA } from "./saved-fit.js";
+} from "./scientific-core.ts";
+import { MODEL_LABELS, modelParameterSpecs } from "./dielectric-models.ts";
+import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./model-help.ts";
+import { parseSavedFit, SAVED_FIT_SCHEMA } from "./saved-fit.ts";
 
 const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
@@ -26,9 +26,9 @@ const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: 
 const DEFAULT_COMPONENTS = { taucLorentz: 1, lorentz: 0, gaussian: false, cody: false, drude: false, drudeSmith: false, brendelBormann: false, criticalPoint: false };
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const SAVED_CONTROL_IDS = ["wavelength-min", "wavelength-max", "reference-threshold", "bin-width", "sample-snr", "subtract-background", "use-r", "use-t", "prefer-shape", "sigma-r", "sigma-t", "sigma-n", "sigma-k", "fit-r-gain", "fit-t-gain", "r-gain", "t-gain", "screening-points", "local-refinements", "bootstrap-samples"];
-const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { spectrum: null, fitData: null, evaluation: null, fitResult: null, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
-const chartStates = new Map();
+const elements: Record<string, any> = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
+const state: any = { spectrum: null, fitData: null, evaluation: null, fitResult: null, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
+const chartStates = new Map<any, any>();
 
 elements["reset-example"].addEventListener("click", loadSyntheticExample);
 elements["load-files"].addEventListener("click", loadLocalFiles);
@@ -48,7 +48,7 @@ for (const container of [elements.layers, elements["substrate-editor"]]) {
   container.addEventListener("click", handleLayerClick);
   container.addEventListener("click", handleParameterHelp);
 }
-document.addEventListener("click", (event) => !event.target.closest(".parameter-help-button, .parameter-help-popover") && closeParameterHelp());
+document.addEventListener("click", (event) => !(event.target as Element).closest(".parameter-help-button, .parameter-help-popover") && closeParameterHelp());
 document.addEventListener("keydown", (event) => event.key === "Escape" && closeParameterHelp());
 for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventListener("change", () => { pushHistory(); renderStackDiagram(); commitHistorySnapshot(); });
 elements["preview-button"].addEventListener("click", previewModel);
@@ -57,7 +57,7 @@ elements["bootstrap-button"].addEventListener("click", bootstrapUncertainty);
 elements["undo-button"].addEventListener("click", undoEdit);
 elements["redo-button"].addEventListener("click", redoEdit);
 elements["print-report"].addEventListener("click", () => window.print());
-elements["solutions-content"].addEventListener("click", (event) => { const button = event.target.closest("button[data-solution]"); if (button) applyAlternativeSolution(Number(button.dataset.solution)); });
+elements["solutions-content"].addEventListener("click", (event) => { const button = (event.target as Element).closest<HTMLElement>("button[data-solution]"); if (button) applyAlternativeSolution(Number(button.dataset.solution)); });
 elements["download-json"].addEventListener("click", downloadJson);
 elements["download-csv"].addEventListener("click", downloadSpectraCsv);
 elements["download-nk"].addEventListener("click", downloadLayersNkCsv);
@@ -72,7 +72,7 @@ for (const canvas of [elements["rt-chart"], elements["residual-chart"], elements
   canvas.addEventListener("dblclick", () => resetChart(canvas));
   canvas.addEventListener("keydown", handleChartKeydown);
 }
-for (const button of document.querySelectorAll("[data-reset-chart]")) button.addEventListener("click", () => resetChart(elements[button.dataset.resetChart]));
+for (const button of document.querySelectorAll<HTMLElement>("[data-reset-chart]")) button.addEventListener("click", () => resetChart(elements[button.dataset.resetChart!]));
 for (const id of ["fit-r-gain", "fit-t-gain"]) elements[id].addEventListener("change", updateFitCount);
 for (const id of SAVED_CONTROL_IDS) elements[id].addEventListener("change", () => { pushHistory(); commitHistorySnapshot(); });
 
@@ -94,15 +94,15 @@ function makeSubstrate(model = "constant", nk = null) {
 
 function modelLabel(model) { return MULTILAYER_MODEL_LABELS[model] ?? MODEL_LABELS[model] ?? model; }
 
-function layerSpecs(model, thicknessNm, nk, components, previous = {}) {
+function layerSpecs(model, thicknessNm, nk, components, previous: any = {}) {
   const referenceIndex = nk ? nk.wavelengthNm.reduce((best, value, index) => Math.abs(value - 1064) < Math.abs(nk.wavelengthNm[best] - 1064) ? index : best, 0) : 0;
-  const generated = modelParameterSpecs(model, { n: nk?.n[referenceIndex] ?? 2, k: nk?.k[referenceIndex] ?? 0.05 }, thicknessNm, components);
+  const generated: any = modelParameterSpecs(model, { n: nk?.n[referenceIndex] ?? 2, k: nk?.k[referenceIndex] ?? 0.05 }, thicknessNm, components);
   delete generated.rGain;
   delete generated.tGain;
-  return Object.fromEntries(Object.entries(generated).map(([name, specification]) => [name, previous[name] ? { ...specification, ...previous[name] } : specification]));
+  return Object.fromEntries((Object.entries(generated) as [string, any][]).map(([name, specification]) => [name, previous[name] ? { ...specification, ...previous[name] } : specification]));
 }
 
-function substrateSpecs(model, nk, components, previous = {}) {
+function substrateSpecs(model, nk, components, previous: any = {}) {
   const generated = layerSpecs(model, 1000, nk, components, previous);
   delete generated.thicknessNm;
   for (const [name, specification] of Object.entries(generated)) if (!previous[name]) specification.fit = false;
@@ -196,7 +196,7 @@ function restoreSavedFit(saved, fileName) {
     state.substrate.nkSource = savedSubstrate.nkSource; state.substrate.regularize = savedSubstrate.regularizedToNk;
     if (savedSubstrate.effectiveMedium) state.substrate.ema = { method: savedSubstrate.effectiveMedium.method, hostNk: savedSubstrate.effectiveMedium.hostNk, inclusionNk: savedSubstrate.effectiveMedium.inclusionNk, hostSource: savedSubstrate.effectiveMedium.hostSource, inclusionSource: savedSubstrate.effectiveMedium.inclusionSource };
     state.substrate.specs = substrateSpecs(state.substrate.model, state.substrate.nk, state.substrate.components);
-    for (const [name, specification] of Object.entries(state.substrate.specs)) { if (savedSubstrate.parameterSettings[name]) Object.assign(specification, savedSubstrate.parameterSettings[name]); if (Number.isFinite(savedSubstrate.parameters[name])) specification.value = savedSubstrate.parameters[name]; }
+    for (const [name, specification] of Object.entries(state.substrate.specs) as [string, any][]) { if (savedSubstrate.parameterSettings[name]) Object.assign(specification, savedSubstrate.parameterSettings[name]); if (Number.isFinite(savedSubstrate.parameters[name])) specification.value = savedSubstrate.parameters[name]; }
     state.substrate.specCache = { ...state.substrate.specs };
   } else { state.substrate.specs.n.value = saved.substrate.n; state.substrate.specs.k.value = saved.substrate.k; }
   const usedIds = new Set(layers.map((layer) => layer.id)); state.nextLayer = 1; while (usedIds.has(`layer${state.nextLayer}`)) state.nextLayer += 1;
@@ -236,12 +236,12 @@ function applySavedControls(controls) {
 
 function mergeSavedDiagnostics(fresh, saved) {
   if (!saved) return fresh;
-  const validIntervals = (value) => value && typeof value === "object" && Object.values(value).every((interval) => interval === null || (Number.isFinite(interval.lower95) && Number.isFinite(interval.upper95)));
+  const validIntervals = (value) => value && typeof value === "object" && (Object.values(value) as any[]).every((interval) => interval === null || (Number.isFinite(interval.lower95) && Number.isFinite(interval.upper95)));
   const validCorrelation = (value) => Array.isArray(value?.names) && Array.isArray(value?.matrix) && value.matrix.length === value.names.length && value.matrix.every((row) => Array.isArray(row) && row.length === value.names.length && row.every(Number.isFinite));
   const validBand = (value) => Array.isArray(value) && value.length === state.fitData?.wavelengthNm.length && value.every((interval) => Number.isFinite(interval?.lower95) && Number.isFinite(interval?.upper95));
   const bootstrap = saved.bootstrap;
   const layerBands = bootstrap?.bands?.layers;
-  const validLayerBands = !layerBands || (typeof layerBands === "object" && Object.values(layerBands).every((bands) => validBand(bands?.n) && validBand(bands?.k)));
+  const validLayerBands = !layerBands || (typeof layerBands === "object" && (Object.values(layerBands) as any[]).every((bands) => validBand(bands?.n) && validBand(bands?.k)));
   const validBootstrap = validIntervals(bootstrap?.parameterIntervals) && validCorrelation(bootstrap?.parameterCorrelation) && validBand(bootstrap?.bands?.reflectance) && validBand(bootstrap?.bands?.transmittance) && validBand(bootstrap?.bands?.n) && validBand(bootstrap?.bands?.k) && validLayerBands;
   return {
     ...fresh,
@@ -291,16 +291,16 @@ function renderLayers() {
 }
 
 function sanitizeParameterLinks() {
-  const positions = new Map(state.layers.map((layer, index) => [layer.id, index]));
-  for (const [index, layer] of state.layers.entries()) for (const [name, source] of Object.entries(layer.links ?? {})) {
+  const positions = new Map<string, number>(state.layers.map((layer, index) => [layer.id, index] as [string, number]));
+  for (const [index, layer] of state.layers.entries()) for (const [name, source] of Object.entries(layer.links ?? {}) as [string, string][]) {
     const sourceId = source.slice(0, source.indexOf("__")); if (!positions.has(sourceId) || positions.get(sourceId) >= index || !state.layers[positions.get(sourceId)].specs[name]) delete layer.links[name];
   }
 }
 
 function materialById(id) { return id === "substrate" ? state.substrate : state.layers.find((candidate) => candidate.id === id); }
 
-function synchronizeLinkedParameters(parameters = null) {
-  for (const layer of state.layers) for (const [name, sourceKey] of Object.entries(layer.links ?? {})) {
+function synchronizeLinkedParameters(parameters: any = null) {
+  for (const layer of state.layers) for (const [name, sourceKey] of Object.entries(layer.links ?? {}) as [string, string][]) {
     const separator = sourceKey.indexOf("__"); const source = materialById(sourceKey.slice(0, separator)); const sourceName = sourceKey.slice(separator + 2);
     const value = parameters?.[sourceKey] ?? source?.specs[sourceName]?.value;
     if (Number.isFinite(value) && layer.specs[name]) { layer.specs[name].value = value; layer.specs[name].fit = false; }
@@ -308,7 +308,7 @@ function synchronizeLinkedParameters(parameters = null) {
 }
 
 function editorSnapshot() {
-  const snapshot = structuredClone({
+  const snapshot: any = structuredClone({
     source: state.source, layers: state.layers, substrate: state.substrate, activeLayerId: state.activeLayerId, nextLayer: state.nextLayer,
     controls: Object.fromEntries([...SAVED_CONTROL_IDS, "substrate-thickness", "incidence"].map((id) => [id, elements[id].type === "checkbox" ? elements[id].checked : elements[id].value])),
   });
@@ -343,7 +343,7 @@ function renderMaterialCard(material, index, substrate = false) {
   header.append(order, name);
   if (!substrate) {
     const actions = document.createElement("div"); actions.className = "layer-actions";
-    for (const [action, label, disabled] of [["up", "↑", index === 0], ["down", "↓", index === state.layers.length - 1], ["duplicate", "⧉", state.layers.length === 12], ["remove", "×", state.layers.length === 1]]) {
+    for (const [action, label, disabled] of [["up", "↑", index === 0], ["down", "↓", index === state.layers.length - 1], ["duplicate", "⧉", state.layers.length === 12], ["remove", "×", state.layers.length === 1]] as [string, string, boolean][]) {
       const button = document.createElement("button"); button.type = "button"; button.dataset.action = action; button.textContent = label; button.disabled = disabled; button.setAttribute("aria-label", `${action} ${material.name}`); actions.append(button);
     }
     header.append(actions);
@@ -404,7 +404,7 @@ function renderStackDiagram() {
   elements["stack-substrate-index"].textContent = `${substrateDescription} · ${format(Number(elements["substrate-thickness"].value), 3)} µm`;
 }
 
-function selectControl(labelText, field, choices, value) {
+function selectControl(labelText, field, choices: Record<string, string>, value) {
   const label = document.createElement("label"); label.textContent = labelText;
   const select = document.createElement("select"); select.dataset.field = field;
   for (const [choice, text] of Object.entries(choices)) { const option = document.createElement("option"); option.value = choice; option.textContent = text; option.selected = choice === value; select.append(option); }
@@ -489,7 +489,7 @@ function renderModelHelp(layer) {
 
   const parameterHeading = document.createElement("h4"); parameterHeading.textContent = "Parameters in this material";
   const parameters = document.createElement("dl"); parameters.className = "model-parameter-help";
-  for (const [name, specification] of Object.entries(layer.specs)) {
+  for (const [name, specification] of Object.entries(layer.specs) as [string, any][]) {
     const term = document.createElement("dt"); term.textContent = `${specification.label}${specification.unit ? ` (${specification.unit})` : ""}`;
     const definition = document.createElement("dd"); definition.textContent = parameterDescription(name);
     parameters.append(term, definition);
@@ -581,13 +581,13 @@ function handleLayerClick(event) {
 }
 
 function captureLayerInputs() {
-  for (const card of document.querySelectorAll("#layers .layer-card, #substrate-editor .layer-card")) {
+  for (const card of document.querySelectorAll<HTMLElement>("#layers .layer-card, #substrate-editor .layer-card")) {
     const layer = materialById(card.dataset.layerId); if (!layer) continue;
-    layer.name = card.querySelector('[data-field="name"]')?.value.trim() || layer.name;
-    for (const row of card.querySelectorAll(".parameter-row")) {
+    layer.name = card.querySelector<HTMLInputElement>('[data-field="name"]')?.value.trim() || layer.name;
+    for (const row of card.querySelectorAll<HTMLElement>(".parameter-row")) {
       const specification = layer.specs[row.dataset.parameter]; if (!specification) continue;
-      specification.fit = row.querySelector('[data-kind="fit"]').checked;
-      for (const kind of ["value", "minimum", "maximum"]) specification[kind] = Number(row.querySelector(`[data-kind="${kind}"]`).value);
+      specification.fit = row.querySelector<HTMLInputElement>('[data-kind="fit"]')!.checked;
+      for (const kind of ["value", "minimum", "maximum"]) specification[kind] = Number(row.querySelector<HTMLInputElement>(`[data-kind="${kind}"]`)!.value);
     }
   }
 }
@@ -605,7 +605,7 @@ function configuration() {
     if (TABLE_MODELS.has(layer.model) && !layer.nk) throw new Error(`${layer.name}: ${MODEL_LABELS[layer.model]} requires an n,k table.`);
     if (layer.model === "composite" && !layer.components.taucLorentz && !layer.components.lorentz && !Object.keys(COMPONENT_LABELS).some((name) => layer.components[name])) throw new Error(`${layer.name}: select at least one dielectric component.`);
     if (layer.model === "ema" && (!layer.ema.hostNk || !layer.ema.inclusionNk)) throw new Error(`${layer.name}: load both EMA constituent n,k tables.`);
-    for (const [name, specification] of Object.entries(layer.specs)) {
+    for (const [name, specification] of Object.entries(layer.specs) as [string, any][]) {
       const key = `${layer.id}__${name}`; const { value, minimum, maximum } = specification;
       if (![value, minimum, maximum].every(Number.isFinite) || minimum >= maximum || value < minimum || value > maximum) throw new Error(`${layer.name}: ${specification.label} must have a finite value inside valid bounds.`);
       initial[key] = value; bounds[key] = [minimum, maximum]; if (specification.fit) fittedParameters.push(key);
@@ -615,7 +615,7 @@ function configuration() {
   if (TABLE_MODELS.has(substrate.model) && !substrate.nk) throw new Error(`Substrate: ${MODEL_LABELS[substrate.model]} requires an n,k table.`);
   if (substrate.model === "composite" && !substrate.components.taucLorentz && !substrate.components.lorentz && !Object.keys(COMPONENT_LABELS).some((name) => substrate.components[name])) throw new Error("Substrate: select at least one dielectric component.");
   if (substrate.model === "ema" && (!substrate.ema.hostNk || !substrate.ema.inclusionNk)) throw new Error("Substrate: load both EMA constituent n,k tables.");
-  for (const [name, specification] of Object.entries(substrate.specs)) {
+  for (const [name, specification] of Object.entries(substrate.specs) as [string, any][]) {
     const key = `substrate__${name}`; const { value, minimum, maximum } = specification;
     if (![value, minimum, maximum].every(Number.isFinite) || minimum >= maximum || value < minimum || value > maximum) throw new Error(`Substrate: ${specification.label} must have a finite value inside valid bounds.`);
     initial[key] = value; bounds[key] = [minimum, maximum]; if (specification.fit) fittedParameters.push(key);
@@ -682,7 +682,7 @@ function fitModel() {
     const localRefinements = integerValue("local-refinements", 1, 50);
     pushHistory();
     if (state.worker) state.worker.terminate();
-    state.worker = new Worker(new URL("./fit-worker.js", import.meta.url), { type: "module" });
+    state.worker = new Worker(new URL("./fit-worker.ts", import.meta.url), { type: "module" });
     state.worker.addEventListener("message", handleWorkerMessage); state.worker.addEventListener("error", (event) => finishFitError(event.message));
     elements["fit-progress"].hidden = false; elements["fit-progress"].value = 0; setBusy(true, `Screening ${screeningPoints} Sobol points…`);
     state.pendingConfiguration = config;
@@ -695,7 +695,7 @@ function bootstrapUncertainty() {
     if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before estimating bootstrap uncertainty.");
     const samples = integerValue("bootstrap-samples", 5, 200);
     if (state.worker) state.worker.terminate();
-    state.worker = new Worker(new URL("./fit-worker.js", import.meta.url), { type: "module" });
+    state.worker = new Worker(new URL("./fit-worker.ts", import.meta.url), { type: "module" });
     state.worker.addEventListener("message", handleWorkerMessage); state.worker.addEventListener("error", (event) => finishFitError(event.message));
     elements["fit-progress"].hidden = false; elements["fit-progress"].value = 0; setBusy(true, `Running ${samples} residual-bootstrap refits…`);
     state.worker.postMessage({ operation: "bootstrap", fitData: state.fitData, nk: null, configuration: state.fitResult.configuration, bestParameters: state.fitResult.parameters, samples });
@@ -759,7 +759,7 @@ function renderUncertainty(diagnostics) {
   const note = document.createElement("p"); note.textContent = bootstrap ? `${bootstrap.method}; ${bootstrap.successfulSamples}/${bootstrap.requestedSamples} successful refits, deterministic seed ${bootstrap.seed}.` : "Approximate 95% intervals and correlations from the local Jacobian. Run the bootstrap before reporting uncertainty."; content.append(note);
   if (Object.keys(intervals).length) {
     const table = document.createElement("table"); table.className = "uncertainty-table"; const head = document.createElement("tr"); for (const label of ["Parameter", "Lower 95%", "Estimate", "Upper 95%"]) { const cell = document.createElement("th"); cell.textContent = label; head.append(cell); } table.append(head);
-    for (const [name, interval] of Object.entries(intervals)) if (interval) { const row = document.createElement("tr"); for (const value of [parameterLabel(name), format(interval.lower95, 5), format(state.fitResult.parameters[name] ?? interval.median, 5), format(interval.upper95, 5)]) { const cell = document.createElement("td"); cell.textContent = value; row.append(cell); } table.append(row); }
+    for (const [name, interval] of Object.entries(intervals) as [string, any][]) if (interval) { const row = document.createElement("tr"); for (const value of [parameterLabel(name), format(interval.lower95, 5), format(state.fitResult.parameters[name] ?? interval.median, 5), format(interval.upper95, 5)]) { const cell = document.createElement("td"); cell.textContent = value; row.append(cell); } table.append(row); }
     content.append(table);
   }
   if (correlation?.matrix?.length) {
@@ -776,7 +776,7 @@ function renderAlternativeSolutions(solutions) {
   const cards = solutions.map((solution, index) => {
     const card = document.createElement("article"); card.className = "solution-card";
     const title = document.createElement("strong"); title.textContent = `Solution ${solution.rank}`;
-    const channelMetrics = Object.entries(solution.channelMetrics ?? {}).map(([channel, values]) => `${channel} RMSE ${format(values.rmse, 5)}`).join(" · ");
+    const channelMetrics = (Object.entries(solution.channelMetrics ?? {}) as [string, any][]).map(([channel, values]) => `${channel} RMSE ${format(values.rmse, 5)}`).join(" · ");
     const metrics = document.createElement("span"); metrics.textContent = `Δcost ${format(100 * solution.relativeCostIncrease, 2)}% · distance ${format(solution.normalizedParameterDistanceFromBest, 3)}${channelMetrics ? ` · ${channelMetrics}` : ""}${solution.fittedParametersAtBounds?.length ? ` · bounds: ${solution.fittedParametersAtBounds.length}` : ""}`;
     const button = document.createElement("button"); button.type = "button"; button.className = "text-button"; button.dataset.solution = String(index); button.textContent = "Use as new start";
     card.append(title, metrics, button); return card;
@@ -912,7 +912,7 @@ function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   captureLayerInputs();
   return {
-    schema: SAVED_FIT_SCHEMA, application: { name: "Reflectometry", version: "3.8.1", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source, activeLayerId: state.activeLayerId,
+    schema: SAVED_FIT_SCHEMA, application: { name: "Reflectometry", version: "4.0.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source, activeLayerId: state.activeLayerId,
     measurement: { spectrum: state.spectrum },
     controls: Object.fromEntries(SAVED_CONTROL_IDS.map((id) => [id, elements[id].type === "checkbox" ? elements[id].checked : elements[id].value])),
     stack: state.layers.map((layer) => ({
@@ -925,7 +925,7 @@ function exportPayload() {
       nkTable: layer.nk,
       regularizedToNk: layer.regularize,
       parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, state.fitResult.parameters[`${layer.id}__${name}`]])),
-      parameterSettings: Object.fromEntries(Object.entries(layer.specs).map(([name, specification]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
+      parameterSettings: Object.fromEntries((Object.entries(layer.specs) as [string, any][]).map(([name, specification]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
       parameterLinks: { ...layer.links },
     })),
     substrate: {
@@ -935,7 +935,7 @@ function exportPayload() {
       effectiveMedium: state.substrate.model === "ema" ? { method: state.substrate.ema.method, hostSource: state.substrate.ema.hostSource, inclusionSource: state.substrate.ema.inclusionSource, hostNk: state.substrate.ema.hostNk, inclusionNk: state.substrate.ema.inclusionNk } : null,
       nkSource: state.substrate.nkSource, nkTable: state.substrate.nk, regularizedToNk: state.substrate.regularize,
       parameters: Object.fromEntries(Object.keys(state.substrate.specs).map((name) => [name, state.fitResult.parameters[`substrate__${name}`]])),
-      parameterSettings: Object.fromEntries(Object.entries(state.substrate.specs).map(([name, specification]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
+      parameterSettings: Object.fromEntries((Object.entries(state.substrate.specs) as [string, any][]).map(([name, specification]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
       thicknessUm: Number(elements["substrate-thickness"].value), incidence: elements.incidence.value,
     }, gains: { reflectance: state.fitResult.parameters.rGain, transmittance: state.fitResult.parameters.tGain },
     diagnostics: state.fitResult.diagnostics, optimizer: state.fitResult.optimizer,
@@ -954,14 +954,14 @@ function downloadLayersNkCsv() {
   catch (error) { showError(error); }
 }
 
-function selectedFitCount() { captureLayerInputs(); return [...state.layers, state.substrate].reduce((sum, layer) => sum + Object.entries(layer.specs).filter(([name, specification]) => specification.fit && !layer.links?.[name]).length, Number(elements["fit-r-gain"].checked) + Number(elements["fit-t-gain"].checked)); }
+function selectedFitCount() { captureLayerInputs(); return [...state.layers, state.substrate].reduce((sum, layer) => sum + (Object.entries(layer.specs) as [string, any][]).filter(([name, specification]) => specification.fit && !layer.links?.[name]).length, Number(elements["fit-r-gain"].checked) + Number(elements["fit-t-gain"].checked)); }
 function updateFitCount() { const count = selectedFitCount(); elements["fit-count"].textContent = `${count} / 11 fitted parameters selected.${count > 11 ? " Reduce the selection before fitting." : ""}`; elements["fit-count"].classList.toggle("warning", count > 11); }
 function numberValue(id, minimum, maximum) { const value = Number(elements[id].value); if (!Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`${id.replaceAll("-", " ")} must be from ${minimum} to ${maximum}.`); return value; }
 function integerValue(id, minimum, maximum) { const value = numberValue(id, minimum, maximum); if (!Number.isInteger(value)) throw new Error(`${id.replaceAll("-", " ")} must be an integer.`); return value; }
 function format(value, digits = 3) { return Number.isFinite(value) ? Number(value).toFixed(digits).replace(/\.?0+$/, "") : "—"; }
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
-function setBusy(busy, message = "") { document.querySelector(".controls").inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) elements[id].disabled = busy; if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview); updateHistoryButtons(); } if (message) setStatus(message); }
+function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) elements[id].disabled = busy; if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview); updateHistoryButtons(); } if (message) setStatus(message); }
 function setStatus(message) { elements.status.textContent = message; }
 function showError(error) { setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`); }
 function safeName(value) { return String(value ?? "sample").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sample"; }

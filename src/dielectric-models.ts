@@ -25,7 +25,7 @@ const GENERIC_TL = {
   bandgapEv: [1, 0, 2.2],
 };
 
-export function modelParameterSpecs(model, referenceAt1064 = { n: 2, k: 0.05 }, nominalThicknessNm = 150, components = {}) {
+export function modelParameterSpecs(model, referenceAt1064 = { n: 2, k: 0.05 }, nominalThicknessNm = 150, components: any = {}): any {
   const thickness = nominalThicknessNm;
   if (!Number.isFinite(thickness) || thickness <= 0) throw new Error("Nominal film thickness must be positive and finite.");
   const parameter = (label, unit, values, fit = false) => ({ label, unit, value: values[0], minimum: values[1], maximum: values[2], fit });
@@ -235,7 +235,7 @@ export function modelParameterSpecs(model, referenceAt1064 = { n: 2, k: 0.05 }, 
   throw new Error(`Unsupported optical model: ${model}.`);
 }
 
-export function refractiveIndexModel(model, wavelengthNm, parameters, nk, options = {}) {
+export function refractiveIndexModel(model, wavelengthNm, parameters, nk, options: any = {}): any {
   if (model === "constant") return { n: wavelengthNm.map(() => parameters.n), k: wavelengthNm.map(() => parameters.k) };
   if (model === "cauchy") return cauchyRefractiveIndex(wavelengthNm, parameters);
   if (model === "sellmeier") return sellmeierRefractiveIndex(wavelengthNm, parameters);
@@ -260,7 +260,7 @@ export function refractiveIndexModel(model, wavelengthNm, parameters, nk, option
   return passiveRefractiveIndex(dielectric);
 }
 
-export function compositeDielectric(wavelengthNm, parameters, components = {}) {
+export function compositeDielectric(wavelengthNm, parameters, components: any = {}): any {
   validatePositiveWavelengths(wavelengthNm);
   if (!(parameters.epsilonInf > 0)) throw new Error("The composite model requires a finite positive ε∞.");
   const taucLorentzCount = components.taucLorentz ?? Number(Boolean(components.tl1)) + Number(Boolean(components.tl2));

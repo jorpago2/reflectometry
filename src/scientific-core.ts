@@ -1,5 +1,5 @@
-import { refractiveIndexModel } from "./dielectric-models.js";
-import { scrambledSobolPoints } from "./sobol.js";
+import { refractiveIndexModel } from "./dielectric-models.ts";
+import { scrambledSobolPoints } from "./sobol.ts";
 
 const EPSILON = Number.EPSILON;
 const LOG_PARAMETERS = new Set(["amplitude", "amplitudeEv", "amplitude1Ev", "amplitude2Ev", "strength", "broadeningEv", "broadening1Ev", "broadening2Ev", "fwhmEv", "gammaEv", "sigmaEv", "urbachEnergyEv", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
@@ -203,7 +203,7 @@ export function prepareFitData(spectrum, options) {
 
 export function restrictToNkRange(data, nk) {
   const keep = data.wavelengthNm.map((value) => value >= nk.wavelengthNm[0] && value <= nk.wavelengthNm.at(-1));
-  const filtered = {};
+  const filtered: any = {};
   for (const [key, values] of Object.entries(data)) {
     filtered[key] = Array.isArray(values) && values.length === keep.length ? values.filter((_, index) => keep[index]) : values;
   }
@@ -235,9 +235,9 @@ export function evaluateOpticalModel(data, nk, parameters, settings) {
   };
 }
 
-function resolveParameterLinks(parameters, links = {}) {
-  const resolved = { ...parameters };
-  for (let pass = 0; pass <= Object.keys(links).length; pass += 1) for (const [target, source] of Object.entries(links)) {
+function resolveParameterLinks(parameters, links: any = {}) {
+  const resolved: any = { ...parameters };
+  for (let pass = 0; pass <= Object.keys(links).length; pass += 1) for (const [target, source] of Object.entries(links) as [string, string][]) {
     if (Number.isFinite(resolved[source])) resolved[target] = resolved[source];
   }
   return resolved;
@@ -486,7 +486,7 @@ export function fitEllipsometrySeed(nk, model, specifications) {
   const referenceN = nk.n.filter((_, index) => selected[index]);
   const referenceK = nk.k.filter((_, index) => selected[index]);
   const modeled = refractiveIndexModel(model, fullWavelength, parameters, nk);
-  const diagnostics = indexDiagnostics(
+  const diagnostics: any = indexDiagnostics(
     fullWavelength,
     modeled.n.map((value, index) => value - referenceN[index]),
     modeled.k.map((value, index) => value - referenceK[index]),
@@ -497,7 +497,7 @@ export function fitEllipsometrySeed(nk, model, specifications) {
   return { parameters, diagnostics };
 }
 
-export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
+export function fitOpticalModel(data, nk, configuration, progress: (value: number) => void = () => {}) {
   const { settings, initial, bounds } = configuration;
   const localOnly = Boolean(configuration.localOnly);
   const screeningPoints = configuration.screeningPoints ?? 512;
@@ -544,9 +544,9 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   const finiteCandidates = sampledCandidates.filter((candidate) => Number.isFinite(candidate.cost));
   if (localRefinements > 1 && !finiteCandidates.length) throw new Error("No finite Sobol screening point was found inside the parameter bounds.");
   const starts = localOnly ? [{ point: initialPoint, sobolIndex: null, cost: null }] : selectDiverseStarts(initialPoint, finiteCandidates, localRefinements);
-  let best = { point: initialPoint, ...objective(initialPoint) };
+  let best: any = { point: initialPoint, ...objective(initialPoint) };
   const refinementCount = starts.length;
-  const refinedCandidates = [];
+  const refinedCandidates: any[] = [];
   const failedStarts = [];
   for (let index = 0; index < refinementCount; index += 1) {
     try {
@@ -598,7 +598,7 @@ export function fitOpticalModel(data, nk, configuration, progress = () => {}) {
   return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, optimizer, screeningPoints, localRefinements: refinementCount };
 }
 
-export function bootstrapFitUncertainty(data, nk, configuration, bestParameters, samples = 20, progress = () => {}) {
+export function bootstrapFitUncertainty(data, nk, configuration, bestParameters, samples = 20, progress: (value: number) => void = () => {}) {
   if (!Number.isInteger(samples) || samples < 5 || samples > 200) throw new Error("Bootstrap replicates must be an integer from 5 to 200.");
   const fittedParameters = configuration.fittedParameters ?? [];
   if (!fittedParameters.length) throw new Error("Bootstrap uncertainty requires fitted parameters.");
@@ -658,13 +658,13 @@ export const fitTabulated = fitOpticalModel;
 
 function softL1Cost(residuals) { return residuals.reduce((sum, value) => sum + Math.sqrt(1 + value ** 2) - 1, 0); }
 
-export function diagnosticsOf(data, evaluation, settings, fit = null) {
+export function diagnosticsOf(data, evaluation, settings, fit: any = null) {
   const rmse = (modeled, measured, valid) => {
     const residuals = modeled.map((value, index) => valid[index] ? value - measured[index] : Number.NaN).filter(Number.isFinite);
     return residuals.length ? Math.sqrt(residuals.reduce((sum, value) => sum + value ** 2, 0) / residuals.length) : null;
   };
   const powerBalance = evaluation.reflectance.map((value, index) => value + evaluation.transmittance[index]);
-  const result = {
+  const result: any = {
     rmseReflectance: settings.useReflectance ? rmse(evaluation.reflectanceScaled, data.reflectance, data.reflectanceValid) : null,
     rmseTransmittance: settings.useTransmittance ? rmse(evaluation.transmittanceScaled, data.transmittance, data.transmittanceValid) : null,
     reflectanceBins: data.reflectanceValid.filter(Boolean).length,
@@ -779,7 +779,7 @@ function indexComparison(nk, parameters, settings) {
   return indexComparisonForModel(nk, parameters, settings.model);
 }
 
-function indexComparisonForModel(nk, parameters, model, options = {}) {
+function indexComparisonForModel(nk, parameters, model, options: any = {}) {
   if (!nk) return null;
   const selected = nk.wavelengthNm.map((value) => value >= 300 && value <= 1100);
   const wavelengthNm = nk.wavelengthNm.filter((_, index) => selected[index]);
@@ -972,7 +972,7 @@ function selectDiverseStarts(initialPoint, candidates, count) {
   return selected;
 }
 
-function boundedTrustRegionReflective(start, residualFunction, options = {}) {
+function boundedTrustRegionReflective(start, residualFunction, options: any = {}): any {
   const tolerance = 1e-8;
   const maximumEvaluations = options.maximumEvaluations ?? 3000;
   let evaluations = 0;

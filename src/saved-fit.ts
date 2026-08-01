@@ -1,4 +1,4 @@
-import { MODEL_LABELS } from "./dielectric-models.js";
+import { MODEL_LABELS } from "./dielectric-models.ts";
 
 export const SAVED_FIT_SCHEMA = "reflectometry-browser-fit/v8";
 const SUPPORTED_SCHEMAS = new Set(["reflectometry-browser-fit/v5", "reflectometry-browser-fit/v6", "reflectometry-browser-fit/v7", SAVED_FIT_SCHEMA]);

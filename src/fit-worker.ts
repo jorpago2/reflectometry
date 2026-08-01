@@ -1,4 +1,4 @@
-import { bootstrapFitUncertainty, calibrateSharedGains, fitEllipsometrySeed, fitOpticalModel } from "./scientific-core.js";
+import { bootstrapFitUncertainty, calibrateSharedGains, fitEllipsometrySeed, fitOpticalModel } from "./scientific-core.ts";
 
 self.addEventListener("message", ({ data }) => {
   try {

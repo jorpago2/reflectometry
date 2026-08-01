@@ -1,15 +1,19 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting.">
-  <meta http-equiv="refresh" content="0; url=multilayer.html">
-  <link rel="canonical" href="https://jorpago2.github.io/reflectometry/multilayer.html">
-  <title>Reflectometry · Generic multilayer fitting</title>
-</head>
-<body>
-  <p>Opening <a href="multilayer.html">Reflectometry</a>…</p>
-  <script>location.replace(`multilayer.html${location.search}${location.hash}`);</script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer." />
+    <meta name="theme-color" content="#f3f0e8" />
+    <link rel="canonical" href="https://jorpago2.github.io/reflectometry/" />
+    <meta property="og:title" content="Reflectometry · Generic multilayer fitting" />
+    <meta property="og:description" content="Fit generic multilayer optical stacks locally in the browser." />
+    <meta property="og:image" content="https://jorpago2.github.io/reflectometry/og.png" />
+    <link rel="icon" href="data:," />
+    <title>Reflectometry · Generic multilayer fitting</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

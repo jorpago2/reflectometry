@@ -1,14 +1,17 @@
 # Reflectometry
 
-Material-agnostic static browser tool for calibrated reflectance/transmittance fitting of coherent multilayer stacks on a finite phase-incoherent substrate.
+Material-agnostic React + TypeScript + Vite browser tool for calibrated reflectance/transmittance fitting of coherent multilayer stacks on a finite phase-incoherent substrate.
 
 ## Run locally
 
 ```powershell
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-Open `http://localhost:4173`; it redirects to the only application, the generic multilayer editor. Run the numerical checks with `npm test`.
+Open `http://127.0.0.1:4173/reflectometry/`. Run the numerical checks with `pnpm test` and create the static GitHub Pages bundle with `pnpm build`.
+
+The React shell is implemented in `src/App.tsx`. The mature numerical solver and file parsers remain framework-independent TypeScript modules so their existing scientific reference tests continue to run directly in Node.
 
 ## Current scope
 
