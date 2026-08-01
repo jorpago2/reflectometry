@@ -831,8 +831,9 @@ function niceTicks(minimum, maximum, target = 5) {
 
 function renderChart(canvas) {
   const chart = chartStates.get(canvas); if (!chart) return;
-  const ratio = Math.min(2, window.devicePixelRatio || 1); const width = Math.max(260, Math.round(canvas.clientWidth)); const height = Math.max(240, Math.round(canvas.clientHeight));
-  canvas.width = width * ratio; canvas.height = height * ratio; const context = canvas.getContext("2d"); context.scale(ratio, ratio);
+  const ratio = Math.max(1, window.devicePixelRatio || 1); const bounds = canvas.getBoundingClientRect(); const width = Math.max(260, bounds.width); const height = Math.max(240, bounds.height);
+  const pixelWidth = Math.round(width * ratio); const pixelHeight = Math.round(height * ratio); canvas.width = pixelWidth; canvas.height = pixelHeight;
+  const context = canvas.getContext("2d"); context.setTransform(pixelWidth / width, 0, 0, pixelHeight / height, 0, 0);
   const margin = { left: 64, right: 18, top: 18, bottom: 52 }; const plotWidth = width - margin.left - margin.right; const plotHeight = height - margin.top - margin.bottom;
   const visible = chart.x.map((value, index) => value >= chart.minimumX && value <= chart.maximumX ? index : -1).filter((index) => index >= 0);
   let values = chart.series.flatMap((entry) => visible.flatMap((index) => [entry.values?.[index], entry.lower?.[index], entry.upper?.[index]]).filter(Number.isFinite)); if (!values.length) values = [0, 1];
@@ -911,7 +912,7 @@ function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   captureLayerInputs();
   return {
-    schema: SAVED_FIT_SCHEMA, application: { name: "Reflectometry", version: "3.8.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source, activeLayerId: state.activeLayerId,
+    schema: SAVED_FIT_SCHEMA, application: { name: "Reflectometry", version: "3.8.1", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source, activeLayerId: state.activeLayerId,
     measurement: { spectrum: state.spectrum },
     controls: Object.fromEntries(SAVED_CONTROL_IDS.map((id) => [id, elements[id].type === "checkbox" ? elements[id].checked : elements[id].value])),
     stack: state.layers.map((layer) => ({

@@ -47,6 +47,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /SAVED_FIT_SCHEMA/);
   assert.match(files[2], /function makeSubstrate/);
   for (const helper of ["renderChart", "niceTicks", "handleChartWheel", "handleChartKeydown", "resetChart"]) assert.match(files[2], new RegExp(`function ${helper}`));
+  assert.match(files[2], /getBoundingClientRect\(\)/);
+  assert.match(files[2], /context\.setTransform\(pixelWidth \/ width, 0, 0, pixelHeight \/ height/);
+  assert.doesNotMatch(files[2], /Math\.min\(2, window\.devicePixelRatio/);
   assert.match(files[2], /parameter-link/);
   assert.match(files[4], /bootstrapFitUncertainty/);
   assert.match(files[2], /thicknessUm: Number\(elements\["substrate-thickness"\]\.value\)/);
