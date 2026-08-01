@@ -17,8 +17,7 @@ function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCa
         <div className="legend">{legend.map((item) => <span className={item.className} key={item.text}>{item.text}</span>)}</div>
       </div>
       <div className="chart-shell">
-        <canvas id={canvasId} tabIndex={0} role="img" aria-label={label} aria-describedby={`${canvasId}-help`} />
-        <output className="chart-tooltip" hidden aria-live="polite" />
+        <div id={canvasId} className="plotly-chart" tabIndex={0} role="img" aria-label={label} aria-describedby={`${canvasId}-help`} />
       </div>
       <div className="chart-toolbar">
         <span id={`${canvasId}-help`}>Hover to inspect · Wheel or +/− to zoom · Drag or ←/→ to pan</span>

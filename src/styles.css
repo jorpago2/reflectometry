@@ -668,7 +668,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .chart-reset { min-height: 30px; padding: 5px 9px; border: 1px solid var(--line-strong); background: transparent; color: var(--ink); font-size: 9px; }
 .chart-reset:hover, .chart-reset:focus-visible { border-color: var(--ink); background: var(--line); }
 
-canvas {
+.plotly-chart {
   display: block;
   width: 100%;
   height: 330px;
@@ -678,7 +678,7 @@ canvas {
   touch-action: none;
 }
 
-canvas:focus-visible {
+.plotly-chart:focus-visible {
   outline: 3px solid rgba(0, 114, 178, .35);
   outline-offset: 2px;
 }
@@ -753,7 +753,7 @@ footer {
   .stack-figure figcaption { grid-column: 1; }
   .stack-layer { grid-template-columns: 30px minmax(0, 1fr); }
   .stack-thickness { grid-column: 2; }
-  canvas { height: 275px; }
+  .plotly-chart { height: 275px; }
   footer { flex-direction: column; }
   .solution-card { grid-template-columns: 1fr; }
 }
@@ -768,7 +768,7 @@ footer {
   .status-row { border: 0; padding: 0 0 12px; }
   .results details > :not(summary) { display: block !important; }
   .plot-card, .stack-card, .diagnostics, .provenance { break-inside: avoid; }
-  canvas { height: 235px; }
+  .plotly-chart { height: 235px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

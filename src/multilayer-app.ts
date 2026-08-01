@@ -10,6 +10,7 @@ import {
 import { MODEL_LABELS, modelParameterSpecs } from "./dielectric-models.ts";
 import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./model-help.ts";
 import { parseSavedFit, SAVED_FIT_SCHEMA } from "./saved-fit.ts";
+import Plotly from "plotly.js-basic-dist-min";
 
 const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
@@ -61,17 +62,6 @@ elements["solutions-content"].addEventListener("click", (event) => { const butto
 elements["download-json"].addEventListener("click", downloadJson);
 elements["download-csv"].addEventListener("click", downloadSpectraCsv);
 elements["download-nk"].addEventListener("click", downloadLayersNkCsv);
-window.addEventListener("resize", () => state.evaluation && drawAll());
-for (const canvas of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) {
-  canvas.addEventListener("pointermove", handleChartPointerMove);
-  canvas.addEventListener("pointerleave", handleChartPointerLeave);
-  canvas.addEventListener("pointerdown", handleChartPointerDown);
-  canvas.addEventListener("pointerup", handleChartPointerUp);
-  canvas.addEventListener("pointercancel", handleChartPointerUp);
-  canvas.addEventListener("wheel", handleChartWheel, { passive: false });
-  canvas.addEventListener("dblclick", () => resetChart(canvas));
-  canvas.addEventListener("keydown", handleChartKeydown);
-}
 for (const button of document.querySelectorAll<HTMLElement>("[data-reset-chart]")) button.addEventListener("click", () => resetChart(elements[button.dataset.resetChart!]));
 for (const id of ["fit-r-gain", "fit-t-gain"]) elements[id].addEventListener("change", updateFitCount);
 for (const id of SAVED_CONTROL_IDS) elements[id].addEventListener("change", () => { pushHistory(); commitHistorySnapshot(); });
@@ -272,11 +262,7 @@ function clearResult() {
   for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = true;
   const uncertainty = document.createElement("p"); uncertainty.textContent = "Run a fit to estimate uncertainty."; elements["uncertainty-content"].replaceChildren(uncertainty);
   const solutions = document.createElement("p"); solutions.textContent = "No fitted alternatives yet."; elements["solutions-content"].replaceChildren(solutions);
-  for (const canvas of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) {
-    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    canvas.parentElement.querySelector(".chart-tooltip").hidden = true;
-    chartStates.delete(canvas);
-  }
+  for (const chart of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) Plotly.purge(chart);
 }
 
 function renderLayers() {
@@ -814,7 +800,7 @@ function drawAll() {
   drawChart(elements["nk-chart"], x, [...indexBands, { label: "n", values: active.n, color: "#0072b2" }, { label: "k", values: active.k, color: "#d55e00", dash: [7, 4] }], { minimumY: 0, yLabel: "Optical constants, n and k", xLabel: "Wavelength (nm)" });
 }
 
-function drawChart(canvas, x, series, options) {
+function drawCanvasChart(canvas, x, series, options) {
   const fullMinimumX = Math.min(...x); const fullMaximumX = Math.max(...x); const existing = chartStates.get(canvas);
   const chart = existing && existing.fullMinimumX === fullMinimumX && existing.fullMaximumX === fullMaximumX ? existing : { minimumX: fullMinimumX, maximumX: fullMaximumX, hoverIndex: null, dragging: false };
   Object.assign(chart, { x, series, options, fullMinimumX, fullMaximumX });
@@ -906,7 +892,54 @@ function panChart(canvas, shift, initialMinimum = null, initialMaximum = null) {
   const chart = chartStates.get(canvas); if (!chart) return; const minimum = initialMinimum ?? chart.minimumX; const maximum = initialMaximum ?? chart.maximumX; const span = maximum - minimum; let nextMinimum = Math.max(chart.fullMinimumX, Math.min(chart.fullMaximumX - span, minimum + shift)); chart.minimumX = nextMinimum; chart.maximumX = nextMinimum + span; renderChart(canvas);
 }
 
-function resetChart(canvas) { const chart = chartStates.get(canvas); if (!chart) return; chart.minimumX = chart.fullMinimumX; chart.maximumX = chart.fullMaximumX; chart.hoverIndex = null; canvas.parentElement.querySelector(".chart-tooltip").hidden = true; renderChart(canvas); }
+function resetCanvasChart(canvas) { const chart = chartStates.get(canvas); if (!chart) return; chart.minimumX = chart.fullMinimumX; chart.maximumX = chart.fullMaximumX; chart.hoverIndex = null; canvas.parentElement.querySelector(".chart-tooltip").hidden = true; renderChart(canvas); }
+
+function drawChart(chart, x, series, options) {
+  const traces = series.flatMap((entry) => entry.band ? [
+    { type: "scatter", mode: "lines", x, y: entry.lower, line: { width: 0 }, hoverinfo: "skip", showlegend: false },
+    { type: "scatter", mode: "lines", x, y: entry.upper, line: { width: 0 }, fill: "tonexty", fillcolor: entry.color, hoverinfo: "skip", showlegend: false },
+  ] : [{
+    type: "scatter",
+    mode: entry.line === false ? "markers" : entry.points ? "lines+markers" : "lines",
+    name: entry.label,
+    x,
+    y: entry.values,
+    line: { color: entry.color, width: 1.8, dash: entry.dash?.length ? "dash" : "solid" },
+    marker: { color: entry.color, size: entry.points ? 5 : 0, symbol: entry.marker === "square" ? "square" : "circle" },
+    hovertemplate: `${entry.label}: %{y:.4g}<extra></extra>`,
+  }]);
+  const values = series.flatMap((entry) => [entry.values, entry.lower, entry.upper].filter(Boolean).flat()).filter(Number.isFinite);
+  const maximumAbsolute = Math.max(1e-12, ...values.map(Math.abs));
+  void Plotly.react(chart, traces, {
+    autosize: true,
+    height: 330,
+    margin: { l: 68, r: 20, t: 18, b: 56 },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "#ffffff",
+    font: { family: "Arial, Helvetica, sans-serif", size: 11, color: "#38413d" },
+    hovermode: "x unified",
+    dragmode: "pan",
+    uirevision: chart.id,
+    showlegend: false,
+    xaxis: { title: { text: options.xLabel }, gridcolor: "#d9dde0", showline: true, linecolor: "#111713" },
+    yaxis: {
+      title: { text: options.yLabel },
+      gridcolor: "#d9dde0",
+      zerolinecolor: "#747b78",
+      showline: true,
+      linecolor: "#111713",
+      ...(options.symmetricY ? { range: [-maximumAbsolute * 1.08, maximumAbsolute * 1.08] } : {}),
+      ...(!options.symmetricY && options.minimumY != null ? { rangemode: "tozero" } : {}),
+    },
+  }, {
+    displaylogo: false,
+    responsive: true,
+    scrollZoom: true,
+    toImageButtonOptions: { format: "svg", filename: chart.id, width: 1200, height: 650, scale: 1 },
+  });
+}
+
+function resetChart(chart) { void Plotly.relayout(chart, { "xaxis.autorange": true, "yaxis.autorange": true }); }
 
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
