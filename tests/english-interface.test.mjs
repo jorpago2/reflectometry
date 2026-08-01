@@ -19,6 +19,10 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /id="stack-diagram"/);
   assert.match(files[1], /LAYERS N,K/);
   for (const id of ["undo-button", "redo-button", "bootstrap-button", "print-report", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
+  for (const id of ["rt-chart", "residual-chart", "nk-chart"]) {
+    assert.match(files[1], new RegExp(`id="${id}"[^>]*tabindex="0"`));
+    assert.match(files[1], new RegExp(`data-reset-chart="${id}"`));
+  }
   assert.match(files[2], /Independent dielectric components/);
   assert.match(files[2], /function renderStackDiagram/);
   assert.match(files[2], /Tauc–Lorentz oscillators/);
@@ -35,11 +39,14 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /function handleParameterHelp/);
   assert.match(files[2], /aria-expanded/);
   assert.match(styles, /\.parameter-help-popover\b/);
+  assert.match(styles, /\.chart-tooltip\b/);
+  assert.match(styles, /--plot-blue: #0072b2/);
   assert.doesNotMatch(styles, /parameter-help-mark/);
   assert.match(files[2], /substrateThicknessNm: 1000 \* substrateThicknessUm/);
   assert.match(files[2], /parseSavedFit/);
   assert.match(files[2], /SAVED_FIT_SCHEMA/);
   assert.match(files[2], /function makeSubstrate/);
+  for (const helper of ["renderChart", "niceTicks", "handleChartWheel", "handleChartKeydown", "resetChart"]) assert.match(files[2], new RegExp(`function ${helper}`));
   assert.match(files[2], /parameter-link/);
   assert.match(files[4], /bootstrapFitUncertainty/);
   assert.match(files[2], /thicknessUm: Number\(elements\["substrate-thickness"\]\.value\)/);

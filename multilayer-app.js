@@ -28,6 +28,7 @@ const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const SAVED_CONTROL_IDS = ["wavelength-min", "wavelength-max", "reference-threshold", "bin-width", "sample-snr", "subtract-background", "use-r", "use-t", "prefer-shape", "sigma-r", "sigma-t", "sigma-n", "sigma-k", "fit-r-gain", "fit-t-gain", "r-gain", "t-gain", "screening-points", "local-refinements", "bootstrap-samples"];
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { spectrum: null, fitData: null, evaluation: null, fitResult: null, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
+const chartStates = new Map();
 
 elements["reset-example"].addEventListener("click", loadSyntheticExample);
 elements["load-files"].addEventListener("click", loadLocalFiles);
@@ -61,6 +62,17 @@ elements["download-json"].addEventListener("click", downloadJson);
 elements["download-csv"].addEventListener("click", downloadSpectraCsv);
 elements["download-nk"].addEventListener("click", downloadLayersNkCsv);
 window.addEventListener("resize", () => state.evaluation && drawAll());
+for (const canvas of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) {
+  canvas.addEventListener("pointermove", handleChartPointerMove);
+  canvas.addEventListener("pointerleave", handleChartPointerLeave);
+  canvas.addEventListener("pointerdown", handleChartPointerDown);
+  canvas.addEventListener("pointerup", handleChartPointerUp);
+  canvas.addEventListener("pointercancel", handleChartPointerUp);
+  canvas.addEventListener("wheel", handleChartWheel, { passive: false });
+  canvas.addEventListener("dblclick", () => resetChart(canvas));
+  canvas.addEventListener("keydown", handleChartKeydown);
+}
+for (const button of document.querySelectorAll("[data-reset-chart]")) button.addEventListener("click", () => resetChart(elements[button.dataset.resetChart]));
 for (const id of ["fit-r-gain", "fit-t-gain"]) elements[id].addEventListener("change", updateFitCount);
 for (const id of SAVED_CONTROL_IDS) elements[id].addEventListener("change", () => { pushHistory(); commitHistorySnapshot(); });
 
@@ -260,7 +272,11 @@ function clearResult() {
   for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = true;
   const uncertainty = document.createElement("p"); uncertainty.textContent = "Run a fit to estimate uncertainty."; elements["uncertainty-content"].replaceChildren(uncertainty);
   const solutions = document.createElement("p"); solutions.textContent = "No fitted alternatives yet."; elements["solutions-content"].replaceChildren(solutions);
-  for (const canvas of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+  for (const canvas of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) {
+    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    canvas.parentElement.querySelector(".chart-tooltip").hidden = true;
+    chartStates.delete(canvas);
+  }
 }
 
 function renderLayers() {
@@ -781,44 +797,121 @@ function drawAll() {
   const x = state.fitData.wavelengthNm;
   const bootstrapBands = state.fitResult?.diagnostics.bootstrap?.bands;
   drawChart(elements["rt-chart"], x, [
-    ...(bootstrapBands ? [{ lower: bootstrapBands.reflectance.map((entry) => entry.lower95), upper: bootstrapBands.reflectance.map((entry) => entry.upper95), color: "rgba(217,255,67,.16)", band: true }, { lower: bootstrapBands.transmittance.map((entry) => entry.lower95), upper: bootstrapBands.transmittance.map((entry) => entry.upper95), color: "rgba(255,90,31,.14)", band: true }] : []),
-    { values: state.fitData.reflectance.map((value, index) => state.fitData.reflectanceValid[index] ? value : NaN), color: "#a8b3ae", points: true },
-    { values: state.evaluation.reflectanceScaled, color: "#d9ff43" },
-    { values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : NaN), color: "#78827d", points: true },
-    { values: state.evaluation.transmittanceScaled, color: "#ff5a1f" },
-  ], { minimumY: 0, yLabel: "R, T" });
+    ...(bootstrapBands ? [{ lower: bootstrapBands.reflectance.map((entry) => entry.lower95), upper: bootstrapBands.reflectance.map((entry) => entry.upper95), color: "rgba(0,114,178,.12)", band: true }, { lower: bootstrapBands.transmittance.map((entry) => entry.lower95), upper: bootstrapBands.transmittance.map((entry) => entry.upper95), color: "rgba(213,94,0,.11)", band: true }] : []),
+    { label: "R data", values: state.fitData.reflectance.map((value, index) => state.fitData.reflectanceValid[index] ? value : NaN), color: "#0072b2", points: true, marker: "circle", line: false },
+    { label: "R model", values: state.evaluation.reflectanceScaled, color: "#0072b2" },
+    { label: "T data", values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : NaN), color: "#d55e00", points: true, marker: "square", line: false },
+    { label: "T model", values: state.evaluation.transmittanceScaled, color: "#d55e00", dash: [7, 4] },
+  ], { minimumY: 0, yLabel: "Reflectance / transmittance", xLabel: "Wavelength (nm)" });
   drawChart(elements["residual-chart"], x, [
-    { values: state.evaluation.reflectanceScaled.map((value, index) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : NaN), color: "#d9ff43" },
-    { values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : NaN), color: "#ff5a1f" },
-  ], { symmetricY: true, yLabel: "Model − data" });
+    { label: "R residual", values: state.evaluation.reflectanceScaled.map((value, index) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : NaN), color: "#0072b2" },
+    { label: "T residual", values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : NaN), color: "#d55e00", dash: [7, 4] },
+  ], { symmetricY: true, zeroLine: true, yLabel: "Residual (model − data)", xLabel: "Wavelength (nm)" });
   const active = state.evaluation.layerIndices.find((layer) => layer.id === state.activeLayerId) ?? state.evaluation.layerIndices[0];
-  elements["nk-layer-label"].textContent = `${active.name.toUpperCase()} / ${MODEL_LABELS[active.model].toUpperCase()}`;
+  elements["nk-layer-label"].textContent = `${active.name.toUpperCase()} / ${modelLabel(active.model).toUpperCase()}`;
   const activeBands = bootstrapBands?.layers?.[active.id] ?? (bootstrapBands?.layerId === active.id ? bootstrapBands : null);
-  const indexBands = activeBands ? [{ lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: "rgba(217,255,67,.16)", band: true }, { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: "rgba(255,90,31,.14)", band: true }] : [];
-  drawChart(elements["nk-chart"], x, [...indexBands, { values: active.n, color: "#d9ff43" }, { values: active.k, color: "#ff5a1f" }], { minimumY: 0, yLabel: "n, k" });
+  const indexBands = activeBands ? [{ lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: "rgba(0,114,178,.12)", band: true }, { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: "rgba(213,94,0,.11)", band: true }] : [];
+  drawChart(elements["nk-chart"], x, [...indexBands, { label: "n", values: active.n, color: "#0072b2" }, { label: "k", values: active.k, color: "#d55e00", dash: [7, 4] }], { minimumY: 0, yLabel: "Optical constants, n and k", xLabel: "Wavelength (nm)" });
 }
 
 function drawChart(canvas, x, series, options) {
-  const ratio = Math.min(2, window.devicePixelRatio || 1); const width = Math.max(320, Math.round(canvas.clientWidth)); const height = Math.max(240, Math.round(canvas.clientHeight));
-  canvas.width = width * ratio; canvas.height = height * ratio; const context = canvas.getContext("2d"); context.scale(ratio, ratio);
-  const margin = { left: 52, right: 18, top: 16, bottom: 36 }; const plotWidth = width - margin.left - margin.right; const plotHeight = height - margin.top - margin.bottom;
-  const xMinimum = Math.min(...x); const xMaximum = Math.max(...x); let values = series.flatMap((entry) => [...(entry.values ?? []), ...(entry.lower ?? []), ...(entry.upper ?? [])].filter(Number.isFinite)); if (!values.length) values = [0, 1];
-  const maximumAbsolute = Math.max(...values.map(Math.abs)); const yMinimum = options.symmetricY ? -(maximumAbsolute || 1) * 1.08 : options.minimumY ?? Math.min(...values);
-  const rawMaximum = options.symmetricY ? maximumAbsolute || 1 : Math.max(...values); const yMaximum = rawMaximum > yMinimum ? rawMaximum * 1.08 : yMinimum + 1;
-  const xPixel = (value) => margin.left + (value - xMinimum) / (xMaximum - xMinimum) * plotWidth; const yPixel = (value) => margin.top + (yMaximum - value) / (yMaximum - yMinimum) * plotHeight;
-  context.fillStyle = "#07100d"; context.fillRect(0, 0, width, height); context.font = "11px ui-monospace, monospace"; context.fillStyle = "#91a39c"; context.strokeStyle = "#294039";
-  for (let step = 0; step <= 4; step += 1) { const y = margin.top + step / 4 * plotHeight; const value = yMaximum - step / 4 * (yMaximum - yMinimum); context.beginPath(); context.moveTo(margin.left, y); context.lineTo(width - margin.right, y); context.stroke(); context.fillText(format(value, yMaximum < 2 ? 2 : 1), 5, y + 4); }
-  for (let step = 0; step <= 4; step += 1) { const value = xMinimum + step / 4 * (xMaximum - xMinimum); context.fillText(String(Math.round(value)), xPixel(value) - 14, height - 10); }
-  context.fillText("λ / nm", width - 50, height - 10); context.save(); context.translate(14, margin.top + 12); context.rotate(-Math.PI / 2); context.fillText(options.yLabel, 0, 0); context.restore();
-  for (const entry of series.filter((candidate) => candidate.band)) { context.fillStyle = entry.color; context.beginPath(); entry.lower.forEach((value, index) => index ? context.lineTo(xPixel(x[index]), yPixel(value)) : context.moveTo(xPixel(x[index]), yPixel(value))); [...entry.upper].reverse().forEach((value, reverseIndex) => { const index = entry.upper.length - 1 - reverseIndex; context.lineTo(xPixel(x[index]), yPixel(value)); }); context.closePath(); context.fill(); }
-  for (const entry of series.filter((candidate) => !candidate.band)) { context.strokeStyle = entry.color; context.fillStyle = entry.color; context.lineWidth = entry.points ? 1 : 2; context.beginPath(); let drawing = false; entry.values.forEach((value, index) => { if (!Number.isFinite(value)) { drawing = false; return; } const px = xPixel(x[index]); const py = yPixel(value); if (drawing) context.lineTo(px, py); else context.moveTo(px, py); drawing = true; }); context.stroke(); if (entry.points) entry.values.forEach((value, index) => { if (Number.isFinite(value) && index % Math.max(1, Math.floor(entry.values.length / 140)) === 0) context.fillRect(xPixel(x[index]) - 1.25, yPixel(value) - 1.25, 2.5, 2.5); }); }
+  const fullMinimumX = Math.min(...x); const fullMaximumX = Math.max(...x); const existing = chartStates.get(canvas);
+  const chart = existing && existing.fullMinimumX === fullMinimumX && existing.fullMaximumX === fullMaximumX ? existing : { minimumX: fullMinimumX, maximumX: fullMaximumX, hoverIndex: null, dragging: false };
+  Object.assign(chart, { x, series, options, fullMinimumX, fullMaximumX });
+  chartStates.set(canvas, chart);
+  renderChart(canvas);
 }
+
+function niceTicks(minimum, maximum, target = 5) {
+  const range = Math.max(Number.EPSILON, maximum - minimum); const exponent = Math.floor(Math.log10(range / target)); const fraction = range / target / 10 ** exponent;
+  const step = (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * 10 ** exponent;
+  const ticks = []; for (let value = Math.ceil(minimum / step) * step; value <= maximum + step * 1e-9; value += step) ticks.push(Math.abs(value) < step * 1e-9 ? 0 : value);
+  return ticks;
+}
+
+function renderChart(canvas) {
+  const chart = chartStates.get(canvas); if (!chart) return;
+  const ratio = Math.min(2, window.devicePixelRatio || 1); const width = Math.max(260, Math.round(canvas.clientWidth)); const height = Math.max(240, Math.round(canvas.clientHeight));
+  canvas.width = width * ratio; canvas.height = height * ratio; const context = canvas.getContext("2d"); context.scale(ratio, ratio);
+  const margin = { left: 64, right: 18, top: 18, bottom: 52 }; const plotWidth = width - margin.left - margin.right; const plotHeight = height - margin.top - margin.bottom;
+  const visible = chart.x.map((value, index) => value >= chart.minimumX && value <= chart.maximumX ? index : -1).filter((index) => index >= 0);
+  let values = chart.series.flatMap((entry) => visible.flatMap((index) => [entry.values?.[index], entry.lower?.[index], entry.upper?.[index]]).filter(Number.isFinite)); if (!values.length) values = [0, 1];
+  const maximumAbsolute = Math.max(...values.map(Math.abs)); let yMinimum; let yMaximum;
+  if (chart.options.symmetricY) { yMinimum = -(maximumAbsolute || 1) * 1.08; yMaximum = (maximumAbsolute || 1) * 1.08; }
+  else { yMinimum = chart.options.minimumY ?? Math.min(...values); yMaximum = Math.max(...values); const padding = Math.max((yMaximum - yMinimum) * .06, Math.abs(yMaximum) * .02, .01); if (chart.options.minimumY == null) yMinimum -= padding; yMaximum += padding; }
+  if (yMaximum <= yMinimum) yMaximum = yMinimum + 1;
+  const xPixel = (value) => margin.left + (value - chart.minimumX) / (chart.maximumX - chart.minimumX || 1) * plotWidth; const yPixel = (value) => margin.top + (yMaximum - value) / (yMaximum - yMinimum) * plotHeight;
+  Object.assign(chart, { geometry: { margin, plotWidth, plotHeight, width, height, xPixel, yPixel }, yMinimum, yMaximum });
+  context.fillStyle = "#ffffff"; context.fillRect(0, 0, width, height); context.font = "11px Arial, Helvetica, sans-serif"; context.lineWidth = 1;
+  const xTicks = niceTicks(chart.minimumX, chart.maximumX, width < 480 ? 4 : 6); const yTicks = niceTicks(yMinimum, yMaximum, 5);
+  context.strokeStyle = "#d9dde0"; context.fillStyle = "#38413d";
+  for (const value of yTicks) { const y = yPixel(value); context.beginPath(); context.moveTo(margin.left, y); context.lineTo(width - margin.right, y); context.stroke(); context.textAlign = "right"; context.fillText(formatTick(value), margin.left - 8, y + 4); }
+  for (const value of xTicks) { const px = xPixel(value); context.beginPath(); context.moveTo(px, margin.top); context.lineTo(px, height - margin.bottom); context.stroke(); context.textAlign = "center"; context.fillText(formatTick(value), px, height - margin.bottom + 18); }
+  if (chart.options.zeroLine && yMinimum < 0 && yMaximum > 0) { context.save(); context.strokeStyle = "#747b78"; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(margin.left, yPixel(0)); context.lineTo(width - margin.right, yPixel(0)); context.stroke(); context.restore(); }
+  context.strokeStyle = "#111713"; context.lineWidth = 1.2; context.beginPath(); context.moveTo(margin.left, margin.top); context.lineTo(margin.left, height - margin.bottom); context.lineTo(width - margin.right, height - margin.bottom); context.stroke();
+  context.fillStyle = "#111713"; context.font = "12px Arial, Helvetica, sans-serif"; context.textAlign = "center"; context.fillText(chart.options.xLabel, margin.left + plotWidth / 2, height - 7);
+  context.save(); context.translate(16, margin.top + plotHeight / 2); context.rotate(-Math.PI / 2); context.fillText(chart.options.yLabel, 0, 0); context.restore();
+  context.save(); context.beginPath(); context.rect(margin.left, margin.top, plotWidth, plotHeight); context.clip();
+  for (const entry of chart.series.filter((candidate) => candidate.band)) { context.fillStyle = entry.color; context.beginPath(); visible.forEach((index, order) => order ? context.lineTo(xPixel(chart.x[index]), yPixel(entry.lower[index])) : context.moveTo(xPixel(chart.x[index]), yPixel(entry.lower[index]))); [...visible].reverse().forEach((index) => context.lineTo(xPixel(chart.x[index]), yPixel(entry.upper[index]))); context.closePath(); context.fill(); }
+  for (const entry of chart.series.filter((candidate) => !candidate.band)) {
+    context.strokeStyle = entry.color; context.fillStyle = entry.color; context.lineWidth = 1.7; context.setLineDash(entry.dash ?? []);
+    if (entry.line !== false) { context.beginPath(); let drawing = false; for (const index of visible) { const value = entry.values[index]; if (!Number.isFinite(value)) { drawing = false; continue; } if (drawing) context.lineTo(xPixel(chart.x[index]), yPixel(value)); else context.moveTo(xPixel(chart.x[index]), yPixel(value)); drawing = true; } context.stroke(); }
+    if (entry.points) { context.setLineDash([]); const stride = Math.max(1, Math.floor(visible.length / 100)); visible.forEach((index, order) => { if (order % stride || !Number.isFinite(entry.values[index])) return; const px = xPixel(chart.x[index]); const py = yPixel(entry.values[index]); context.beginPath(); if (entry.marker === "circle") context.arc(px, py, 2.3, 0, Math.PI * 2); else context.rect(px - 2.2, py - 2.2, 4.4, 4.4); context.fill(); }); }
+  }
+  if (chart.hoverIndex != null) { const px = xPixel(chart.x[chart.hoverIndex]); context.save(); context.strokeStyle = "#707875"; context.lineWidth = 1; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(px, margin.top); context.lineTo(px, height - margin.bottom); if (Number.isFinite(chart.hoverY)) { context.moveTo(margin.left, chart.hoverY); context.lineTo(width - margin.right, chart.hoverY); } context.stroke(); context.restore(); for (const entry of chart.series.filter((candidate) => !candidate.band)) { const value = entry.values[chart.hoverIndex]; if (!Number.isFinite(value)) continue; context.fillStyle = entry.color; context.beginPath(); context.arc(px, yPixel(value), 3.5, 0, Math.PI * 2); context.fill(); } }
+  context.restore();
+}
+
+function formatTick(value) {
+  const absolute = Math.abs(value); if (absolute && (absolute >= 10000 || absolute < .001)) return value.toExponential(1);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: absolute < 1 ? 3 : absolute < 10 ? 2 : 1 }).format(value);
+}
+
+function nearestChartIndex(values, target) {
+  let low = 0; let high = values.length - 1; while (low < high) { const middle = Math.floor((low + high) / 2); if (values[middle] < target) low = middle + 1; else high = middle; }
+  return low > 0 && Math.abs(values[low - 1] - target) < Math.abs(values[low] - target) ? low - 1 : low;
+}
+
+function handleChartPointerMove(event) {
+  const canvas = event.currentTarget; const chart = chartStates.get(canvas); if (!chart) return; const { margin, plotWidth, plotHeight } = chart.geometry;
+  if (chart.dragging) { const span = chart.dragMaximumX - chart.dragMinimumX; panChart(canvas, -(event.offsetX - chart.dragX) / plotWidth * span, chart.dragMinimumX, chart.dragMaximumX); return; }
+  if (event.offsetX < margin.left || event.offsetX > margin.left + plotWidth || event.offsetY < margin.top || event.offsetY > margin.top + plotHeight) return handleChartPointerLeave(event);
+  const wavelength = chart.minimumX + (event.offsetX - margin.left) / plotWidth * (chart.maximumX - chart.minimumX); chart.hoverIndex = nearestChartIndex(chart.x, wavelength); chart.hoverY = event.offsetY;
+  const tooltip = canvas.parentElement.querySelector(".chart-tooltip"); const lines = [`λ = ${formatTick(chart.x[chart.hoverIndex])} nm`]; for (const entry of chart.series.filter((candidate) => candidate.label)) { const value = entry.values[chart.hoverIndex]; if (Number.isFinite(value)) lines.push(`${entry.label}: ${formatTick(value)}`); }
+  tooltip.textContent = lines.join("\n"); tooltip.hidden = false; tooltip.classList.toggle("align-left", event.offsetX > canvas.clientWidth * .72); tooltip.style.left = `${event.offsetX + (event.offsetX > canvas.clientWidth * .72 ? -10 : 10)}px`; tooltip.style.top = `${Math.max(6, event.offsetY - 12)}px`; renderChart(canvas);
+}
+
+function handleChartPointerLeave(event) { const canvas = event.currentTarget; const chart = chartStates.get(canvas); if (!chart || chart.dragging) return; chart.hoverIndex = null; canvas.parentElement.querySelector(".chart-tooltip").hidden = true; renderChart(canvas); }
+function handleChartPointerDown(event) { const chart = chartStates.get(event.currentTarget); if (!chart || event.button !== 0) return; chart.dragging = true; chart.dragX = event.offsetX; chart.dragMinimumX = chart.minimumX; chart.dragMaximumX = chart.maximumX; event.currentTarget.setPointerCapture(event.pointerId); }
+function handleChartPointerUp(event) { const chart = chartStates.get(event.currentTarget); if (!chart) return; chart.dragging = false; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }
+
+function handleChartWheel(event) {
+  const canvas = event.currentTarget; const chart = chartStates.get(canvas); if (!chart) return; event.preventDefault(); const { margin, plotWidth } = chart.geometry;
+  const centre = chart.minimumX + Math.max(0, Math.min(1, (event.offsetX - margin.left) / plotWidth)) * (chart.maximumX - chart.minimumX); zoomChart(canvas, Math.exp(event.deltaY * .0015), centre);
+}
+
+function handleChartKeydown(event) {
+  const canvas = event.currentTarget; const chart = chartStates.get(canvas); if (!chart) return; const centre = (chart.minimumX + chart.maximumX) / 2; const span = chart.maximumX - chart.minimumX;
+  if (["+", "="].includes(event.key)) zoomChart(canvas, .8, centre); else if (event.key === "-") zoomChart(canvas, 1.25, centre); else if (event.key === "ArrowLeft") panChart(canvas, -span * .1); else if (event.key === "ArrowRight") panChart(canvas, span * .1); else if (["0", "Escape"].includes(event.key)) resetChart(canvas); else return; event.preventDefault();
+}
+
+function zoomChart(canvas, factor, centre) {
+  const chart = chartStates.get(canvas); if (!chart) return; const fullSpan = chart.fullMaximumX - chart.fullMinimumX; const span = Math.max(fullSpan / 50, Math.min(fullSpan, (chart.maximumX - chart.minimumX) * factor)); const fraction = (centre - chart.minimumX) / (chart.maximumX - chart.minimumX || 1);
+  let minimum = centre - span * fraction; let maximum = minimum + span; if (minimum < chart.fullMinimumX) { minimum = chart.fullMinimumX; maximum = minimum + span; } if (maximum > chart.fullMaximumX) { maximum = chart.fullMaximumX; minimum = maximum - span; }
+  chart.minimumX = minimum; chart.maximumX = maximum; renderChart(canvas);
+}
+
+function panChart(canvas, shift, initialMinimum = null, initialMaximum = null) {
+  const chart = chartStates.get(canvas); if (!chart) return; const minimum = initialMinimum ?? chart.minimumX; const maximum = initialMaximum ?? chart.maximumX; const span = maximum - minimum; let nextMinimum = Math.max(chart.fullMinimumX, Math.min(chart.fullMaximumX - span, minimum + shift)); chart.minimumX = nextMinimum; chart.maximumX = nextMinimum + span; renderChart(canvas);
+}
+
+function resetChart(canvas) { const chart = chartStates.get(canvas); if (!chart) return; chart.minimumX = chart.fullMinimumX; chart.maximumX = chart.fullMaximumX; chart.hoverIndex = null; canvas.parentElement.querySelector(".chart-tooltip").hidden = true; renderChart(canvas); }
 
 function exportPayload() {
   if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before exporting results.");
   captureLayerInputs();
   return {
-    schema: SAVED_FIT_SCHEMA, application: { name: "Reflectometry", version: "3.7.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source, activeLayerId: state.activeLayerId,
+    schema: SAVED_FIT_SCHEMA, application: { name: "Reflectometry", version: "3.8.0", url: "https://jorpago2.github.io/reflectometry/" }, generatedAt: new Date().toISOString(), source: state.source, activeLayerId: state.activeLayerId,
     measurement: { spectrum: state.spectrum },
     controls: Object.fromEntries(SAVED_CONTROL_IDS.map((id) => [id, elements[id].type === "checkbox" ? elements[id].checked : elements[id].value])),
     stack: state.layers.map((layer) => ({

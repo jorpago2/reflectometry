@@ -6,7 +6,7 @@
   <meta name="description" content="Material-agnostic browser tool for multilayer reflectometry fitting with an independent optical model for every layer.">
   <meta name="theme-color" content="#f3f0e8">
   <title>Reflectometry · Generic multilayer fitting</title>
-  <link rel="stylesheet" href="styles.css?v=3.7.0">
+  <link rel="stylesheet" href="styles.css?v=3.8.0">
 </head>
 <body>
   <header class="masthead">
@@ -148,14 +148,14 @@
           <details id="uncertainty-panel" class="result-details"><summary>Parameter uncertainty and correlation</summary><div id="uncertainty-content" class="result-detail-content"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></details>
           <details id="solutions-panel" class="result-details"><summary>Alternative fitted solutions</summary><div id="solutions-content" class="result-detail-content"><p>No fitted alternatives yet.</p></div></details>
         </section>
-        <section class="plot-card"><div class="plot-heading"><div><p>MEASUREMENT / MODEL</p><h2>Reflectance and transmittance</h2></div><div class="legend"><span class="r-data">R data</span><span class="r-model">R model</span><span class="t-data">T data</span><span class="t-model">T model</span></div></div><canvas id="rt-chart" role="img" aria-label="Reflectance and transmittance spectra"></canvas></section>
-        <section class="plot-card"><div class="plot-heading"><div><p>MODEL − DATA</p><h2>Spectral residuals</h2></div></div><canvas id="residual-chart" role="img" aria-label="Spectral residuals"></canvas></section>
-        <section class="plot-card"><div class="plot-heading"><div><p id="nk-layer-label">ACTIVE LAYER</p><h2>Complex refractive index</h2></div><div class="legend"><span class="n-line">n</span><span class="k-line">k</span></div></div><canvas id="nk-chart" role="img" aria-label="Active-layer refractive index"></canvas></section>
+        <section class="plot-card"><div class="plot-heading"><div><p>MEASUREMENT / MODEL</p><h2>Reflectance and transmittance</h2></div><div class="legend"><span class="r-data">R data</span><span class="r-model">R model</span><span class="t-data">T data</span><span class="t-model">T model</span></div></div><div class="chart-shell"><canvas id="rt-chart" tabindex="0" role="img" aria-label="Interactive reflectance and transmittance spectra" aria-describedby="rt-chart-help"></canvas><output class="chart-tooltip" hidden aria-live="polite"></output></div><div class="chart-toolbar"><span id="rt-chart-help">Hover to inspect · Wheel or +/− to zoom · Drag or ←/→ to pan</span><button class="chart-reset" type="button" data-reset-chart="rt-chart">Reset view</button></div></section>
+        <section class="plot-card"><div class="plot-heading"><div><p>MODEL − DATA</p><h2>Spectral residuals</h2></div><div class="legend"><span class="r-model">R residual</span><span class="t-model">T residual</span></div></div><div class="chart-shell"><canvas id="residual-chart" tabindex="0" role="img" aria-label="Interactive spectral residuals" aria-describedby="residual-chart-help"></canvas><output class="chart-tooltip" hidden aria-live="polite"></output></div><div class="chart-toolbar"><span id="residual-chart-help">Hover to inspect · Wheel or +/− to zoom · Drag or ←/→ to pan</span><button class="chart-reset" type="button" data-reset-chart="residual-chart">Reset view</button></div></section>
+        <section class="plot-card"><div class="plot-heading"><div><p id="nk-layer-label">ACTIVE LAYER</p><h2>Complex refractive index</h2></div><div class="legend"><span class="n-line">n</span><span class="k-line">k</span></div></div><div class="chart-shell"><canvas id="nk-chart" tabindex="0" role="img" aria-label="Interactive active-layer refractive index" aria-describedby="nk-chart-help"></canvas><output class="chart-tooltip" hidden aria-live="polite"></output></div><div class="chart-toolbar"><span id="nk-chart-help">Hover to inspect · Wheel or +/− to zoom · Drag or ←/→ to pan</span><button class="chart-reset" type="button" data-reset-chart="nk-chart">Reset view</button></div></section>
         <section class="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Residual bootstrap intervals assume exchangeable spectral residuals and local refits near the selected minimum. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></details></section>
       </section>
     </div>
   </main>
-  <footer><span>Reflectometry · v3.7.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
-  <script type="module" src="multilayer-app.js?v=3.7.0"></script>
+  <footer><span>Reflectometry · v3.8.0</span><span>Static JavaScript · no upload · reproducible exports</span></footer>
+  <script type="module" src="multilayer-app.js?v=3.8.0"></script>
 </body>
 </html>
