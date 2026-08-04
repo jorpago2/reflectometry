@@ -14,6 +14,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /useEffect/);
   assert.match(vite, /base: "\/reflectometry\/"/);
   assert.match(files[1], /Build the stack/);
+  assert.match(files[1], /href="#reflectometry-workspace"/);
+  assert.match(files[1], /id="reflectometry-workspace"/);
   assert.match(files[1], /id="reset-example"/);
   assert.match(files[1], /id="saved-fit-file"/);
   assert.match(files[1], /R reference signal/);
@@ -61,7 +63,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
-  assert.match(styles, /\.hero h1 \{ font-size: clamp\(38px, 11vw, 42px\); \}/);
+  assert.match(styles, /\.hero h1 \{ font-size: clamp\(34px, 10vw, 40px\); \}/);
   assert.doesNotMatch(combined, new RegExp(["single", "layer"].join("[- ]") + "|material " + "preset|included example", "i"));
   assert.doesNotMatch(combined, /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

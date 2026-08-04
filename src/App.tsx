@@ -37,6 +37,7 @@ export default function App() {
 
   return (
     <>
+      <a className="skip-link" href="#reflectometry-workspace">Skip to fitting workspace</a>
       <header className="masthead">
         <a className="brand" href="./" aria-label="Reflectometry home">
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
@@ -63,7 +64,7 @@ export default function App() {
           </div>
         </section>
 
-        <div className="workspace multilayer-workspace">
+        <div id="reflectometry-workspace" className="workspace multilayer-workspace" tabIndex={-1}>
           <aside className="controls" aria-label="Data, stack, and fit controls">
             <section className="control-section">
               <div className="section-heading"><span>01</span><h2>Measurement</h2></div>
