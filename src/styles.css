@@ -712,6 +712,7 @@ footer {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
+footer a { min-height: 44px; display: inline-flex; align-items: center; color: var(--orange); font-weight: 800; text-underline-offset: 3px; }
 
 @media (max-width: 1080px) {
   .hero { grid-template-columns: 1fr 1fr; gap: 5vw; }

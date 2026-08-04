@@ -16,6 +16,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /Build the stack/);
   assert.match(files[1], /href="#reflectometry-workspace"/);
   assert.match(files[1], /id="reflectometry-workspace"/);
+  assert.match(files[1], /href="https:\/\/jorpago2\.github\.io\/"/);
   assert.match(files[1], /id="reset-example"/);
   assert.match(files[1], /id="saved-fit-file"/);
   assert.match(files[1], /R reference signal/);

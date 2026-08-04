@@ -193,7 +193,7 @@ export default function App() {
           </section>
         </div>
       </main>
-      <footer><span>Reflectometry · v4.0.0</span><span>React + TypeScript + Vite · local processing</span></footer>
+      <footer><span>Reflectometry · v4.0.0</span><span>React + TypeScript + Vite · local processing</span><a href="https://jorpago2.github.io/" aria-label="Online Simulators & Tools">All tools</a></footer>
     </>
   );
 }
