@@ -522,6 +522,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .status-row p { margin: 0; }
 .status-row progress { width: min(180px, 25%); accent-color: var(--orange); }
 .export-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 5px; }
+.cancel-action { color: #8d351f; border-color: #c38a78; }
 .report-meta { display: none; }
 
 .metrics,
@@ -788,7 +789,7 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
 @media print {
   @page { margin: 12mm; }
   body { background: white; color: black; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .hero, .controls, .export-actions, .chart-toolbar, progress, footer { display: none !important; }
+  .hero, .controls, .export-actions, .cancel-action, .chart-toolbar, progress, footer { display: none !important; }
   .workspace { display: block; }
   .results { padding: 0; background: white; }
   .report-meta { display: block; margin-bottom: 12px; font: 800 13px/1.4 Arial, Helvetica, sans-serif; }

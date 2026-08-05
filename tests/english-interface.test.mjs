@@ -29,7 +29,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /micrometres \(µm\)/);
   assert.match(files[1], /id="stack-diagram"/);
   assert.match(files[1], /LAYERS N,K/);
-  for (const id of ["undo-button", "redo-button", "bootstrap-button", "print-report", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
+  for (const id of ["undo-button", "redo-button", "bootstrap-button", "cancel-operation", "print-report", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
   for (const id of ["rt-chart", "residual-chart", "nk-chart"]) {
     assert.match(files[1], new RegExp(`canvasId="${id}"`));
   }

@@ -148,6 +148,7 @@ export default function App() {
             <div className="status-row">
               <p id="status" role="status" aria-live="polite">Loading demonstration data…</p>
               <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
+              <button id="cancel-operation" className="text-button cancel-action" type="button" hidden aria-controls="fit-progress">CANCEL</button>
               <div className="export-actions">
                 <button id="print-report" className="text-button" disabled type="button">PRINT REPORT</button>
                 <button id="download-json" className="text-button" disabled type="button">JSON</button>

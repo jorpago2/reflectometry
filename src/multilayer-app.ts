@@ -55,6 +55,7 @@ for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventList
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
 elements["bootstrap-button"].addEventListener("click", bootstrapUncertainty);
+elements["cancel-operation"].addEventListener("click", cancelOperation);
 elements["undo-button"].addEventListener("click", undoEdit);
 elements["redo-button"].addEventListener("click", redoEdit);
 elements["print-report"].addEventListener("click", () => window.print());
@@ -667,10 +668,7 @@ function fitModel() {
     const screeningPoints = integerValue("screening-points", 64, 4096); if (screeningPoints & (screeningPoints - 1)) throw new Error("Sobol points must be a power of two.");
     const localRefinements = integerValue("local-refinements", 1, 50);
     pushHistory();
-    if (state.worker) state.worker.terminate();
-    state.worker = new Worker(new URL("./fit-worker.ts", import.meta.url), { type: "module" });
-    state.worker.addEventListener("message", handleWorkerMessage); state.worker.addEventListener("error", (event) => finishFitError(event.message));
-    elements["fit-progress"].hidden = false; elements["fit-progress"].value = 0; setBusy(true, `Screening ${screeningPoints} Sobol points…`);
+    startFitWorker(`Screening ${screeningPoints} Sobol points…`);
     state.pendingConfiguration = config;
     state.worker.postMessage({ fitData, nk: null, configuration: { ...config, screeningPoints, localRefinements } });
   } catch (error) { showError(error); }
@@ -680,10 +678,7 @@ function bootstrapUncertainty() {
   try {
     if (!state.fitResult || state.fitResult.preview) throw new Error("Run a fit before estimating bootstrap uncertainty.");
     const samples = integerValue("bootstrap-samples", 5, 200);
-    if (state.worker) state.worker.terminate();
-    state.worker = new Worker(new URL("./fit-worker.ts", import.meta.url), { type: "module" });
-    state.worker.addEventListener("message", handleWorkerMessage); state.worker.addEventListener("error", (event) => finishFitError(event.message));
-    elements["fit-progress"].hidden = false; elements["fit-progress"].value = 0; setBusy(true, `Running ${samples} residual-bootstrap refits…`);
+    startFitWorker(`Running ${samples} residual-bootstrap refits…`);
     state.worker.postMessage({ operation: "bootstrap", fitData: state.fitData, nk: null, configuration: state.fitResult.configuration, bestParameters: state.fitResult.parameters, samples });
   } catch (error) { showError(error); }
 }
@@ -692,13 +687,13 @@ function handleWorkerMessage({ data }) {
   if (data.type === "progress") { elements["fit-progress"].value = data.progress; setStatus(`Fitting parameters… ${data.progress}%`); return; }
   if (data.type === "bootstrap-progress") { elements["fit-progress"].value = data.progress; setStatus(`Bootstrap refits… ${data.progress}%`); return; }
   if (data.type === "bootstrap-result") {
-    state.worker.terminate(); state.worker = null; elements["fit-progress"].hidden = true; setBusy(false);
+    stopFitWorker();
     state.fitResult.diagnostics.bootstrap = data.result;
     renderResult(`Bootstrap complete: ${data.result.successfulSamples} of ${data.result.requestedSamples} refits converged.`); return;
   }
   if (data.type === "error") return finishFitError(data.message);
   if (data.type !== "result") return;
-  state.worker.terminate(); state.worker = null; elements["fit-progress"].hidden = true; setBusy(false);
+  stopFitWorker();
   state.fitResult = { ...data.result, configuration: state.pendingConfiguration }; state.pendingConfiguration = null; state.evaluation = data.result.evaluation;
   for (const layer of [...state.layers, state.substrate]) for (const specificationName of Object.keys(layer.specs)) {
     const key = `${layer.id}__${specificationName}`; layer.specs[specificationName].value = data.result.parameters[key];
@@ -710,7 +705,16 @@ function handleWorkerMessage({ data }) {
   renderResult(data.result.optimizer.selectedSolver.success ? "Fit complete." : `Fit stopped: ${data.result.optimizer.selectedSolver.message}`);
 }
 
-function finishFitError(message) { if (state.worker) state.worker.terminate(); state.worker = null; state.pendingConfiguration = null; elements["fit-progress"].hidden = true; setBusy(false); showError(new Error(message)); }
+function startFitWorker(message) {
+  if (state.worker) state.worker.terminate();
+  state.worker = new Worker(new URL("./fit-worker.ts", import.meta.url), { type: "module" });
+  state.worker.addEventListener("message", handleWorkerMessage); state.worker.addEventListener("error", (event) => finishFitError(event.message));
+  elements["fit-progress"].hidden = false; elements["fit-progress"].value = 0; elements["cancel-operation"].hidden = false; setBusy(true, message);
+}
+
+function stopFitWorker() { if (state.worker) state.worker.terminate(); state.worker = null; elements["fit-progress"].hidden = true; elements["cancel-operation"].hidden = true; setBusy(false); }
+function cancelOperation() { if (!state.worker) return; stopFitWorker(); state.pendingConfiguration = null; setStatus("Calculation cancelled; previous valid results were kept."); }
+function finishFitError(message) { stopFitWorker(); state.pendingConfiguration = null; showError(new Error(message)); }
 
 function renderResult(message) {
   const result = state.fitResult; const diagnostics = result.diagnostics;
