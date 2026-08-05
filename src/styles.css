@@ -323,7 +323,9 @@ details[open] { padding-bottom: 14px; }
 .layer-card {
   padding: 12px;
   border: 1px solid var(--line);
-  background: #f0ede5;
+  border-top: 3px solid var(--orange);
+  border-radius: 12px;
+  background: var(--panel);
 }
 
 .layer-card-header {
@@ -345,6 +347,7 @@ details[open] { padding-bottom: 14px; }
 .model-help {
   margin: -3px 0 12px;
   border: 1px solid var(--line);
+  border-radius: 10px;
   background: var(--panel);
 }
 
@@ -390,6 +393,7 @@ details[open] { padding-bottom: 14px; }
   flex-wrap: wrap;
   gap: 8px 12px;
   border: 1px solid var(--line);
+  border-radius: 10px;
   background: var(--panel);
 }
 
@@ -507,7 +511,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   grid-template-columns: 1fr 1.35fr;
   gap: 9px;
   border-top: 1px solid var(--line);
-  background: rgba(251, 250, 245, .95);
+  background: rgba(255, 255, 255, .95);
   backdrop-filter: blur(8px);
 }
 
@@ -527,6 +531,8 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   align-items: center;
   gap: 12px;
   border: 1px solid var(--line);
+  border-left: 3px solid var(--orange);
+  border-radius: 10px;
   background: var(--panel);
   font-size: 11px;
 }
@@ -541,13 +547,11 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .diagnostic-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px;
-  border: 1px solid var(--line);
-  background: var(--line);
+  gap: 8px;
 }
 
 .metrics article,
-.diagnostic-grid article { padding: 15px; background: var(--panel); }
+.diagnostic-grid article { padding: 15px; border: 1px solid var(--line); border-top: 3px solid var(--orange); border-radius: 10px; background: var(--panel); }
 .metrics span,
 .diagnostic-grid span { display: block; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .065em; }
 .metrics strong,
@@ -560,13 +564,14 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .plot-card,
 .provenance {
   border: 1px solid var(--line);
+  border-radius: 14px;
   background: var(--panel);
 }
 
 .diagnostics { padding: 16px; }
 .diagnostics .diagnostic-grid { margin-top: 13px; }
 .diagnostics > p { margin: 13px 0 0; color: var(--muted); font-size: 12px; }
-.result-details { margin: 14px 0 0; padding: 0; border: 1px solid var(--line); }
+.result-details { margin: 14px 0 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; }
 .result-details > summary { padding: 11px; }
 .result-details[open] { padding-bottom: 0; }
 .result-detail-content { padding: 0 11px 11px; overflow-x: auto; }
@@ -604,7 +609,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .stack-beam strong { color: var(--orange); font-size: 54px; line-height: .8; }
 .stack-beam small { color: var(--acid); font: inherit; }
 
-.stack-diagram { border: 1px solid var(--ink); background: white; }
+.stack-diagram { overflow: hidden; border: 1px solid var(--ink); border-radius: 10px; background: white; }
 
 .stack-medium {
   min-height: 54px;
@@ -690,9 +695,9 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   white-space: pre-line;
 }
 .chart-tooltip.align-left { transform: translateX(-100%); }
-.chart-toolbar { margin-top: 9px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.chart-toolbar { margin-top: 9px; padding: 9px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
 .chart-toolbar span { color: var(--muted); font-size: 10px; line-height: 1.4; }
-.chart-reset { min-height: 36px; padding: 5px 9px; border: 1px solid var(--line-strong); background: transparent; color: var(--ink); font-size: 9px; }
+.chart-reset { min-height: 36px; padding: 5px 9px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 9px; }
 .chart-reset:hover, .chart-reset:focus-visible { border-color: var(--ink); background: var(--line); }
 
 .plotly-chart {
@@ -700,6 +705,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
   width: 100%;
   height: 330px;
   border: 1px solid #b8bebb;
+  border-radius: 10px;
   background: var(--canvas);
   cursor: crosshair;
   touch-action: none;
