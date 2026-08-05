@@ -53,12 +53,14 @@ export default function App() {
       </header>
 
       <main>
-        <section className="hero multilayer-hero" aria-labelledby="page-title">
-          <div className="hero-title">
+        <section className="tool-heading" aria-labelledby="page-title">
+          <div>
             <p className="eyebrow">OPTICAL MODELLING / REFLECTOMETRY</p>
-            <h1 id="page-title"><span>Build the stack.</span> <em>Fit every layer.</em></h1>
+            <h1 id="page-title">Reflectometry</h1>
+            <p className="lede">Load spectra, define the optical stack and run the fit when ready.</p>
           </div>
-          <div className="hero-summary">
+          <details className="tool-about">
+            <summary>Capabilities and model scope</summary>
             <p className="hero-flow">SPECTRA <span>→</span> STACK <span>→</span> OPTICAL CONSTANTS</p>
             <p className="lede">Assign an independent tabulated, dispersion, oscillator, free-carrier, Kramers–Kronig spline, or effective-medium model to every coherent layer.</p>
             <dl className="profile">
@@ -66,14 +68,14 @@ export default function App() {
               <div><dt>GEOMETRY</dt><dd>Normal incidence</dd></div>
               <div><dt>SUBSTRATE</dt><dd>Finite, incoherent, dispersive</dd></div>
             </dl>
-          </div>
+          </details>
         </section>
 
         <div id="reflectometry-workspace" className="workspace multilayer-workspace" tabIndex={-1}>
           <aside className="controls" aria-label="Data, stack, and fit controls">
             <section className="control-section">
               <div className="section-heading"><span>01</span><h2>Measurement</h2></div>
-              <button id="reset-example" className="secondary full" type="button">Reset synthetic example</button>
+              <button id="reset-example" className="secondary full" type="button">Load synthetic example</button>
               <details>
                 <summary>Open a saved fitting result</summary>
                 <label>Saved fit JSON<input id="saved-fit-file" type="file" accept=".json,application/json" /></label>
@@ -92,15 +94,18 @@ export default function App() {
                 <button id="load-files" className="secondary full" type="button">Process local files</button>
                 <p className="model-note">Signal files use wavelength (nm) and counts. The reference R and layer n,k tables accept wavelength in nm or µm.</p>
               </details>
-              <p id="source-name" className="source-name">Preparing a synthetic example…</p>
-              <div className="field-pair">
-                <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" defaultValue="300" min="195" max="2500" step="10" /></label>
-                <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" defaultValue="1100" min="200" max="3000" step="10" /></label>
-                <label>Reference threshold <span>%</span><input id="reference-threshold" type="number" defaultValue="5" min="0" max="99" step="1" /></label>
-                <label>Median bin <span>nm</span><input id="bin-width" type="number" defaultValue="2" min="0.1" max="100" step="0.5" /></label>
-              </div>
-              <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" defaultValue="5" min="0" max="100" step="0.5" /></label>
-              <label className="check"><input id="subtract-background" type="checkbox" defaultChecked /><span>Subtract 195–250 nm background</span></label>
+              <p id="source-name" className="source-name">No measurement loaded</p>
+              <details className="advanced-controls">
+                <summary>Measurement processing</summary>
+                <div className="field-pair">
+                  <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" defaultValue="300" min="195" max="2500" step="10" /></label>
+                  <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" defaultValue="1100" min="200" max="3000" step="10" /></label>
+                  <label>Reference threshold <span>%</span><input id="reference-threshold" type="number" defaultValue="5" min="0" max="99" step="1" /></label>
+                  <label>Median bin <span>nm</span><input id="bin-width" type="number" defaultValue="2" min="0.1" max="100" step="0.5" /></label>
+                </div>
+                <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" defaultValue="5" min="0" max="100" step="0.5" /></label>
+                <label className="check"><input id="subtract-background" type="checkbox" defaultChecked /><span>Subtract 195–250 nm background</span></label>
+              </details>
             </section>
 
             <section className="control-section">
@@ -127,31 +132,36 @@ export default function App() {
                 <label className="check"><input id="use-t" type="checkbox" defaultChecked /><span>Fit T</span></label>
                 <label className="check"><input id="prefer-shape" type="checkbox" defaultChecked /><span>Shape residual</span></label>
               </div>
-              <div className="field-pair">
-                <label>σR<input id="sigma-r" type="number" defaultValue="0.02" min="0.0001" max="1" step="0.005" /></label>
-                <label>σT<input id="sigma-t" type="number" defaultValue="0.02" min="0.0001" max="1" step="0.005" /></label>
-                <label>σn<input id="sigma-n" type="number" defaultValue="0.5" min="0.0001" max="10" step="0.05" /></label>
-                <label>σk<input id="sigma-k" type="number" defaultValue="0.25" min="0.0001" max="10" step="0.05" /></label>
-              </div>
-              <div className="global-parameter-grid">
-                <label className="check"><input id="fit-r-gain" type="checkbox" /><span>Fit R gain</span></label><input id="r-gain" type="number" defaultValue="1" min="0.1" max="10" step="0.01" aria-label="R gain" />
-                <label className="check"><input id="fit-t-gain" type="checkbox" /><span>Fit T gain</span></label><input id="t-gain" type="number" defaultValue="1" min="0.1" max="10" step="0.01" aria-label="T gain" />
-              </div>
-              <div className="field-pair">
-                <label>Sobol points<select id="screening-points" defaultValue="512"><option>64</option><option>128</option><option>256</option><option>512</option><option>1024</option><option>2048</option></select></label>
-                <label>Local refinements<input id="local-refinements" type="number" defaultValue="16" min="1" max="50" step="1" /></label>
-                <label>Bootstrap replicates<select id="bootstrap-samples" defaultValue="20"><option>20</option><option>50</option><option>100</option></select></label>
-              </div>
+              <details className="advanced-controls">
+                <summary>Weights and optimizer</summary>
+                <div className="field-pair">
+                  <label>σR<input id="sigma-r" type="number" defaultValue="0.02" min="0.0001" max="1" step="0.005" /></label>
+                  <label>σT<input id="sigma-t" type="number" defaultValue="0.02" min="0.0001" max="1" step="0.005" /></label>
+                  <label>σn<input id="sigma-n" type="number" defaultValue="0.5" min="0.0001" max="10" step="0.05" /></label>
+                  <label>σk<input id="sigma-k" type="number" defaultValue="0.25" min="0.0001" max="10" step="0.05" /></label>
+                </div>
+                <div className="global-parameter-grid">
+                  <label className="check"><input id="fit-r-gain" type="checkbox" /><span>Fit R gain</span></label><input id="r-gain" type="number" defaultValue="1" min="0.1" max="10" step="0.01" aria-label="R gain" />
+                  <label className="check"><input id="fit-t-gain" type="checkbox" /><span>Fit T gain</span></label><input id="t-gain" type="number" defaultValue="1" min="0.1" max="10" step="0.01" aria-label="T gain" />
+                </div>
+                <div className="field-pair">
+                  <label>Sobol points<select id="screening-points" defaultValue="512"><option>64</option><option>128</option><option>256</option><option>512</option><option>1024</option><option>2048</option></select></label>
+                  <label>Local refinements<input id="local-refinements" type="number" defaultValue="16" min="1" max="50" step="1" /></label>
+                  <label>Bootstrap replicates<select id="bootstrap-samples" defaultValue="20"><option>20</option><option>50</option><option>100</option></select></label>
+                </div>
+                <button id="bootstrap-button" className="secondary full" type="button" disabled>Estimate bootstrap uncertainty</button>
+              </details>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
-              <button id="bootstrap-button" className="secondary full" type="button" disabled>Estimate bootstrap uncertainty</button>
             </section>
 
             <div className="actions"><button id="preview-button" className="secondary" type="button">Update model</button><button id="fit-button" className="primary" type="button">Fit parameters <span aria-hidden="true">→</span></button></div>
           </aside>
 
           <section className="results" aria-label="Fit results">
+            <div id="results-empty" className="results-empty"><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p></div>
+            <div id="results-content" hidden>
             <div className="status-row">
-              <p id="status" role="status" aria-live="polite">Loading demonstration data…</p>
+              <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
               <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
               <button id="cancel-operation" className="text-button cancel-action" type="button" hidden aria-controls="fit-progress">CANCEL</button>
               <div className="export-actions">
@@ -196,6 +206,7 @@ export default function App() {
             <PlotCard eyebrow="MODEL − DATA" title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />
             <PlotCard eyebrow="ACTIVE LAYER" eyebrowId="nk-layer-label" title="Complex refractive index" canvasId="nk-chart" label="Interactive active-layer refractive index" legend={[{ className: "n-line", text: "n" }, { className: "k-line", text: "k" }]} />
             <section className="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Residual bootstrap intervals assume exchangeable spectral residuals and local refits near the selected minimum. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></details></section>
+            </div>
           </section>
         </div>
       </main>

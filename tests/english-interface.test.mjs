@@ -16,7 +16,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(main, /createRoot/);
   assert.match(files[1], /useEffect/);
   assert.match(vite, /base: "\/reflectometry\/"/);
-  assert.match(files[1], /Build the stack/);
+  assert.match(files[1], /Capabilities and model scope/);
   assert.match(files[1], /href="#reflectometry-workspace"/);
   assert.match(files[1], /id="reflectometry-workspace"/);
   assert.match(files[1], /href="https:\/\/jorpago2\.github\.io\/"/);
@@ -69,7 +69,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
-  assert.match(styles, /\.hero h1 \{ font-size: clamp\(34px, 10vw, 40px\); \}/);
+  assert.match(styles, /\.tool-heading h1 \{ font-size: clamp\(28px, 9vw, 36px\); \}/);
+  assert.match(files[2], /initializeWorkspace\(\);/);
+  assert.doesNotMatch(files[2], /loadSyntheticExample\(\);\s*$/);
   assert.doesNotMatch(combined, new RegExp(["single", "layer"].join("[- ]") + "|material " + "preset|included example", "i"));
   assert.doesNotMatch(combined, /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

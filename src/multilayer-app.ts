@@ -146,6 +146,18 @@ function loadSyntheticExample() {
   finally { setBusy(false); }
 }
 
+function initializeWorkspace() {
+  state.layers = [];
+  state.substrate = makeSubstrate();
+  const layer = makeLayer("constant", 150, null);
+  layer.name = "Generic layer";
+  state.layers = [layer];
+  state.activeLayerId = layer.id;
+  renderLayers();
+  resetHistory();
+  setStatus("Load measurement data or the synthetic example to begin.");
+}
+
 async function loadLocalFiles() {
   const fields = { sampleR: "file-sample-r", sampleT: "file-sample-t", reflectanceReference: "file-r-reference", transmittanceReference: "file-t-reference", referenceReflectance: "file-reference-model" };
   const files = Object.fromEntries(Object.entries(fields).map(([name, id]) => [name, elements[id].files[0]]));
@@ -672,6 +684,7 @@ function validateChannels(data, settings) {
 }
 
 function previewModel() {
+  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before updating the model.");
   try {
     const config = configuration(); const fitData = prepareCurrentData(); validateChannels(fitData, config.settings);
     state.evaluation = evaluateOpticalModel(fitData, null, config.initial, config.settings);
@@ -682,6 +695,7 @@ function previewModel() {
 }
 
 function fitModel() {
+  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before fitting.");
   try {
     const config = configuration(); const fitData = prepareCurrentData(); validateChannels(fitData, config.settings);
     if (!config.fittedParameters.length) throw new Error("Select at least one parameter to fit.");
@@ -745,6 +759,8 @@ function finishFitError(message) { stopFitWorker(); state.pendingConfiguration =
 
 function renderResult(message) {
   state.resultStale = false;
+  elements["results-empty"].hidden = true;
+  elements["results-content"].hidden = false;
   const result = state.fitResult; const diagnostics = result.diagnostics;
   elements["metric-thickness"].textContent = format(state.layers.reduce((sum, layer) => sum + result.parameters[`${layer.id}__thicknessNm`], 0), 2);
   elements["metric-rmse-r"].textContent = formatNullable(diagnostics.rmseReflectance, 5);
@@ -1040,4 +1056,4 @@ function safeName(value) { return String(value ?? "sample").toLowerCase().replac
 function csvCell(value) { return `"${String(value).replaceAll('"', '""')}"`; }
 function saveFile(content, name, type) { const blob = content instanceof Blob ? content : new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
 
-loadSyntheticExample();
+initializeWorkspace();
