@@ -1,13 +1,13 @@
 :root {
   color-scheme: light;
-  --ink: #171713;
-  --paper: #f3f0e8;
-  --panel: #fbfaf5;
-  --results: #e8e4da;
-  --line: #d5d0c4;
+  --ink: #141713;
+  --paper: #f6f7f3;
+  --panel: #ffffff;
+  --results: #eceee9;
+  --line: #d8dcd5;
   --orange: #ff5a1f;
   --acid: #d9ff43;
-  --muted: #716d64;
+  --muted: #697068;
   --dim: #918b80;
   --plot-blue: #0072b2;
   --plot-orange: #d55e00;
@@ -22,7 +22,7 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, Aptos, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 15px;
   line-height: 1.45;
 }
@@ -57,7 +57,8 @@ button, summary { cursor: pointer; }
   align-items: center;
   gap: 28px;
   border-bottom: 1px solid var(--line);
-  background: rgba(243, 240, 232, .94);
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(14px);
 }
 
 .brand {
@@ -93,8 +94,9 @@ button, summary { cursor: pointer; }
   text-transform: uppercase;
 }
 
-.app-help { position: relative; margin-left: auto; }
-.app-help > summary { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); cursor: pointer; font: 800 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace; text-transform: uppercase; list-style: none; }
+.suite-link { min-height: 36px; margin-left: auto; padding: 0 12px; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); background: var(--panel); font-size: 11px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.app-help { position: relative; }
+.app-help > summary { min-height: 36px; padding: 0 12px; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--orange); background: var(--panel); cursor: pointer; font-size: 11px; font-weight: 800; list-style: none; }
 .app-help > summary::-webkit-details-marker { display: none; }
 .app-help-panel { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: min(22rem, calc(100vw - 24px)); padding: 14px; border: 1px solid var(--ink); background: var(--panel); box-shadow: 8px 8px 0 rgba(23, 23, 19, .12); }
 .app-help-panel p { margin: 6px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -266,7 +268,7 @@ input, select {
   min-height: 41px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 8px;
   background: #fff;
   color: var(--ink);
   text-transform: none;
@@ -447,7 +449,7 @@ button {
   min-height: 39px;
   padding: 9px 13px;
   border: 1px solid var(--ink);
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--ink);
   font-size: 11px;
@@ -756,11 +758,10 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
 
 @media (max-width: 560px) {
   .app-help-panel { position: fixed; top: 64px; right: 12px; left: 12px; width: auto; }
-  .masthead { min-height: 60px; gap: 12px; }
+  .masthead { min-height: 60px; gap: 8px; padding-inline: 12px; }
   .brand { font-size: 15px; }
   .brand-mark { width: 20px; height: 20px; }
-  .privacy { padding: 6px 8px; font-size: 0; }
-  .privacy::after { content: "LOCAL"; font-size: 9px; }
+  .privacy { display: none; }
   .hero { padding: 24px 20px 26px; }
   .hero h1 { font-size: clamp(34px, 10vw, 40px); }
   .hero-summary { padding: 14px 0 14px 18px; }

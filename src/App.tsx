@@ -44,6 +44,7 @@ export default function App() {
           REFLECTO<span>METRY</span>
         </a>
         <p className="masthead-context">Multilayer optical modelling · local fitting</p>
+        <a className="suite-link" href="https://jorpago2.github.io/" aria-label="Online Simulators & Tools">All tools</a>
         <details id="app-help" className="app-help">
           <summary aria-keyshortcuts="?">Help</summary>
           <div className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></div>
