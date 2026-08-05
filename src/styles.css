@@ -724,6 +724,10 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
   .workspace button,
   .workspace select,
   .workspace input:not([type="checkbox"]) { min-height: 44px; }
+  .workspace button { min-width: 44px; }
+  .modebar { width: 100%; display: flex !important; flex-wrap: wrap; justify-content: flex-end; }
+  .modebar-group { display: flex !important; }
+  .modebar-btn { width: 44px !important; }
   .workspace .parameter-help-button { width: 44px; min-height: 44px; }
   .check { min-height: 44px; }
 }
@@ -765,7 +769,7 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
   .model-parameter-help dd { padding-top: 2px; }
   .parameter-header, .parameter-row { grid-template-columns: 24px minmax(58px, 1.1fr) repeat(3, minmax(0, .72fr)) minmax(38px, .75fr); gap: 3px; }
   .parameter-header { font-size: 8px; letter-spacing: 0; }
-  .parameter-row input[type="number"] { min-height: 34px; padding: 3px; font-size: 10px; }
+  .parameter-row input[type="number"] { min-height: 44px; padding: 3px; font-size: 10px; }
   .plot-heading { align-items: flex-start; flex-direction: column; }
   .legend { justify-content: flex-start; }
   .plot-card { padding: 14px; }
