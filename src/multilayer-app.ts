@@ -51,7 +51,7 @@ for (const container of [elements.layers, elements["substrate-editor"]]) {
   container.addEventListener("click", handleParameterHelp);
 }
 document.addEventListener("click", (event) => !(event.target as Element).closest(".parameter-help-button, .parameter-help-popover") && closeParameterHelp());
-document.addEventListener("keydown", (event) => event.key === "Escape" && closeParameterHelp());
+document.addEventListener("keydown", handleGlobalShortcut);
 for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventListener("change", () => { pushHistory(); renderStackDiagram(); commitHistorySnapshot(); markResultStale(); });
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
@@ -67,6 +67,25 @@ elements["download-nk"].addEventListener("click", downloadLayersNkCsv);
 for (const button of document.querySelectorAll<HTMLElement>("[data-reset-chart]")) button.addEventListener("click", () => resetChart(elements[button.dataset.resetChart!]));
 for (const id of ["fit-r-gain", "fit-t-gain"]) elements[id].addEventListener("change", updateFitCount);
 for (const id of SAVED_CONTROL_IDS) elements[id].addEventListener("change", () => { pushHistory(); commitHistorySnapshot(); if (!OPTIMIZER_CONTROL_IDS.has(id)) markResultStale(); });
+
+function handleGlobalShortcut(event: KeyboardEvent) {
+  if (event.repeat) return;
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    if (!state.worker && !elements["fit-button"].disabled) elements["fit-button"].click();
+  } else if (event.key === "Escape") {
+    closeParameterHelp();
+    elements["app-help"].open = false;
+    if (state.worker) cancelOperation();
+  } else if (event.key === "?" && !isEditableTarget(event.target)) {
+    event.preventDefault();
+    elements["app-help"].open = !elements["app-help"].open;
+  }
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
+}
 
 function makeLayer(model, thicknessNm, nk) {
   const id = `layer${state.nextLayer++}`;
