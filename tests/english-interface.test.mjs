@@ -36,6 +36,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /data-reset-chart=\{canvasId\}/);
   assert.match(files[2], /Independent dielectric components/);
   assert.match(files[2], /function renderStackDiagram/);
+  assert.match(files[2], /function markResultStale/);
+  assert.match(files[2], /state\.resultStale/);
   assert.match(files[2], /Tauc–Lorentz oscillators/);
   assert.match(files[2], /Lorentz oscillators/);
   assert.match(files[2], /Brendel–Bormann/);

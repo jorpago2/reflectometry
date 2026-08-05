@@ -27,8 +27,9 @@ const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: 
 const DEFAULT_COMPONENTS = { taucLorentz: 1, lorentz: 0, gaussian: false, cody: false, drude: false, drudeSmith: false, brendelBormann: false, criticalPoint: false };
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const SAVED_CONTROL_IDS = ["wavelength-min", "wavelength-max", "reference-threshold", "bin-width", "sample-snr", "subtract-background", "use-r", "use-t", "prefer-shape", "sigma-r", "sigma-t", "sigma-n", "sigma-k", "fit-r-gain", "fit-t-gain", "r-gain", "t-gain", "screening-points", "local-refinements", "bootstrap-samples"];
+const OPTIMIZER_CONTROL_IDS = new Set(["screening-points", "local-refinements", "bootstrap-samples"]);
 const elements: Record<string, any> = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state: any = { spectrum: null, fitData: null, evaluation: null, fitResult: null, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
+const state: any = { spectrum: null, fitData: null, evaluation: null, fitResult: null, resultStale: false, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
 const chartStates = new Map<any, any>();
 
 elements["reset-example"].addEventListener("click", loadSyntheticExample);
@@ -51,7 +52,7 @@ for (const container of [elements.layers, elements["substrate-editor"]]) {
 }
 document.addEventListener("click", (event) => !(event.target as Element).closest(".parameter-help-button, .parameter-help-popover") && closeParameterHelp());
 document.addEventListener("keydown", (event) => event.key === "Escape" && closeParameterHelp());
-for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventListener("change", () => { pushHistory(); renderStackDiagram(); commitHistorySnapshot(); });
+for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventListener("change", () => { pushHistory(); renderStackDiagram(); commitHistorySnapshot(); markResultStale(); });
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
 elements["bootstrap-button"].addEventListener("click", bootstrapUncertainty);
@@ -65,7 +66,7 @@ elements["download-csv"].addEventListener("click", downloadSpectraCsv);
 elements["download-nk"].addEventListener("click", downloadLayersNkCsv);
 for (const button of document.querySelectorAll<HTMLElement>("[data-reset-chart]")) button.addEventListener("click", () => resetChart(elements[button.dataset.resetChart!]));
 for (const id of ["fit-r-gain", "fit-t-gain"]) elements[id].addEventListener("change", updateFitCount);
-for (const id of SAVED_CONTROL_IDS) elements[id].addEventListener("change", () => { pushHistory(); commitHistorySnapshot(); });
+for (const id of SAVED_CONTROL_IDS) elements[id].addEventListener("change", () => { pushHistory(); commitHistorySnapshot(); if (!OPTIMIZER_CONTROL_IDS.has(id)) markResultStale(); });
 
 function makeLayer(model, thicknessNm, nk) {
   const id = `layer${state.nextLayer++}`;
@@ -712,11 +713,19 @@ function startFitWorker(message) {
   elements["fit-progress"].hidden = false; elements["fit-progress"].value = 0; elements["cancel-operation"].hidden = false; setBusy(true, message);
 }
 
+function markResultStale() {
+  if (!state.fitResult) return;
+  state.resultStale = true;
+  for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = true;
+  setStatus("Configuration changed; update the model or refit before exporting these results.");
+}
+
 function stopFitWorker() { if (state.worker) state.worker.terminate(); state.worker = null; elements["fit-progress"].hidden = true; elements["cancel-operation"].hidden = true; setBusy(false); }
-function cancelOperation() { if (!state.worker) return; stopFitWorker(); state.pendingConfiguration = null; setStatus("Calculation cancelled; previous valid results were kept."); }
+function cancelOperation() { if (!state.worker) return; stopFitWorker(); state.pendingConfiguration = null; setStatus(state.resultStale ? "Calculation cancelled; displayed results still precede the current configuration." : "Calculation cancelled; previous valid results were kept."); }
 function finishFitError(message) { stopFitWorker(); state.pendingConfiguration = null; showError(new Error(message)); }
 
 function renderResult(message) {
+  state.resultStale = false;
   const result = state.fitResult; const diagnostics = result.diagnostics;
   elements["metric-thickness"].textContent = format(state.layers.reduce((sum, layer) => sum + result.parameters[`${layer.id}__thicknessNm`], 0), 2);
   elements["metric-rmse-r"].textContent = formatNullable(diagnostics.rmseReflectance, 5);
@@ -1004,7 +1013,7 @@ function integerValue(id, minimum, maximum) { const value = numberValue(id, mini
 function format(value, digits = 3) { return Number.isFinite(value) ? Number(value).toFixed(digits).replace(/\.?0+$/, "") : "—"; }
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
-function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) elements[id].disabled = busy; if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview); updateHistoryButtons(); } if (message) setStatus(message); }
+function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) elements[id].disabled = busy; if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } if (message) setStatus(message); }
 function setStatus(message) { elements.status.textContent = message; }
 function showError(error) { setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`); }
 function safeName(value) { return String(value ?? "sample").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sample"; }
