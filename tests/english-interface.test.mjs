@@ -9,6 +9,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   const styles = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
   const combined = files.join("\n");
   assert.match(files[0], /<html lang="en">/);
+  for (const metadata of ["theme-color", "canonical", "favicon.svg", "og:site_name", "og:url", "og:image:alt", "twitter:title", "twitter:description", "twitter:image:alt"]) {
+    assert.match(files[0], new RegExp(metadata));
+  }
   assert.match(files[0], /src="\/src\/main\.tsx"/);
   assert.match(main, /createRoot/);
   assert.match(files[1], /useEffect/);
