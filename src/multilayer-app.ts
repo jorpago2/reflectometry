@@ -976,14 +976,20 @@ function exportPayload() {
   };
 }
 
-function downloadJson() { try { saveFile(JSON.stringify(exportPayload(), null, 2), `${safeName(state.source.sampleName)}-multilayer-fit.json`, "application/json"); } catch (error) { showError(error); } }
+function downloadJson() {
+  try {
+    const filename = `${safeName(state.source.sampleName)}-multilayer-fit.json`;
+    saveFile(JSON.stringify(exportPayload(), null, 2), filename, "application/json;charset=utf-8");
+    setStatus(`Fit exported as ${filename}.`);
+  } catch (error) { showError(error); }
+}
 function downloadSpectraCsv() {
   try { exportPayload(); const header = "wavelength_nm,reflectance_data,transmittance_data,reflectance_valid,transmittance_valid,reflectance_model,transmittance_model,reflectance_residual,transmittance_residual";
-    const rows = state.fitData.wavelengthNm.map((wavelength, index) => [wavelength, state.fitData.reflectance[index], state.fitData.transmittance[index], state.fitData.reflectanceValid[index], state.fitData.transmittanceValid[index], state.evaluation.reflectanceScaled[index], state.evaluation.transmittanceScaled[index], state.fitData.reflectanceValid[index] ? state.evaluation.reflectanceScaled[index] - state.fitData.reflectance[index] : "", state.fitData.transmittanceValid[index] ? state.evaluation.transmittanceScaled[index] - state.fitData.transmittance[index] : ""].join(",")); saveFile([header, ...rows].join("\n"), `${safeName(state.source.sampleName)}-multilayer-spectra.csv`, "text/csv");
+    const rows = state.fitData.wavelengthNm.map((wavelength, index) => [wavelength, state.fitData.reflectance[index], state.fitData.transmittance[index], state.fitData.reflectanceValid[index], state.fitData.transmittanceValid[index], state.evaluation.reflectanceScaled[index], state.evaluation.transmittanceScaled[index], state.fitData.reflectanceValid[index] ? state.evaluation.reflectanceScaled[index] - state.fitData.reflectance[index] : "", state.fitData.transmittanceValid[index] ? state.evaluation.transmittanceScaled[index] - state.fitData.transmittance[index] : ""].join(",")); const filename = `${safeName(state.source.sampleName)}-multilayer-spectra.csv`; saveFile(`${[header, ...rows].join("\n")}\n`, filename, "text/csv;charset=utf-8"); setStatus(`Spectra exported as ${filename}.`);
   } catch (error) { showError(error); }
 }
 function downloadLayersNkCsv() {
-  try { exportPayload(); const header = "layer_order,layer_id,layer_name,model,wavelength_nm,n,k"; const materials = [...state.evaluation.layerIndices, { id: "substrate", name: "Substrate", model: state.substrate.model, ...state.evaluation.substrateIndex }]; const rows = materials.flatMap((layer, order) => state.fitData.wavelengthNm.map((wavelength, index) => [order + 1, layer.id, csvCell(layer.name), layer.model, wavelength, layer.n[index], layer.k[index]].join(","))); saveFile([header, ...rows].join("\n"), `${safeName(state.source.sampleName)}-multilayer-nk.csv`, "text/csv"); }
+  try { exportPayload(); const header = "layer_order,layer_id,layer_name,model,wavelength_nm,n,k"; const materials = [...state.evaluation.layerIndices, { id: "substrate", name: "Substrate", model: state.substrate.model, ...state.evaluation.substrateIndex }]; const rows = materials.flatMap((layer, order) => state.fitData.wavelengthNm.map((wavelength, index) => [order + 1, layer.id, csvCell(layer.name), layer.model, wavelength, layer.n[index], layer.k[index]].join(","))); const filename = `${safeName(state.source.sampleName)}-multilayer-nk.csv`; saveFile(`${[header, ...rows].join("\n")}\n`, filename, "text/csv;charset=utf-8"); setStatus(`Layer indices exported as ${filename}.`); }
   catch (error) { showError(error); }
 }
 
