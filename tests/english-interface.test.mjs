@@ -22,7 +22,11 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /id="reflectometry-workspace"/);
   assert.match(files[1], /id="configuration-panel"/);
   assert.match(files[1], /id="results-panel"/);
-  assert.match(files[1], /className="workflow-section" open/);
+  assert.match(files[1], /from "@headlessui\/react"/);
+  assert.match(files[1], /from "@heroicons\/react\/24\/outline"/);
+  assert.match(files[1], /<WorkflowSection[^>]+defaultOpen/);
+  assert.match(files[1], /<DisclosurePanel[^>]+unmount=\{false\}/);
+  assert.match(files[1], /<PopoverPanel/);
   assert.match(files[1], /href="https:\/\/jorpago2\.github\.io\/"/);
   assert.match(files[1], /id="reset-example"/);
   assert.match(files[1], /id="saved-fit-file"/);

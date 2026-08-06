@@ -42,6 +42,8 @@ Four-point named scale defined in `tokens.css`. Components consume named tokens 
 - Silent success; status text carries asynchronous feedback.
 - Focus is immediate and never animated.
 - Hover uses a single colour or one-pixel position change.
+- Popovers and primary workflow disclosures use Headless UI interaction primitives.
+- Interface icons use the Heroicons 24 px outline set at an 18 px rendered size.
 
 ## CTA voice
 

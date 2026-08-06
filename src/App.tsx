@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import { Disclosure, DisclosureButton, DisclosurePanel, Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import { ArrowPathIcon, ArrowRightIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
+import { useEffect, type ReactNode } from "react";
 
 type PlotCardProps = {
   eyebrow: string;
@@ -8,6 +10,25 @@ type PlotCardProps = {
   legend: Array<{ className: string; text: string }>;
   eyebrowId?: string;
 };
+
+type WorkflowSectionProps = {
+  title: string;
+  description: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+};
+
+function WorkflowSection({ title, description, children, defaultOpen = false }: WorkflowSectionProps) {
+  return (
+    <Disclosure as="section" className="workflow-section" defaultOpen={defaultOpen}>
+      <DisclosureButton className="workflow-trigger">
+        <span><strong>{title}</strong><small>{description}</small></span>
+        <ChevronDownIcon className="disclosure-icon" aria-hidden="true" />
+      </DisclosureButton>
+      <DisclosurePanel className="workflow-content" unmount={false}>{children}</DisclosurePanel>
+    </Disclosure>
+  );
+}
 
 function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCardProps) {
   return (
@@ -45,10 +66,13 @@ export default function App() {
         </a>
         <p className="masthead-context">Multilayer optical modelling · local fitting</p>
         <a className="suite-link" href="https://jorpago2.github.io/" aria-label="Online Simulators & Tools">All tools</a>
-        <details id="app-help" className="app-help">
-          <summary aria-keyshortcuts="?">Help</summary>
-          <div className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></div>
-        </details>
+        <Popover className="app-help">
+          <PopoverButton id="app-help" className="app-help-button" aria-keyshortcuts="?">
+            <QuestionMarkCircleIcon className="ui-icon" aria-hidden="true" />
+            Help
+          </PopoverButton>
+          <PopoverPanel className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></PopoverPanel>
+        </Popover>
         <p className="privacy"><span aria-hidden="true" /> Local processing</p>
       </header>
 
@@ -60,9 +84,7 @@ export default function App() {
 
         <div id="reflectometry-workspace" className="workspace multilayer-workspace grid min-h-240 grid-cols-1" tabIndex={-1}>
           <aside id="configuration-panel" className="controls bg-ui-surface" aria-label="Data, stack, and fit controls">
-            <details className="workflow-section" open>
-              <summary><span><strong>Measurement</strong><small>Choose spectra or start with generated data</small></span></summary>
-              <div className="workflow-content">
+            <WorkflowSection title="Measurement" description="Choose spectra or start with generated data" defaultOpen>
               <button id="reset-example" className="secondary full" type="button">Load synthetic example</button>
               <details>
                 <summary>Open a saved fitting result</summary>
@@ -94,12 +116,9 @@ export default function App() {
                 <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" defaultValue="5" min="0" max="100" step="0.5" /></label>
                 <label className="check"><input id="subtract-background" type="checkbox" defaultChecked /><span>Subtract 195–250 nm background</span></label>
               </details>
-              </div>
-            </details>
+            </WorkflowSection>
 
-            <details className="workflow-section">
-              <summary><span><strong>Layer stack</strong><small>Geometry, optical models and substrate</small></span></summary>
-              <div className="workflow-content">
+            <WorkflowSection title="Layer stack" description="Geometry, optical models and substrate">
               <p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p>
               <div className="field-pair compact-pair">
                 <label>Substrate thickness <span>micrometres (µm)</span><input id="substrate-thickness" type="number" defaultValue="1000" min="10" max="1000000" step="1" /></label>
@@ -109,16 +128,13 @@ export default function App() {
               <div className="stack-toolbar">
                 <button id="undo-button" className="secondary" type="button" disabled aria-label="Undo stack edit">↶ Undo</button>
                 <button id="redo-button" className="secondary" type="button" disabled aria-label="Redo stack edit">↷ Redo</button>
-                <button id="add-layer" className="secondary" type="button">+ Add layer</button>
+                <button id="add-layer" className="secondary button-with-icon" type="button"><PlusIcon className="ui-icon" aria-hidden="true" />Add layer</button>
               </div>
               <div className="section-heading substrate-heading"><span>S</span><h3>Dispersive substrate</h3></div>
               <div id="substrate-editor" />
-              </div>
-            </details>
+            </WorkflowSection>
 
-            <details className="workflow-section">
-              <summary><span><strong>Fit</strong><small>Channels, optimizer and uncertainty</small></span></summary>
-              <div className="workflow-content">
+            <WorkflowSection title="Fit" description="Channels, optimizer and uncertainty">
               <div className="channel-row">
                 <label className="check"><input id="use-r" type="checkbox" defaultChecked /><span>Fit R</span></label>
                 <label className="check"><input id="use-t" type="checkbox" defaultChecked /><span>Fit T</span></label>
@@ -144,10 +160,9 @@ export default function App() {
                 <button id="bootstrap-button" className="secondary full" type="button" disabled>Estimate bootstrap uncertainty</button>
               </details>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
-              </div>
-            </details>
+            </WorkflowSection>
 
-            <div className="actions"><button id="preview-button" className="secondary" type="button">Update model</button><button id="fit-button" className="primary" type="button">Fit parameters <span aria-hidden="true">→</span></button></div>
+            <div className="actions"><button id="preview-button" className="secondary button-with-icon" type="button"><ArrowPathIcon className="ui-icon" aria-hidden="true" />Update model</button><button id="fit-button" className="primary button-with-icon" type="button">Fit parameters <ArrowRightIcon className="ui-icon" aria-hidden="true" /></button></div>
           </aside>
 
           <section id="results-panel" className="results grid min-w-0 content-start gap-6 bg-ui-canvas-muted px-[clamp(1rem,4vw,2.5rem)] pt-8 pb-10" aria-label="Fit results">

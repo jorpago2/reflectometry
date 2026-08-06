@@ -120,8 +120,7 @@ button, summary { cursor: pointer; }
 
 .suite-link { min-height: 44px; margin-left: auto; padding: 0 var(--space-sm); display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--ink); background: var(--panel); font-size: var(--text-xs); font-weight: 600; text-decoration: none; white-space: nowrap; }
 .app-help { position: relative; }
-.app-help > summary { min-height: 44px; padding: 0 var(--space-sm); display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--orange); background: var(--panel); cursor: pointer; font-size: var(--text-xs); font-weight: 600; list-style: none; white-space: nowrap; }
-.app-help > summary::-webkit-details-marker { display: none; }
+.app-help-button { min-height: 44px; padding: 0 var(--space-sm); display: inline-flex; align-items: center; gap: var(--space-2xs); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--orange); background: var(--panel); cursor: pointer; font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
 .app-help-panel { position: absolute; z-index: var(--z-dropdown); top: calc(100% + var(--space-2xs)); right: 0; width: min(22rem, calc(100dvi - var(--space-md))); padding: var(--space-sm); border: 1px solid var(--ink); background: var(--panel); box-shadow: var(--shadow-card); }
 .app-help-panel p { margin: var(--space-2xs) 0 var(--space-xs); color: var(--muted); font-size: 12px; line-height: 1.5; }
 .app-help-panel dl, .app-help-panel dl div { display: grid; gap: var(--space-2xs); margin: 0; }
@@ -196,24 +195,27 @@ footer {
   border-bottom: 1px solid var(--line);
 }
 
-.workflow-section > summary {
+.workflow-trigger {
+  width: 100%;
   min-height: 76px;
   padding: var(--space-sm) clamp(var(--space-sm), 4vw, var(--space-xl));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  list-style: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
 }
 
-.workflow-section > summary::-webkit-details-marker { display: none; }
-.workflow-section > summary::after { content: "+"; color: var(--orange); font: 500 var(--text-md)/1 var(--font-mono); }
-.workflow-section[open] > summary::after { content: "−"; }
-.workflow-section > summary span { min-width: 0; display: grid; gap: var(--space-2xs); }
-.workflow-section > summary strong { font-family: var(--font-display); font-size: var(--text-md); line-height: 1.2; }
-.workflow-section > summary small { color: var(--muted); font-size: var(--text-xs); font-weight: 400; line-height: 1.35; }
-.workflow-section[open] { padding-bottom: 0; }
-.workflow-section[open] > summary { background: var(--color-paper-2); }
+.workflow-trigger span { min-width: 0; display: grid; gap: var(--space-2xs); }
+.workflow-trigger strong { font-family: var(--font-display); font-size: var(--text-md); line-height: 1.2; }
+.workflow-trigger small { color: var(--muted); font-size: var(--text-xs); font-weight: 400; line-height: 1.35; }
+.workflow-trigger[data-open] { background: var(--color-paper-2); }
+.disclosure-icon { width: 1.25rem; height: 1.25rem; flex: 0 0 auto; color: var(--orange); transition: transform var(--dur-short) var(--ease-out); }
+.workflow-trigger[data-open] .disclosure-icon { transform: rotate(180deg); }
 .workflow-content { padding: var(--space-sm) clamp(var(--space-sm), 4vw, var(--space-xl)) var(--space-lg); }
 
 .section-heading {
@@ -472,8 +474,10 @@ button {
   transition: background-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out), transform var(--dur-micro) var(--ease-out);
 }
 
-button:active:not(:disabled) { transform: translateY(1px); }
+button:active:not(:disabled):not(.workflow-trigger) { transform: translateY(1px); }
 button:disabled { cursor: not-allowed; opacity: .5; }
+.button-with-icon { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2xs); white-space: nowrap; }
+.ui-icon { width: 1.125rem; height: 1.125rem; flex: 0 0 auto; stroke-width: 1.8; }
 .primary { border-color: var(--ink); background: var(--ink); color: var(--color-paper); }
 .secondary { background: var(--panel); }
 .full { width: 100%; }
@@ -840,7 +844,8 @@ footer { flex-direction: column; }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  button:hover:not(:disabled) { background: var(--ink); color: var(--color-paper); }
+  button:hover:not(:disabled):not(.workflow-trigger) { background: var(--ink); color: var(--color-paper); }
+  .workflow-trigger:hover { background: var(--color-paper-2); color: var(--ink); }
   input:hover:not(:disabled), select:hover:not(:disabled) { background: var(--color-paper-2); }
   .primary:hover:not(:disabled) { border-color: var(--orange); background: var(--orange); color: var(--color-accent-ink); }
   .parameter-name > .parameter-help-button:hover:not(:disabled) { border-color: var(--ink); background: var(--ink); color: var(--color-paper); }

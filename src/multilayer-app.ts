@@ -75,11 +75,11 @@ function handleGlobalShortcut(event: KeyboardEvent) {
     if (!state.worker && !elements["fit-button"].disabled) elements["fit-button"].click();
   } else if (event.key === "Escape") {
     closeParameterHelp();
-    elements["app-help"].open = false;
+    if (elements["app-help"].getAttribute("aria-expanded") === "true") elements["app-help"].click();
     if (state.worker) cancelOperation();
   } else if (event.key === "?" && !isEditableTarget(event.target)) {
     event.preventDefault();
-    elements["app-help"].open = !elements["app-help"].open;
+    elements["app-help"].click();
   }
 }
 
