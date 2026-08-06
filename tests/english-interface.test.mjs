@@ -27,6 +27,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /<WorkflowSection[^>]+defaultOpen/);
   assert.match(files[1], /<DisclosurePanel[^>]+unmount=\{false\}/);
   assert.match(files[1], /<PopoverPanel/);
+  assert.match(files[1], /<TabGroup/);
+  for (const tab of ["Overview", "Spectra", "Optical constants"]) assert.match(files[1], new RegExp(`<Tab className="results-tab">${tab}<`));
+  assert.equal((files[1].match(/<TabPanel className="results-tab-panel" unmount=\{false\}>/g) ?? []).length, 3);
   assert.match(files[1], /href="https:\/\/jorpago2\.github\.io\/"/);
   assert.match(files[1], /id="reset-example"/);
   assert.match(files[1], /id="saved-fit-file"/);

@@ -1,4 +1,4 @@
-import { Disclosure, DisclosureButton, DisclosurePanel, Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import { Disclosure, DisclosureButton, DisclosurePanel, Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
 import { ArrowPathIcon, ArrowRightIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 import { useEffect, type ReactNode } from "react";
 
@@ -181,40 +181,55 @@ export default function App() {
               </div>
             </div>
             <header id="report-meta" className="report-meta" />
-            <div className="metrics">
-              <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
-              <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
-              <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
-              <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
-            </div>
-            <section className="stack-card" aria-labelledby="stack-title">
-              <div className="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
-              <figure className="stack-figure">
-                <div className="stack-beam"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow" aria-hidden="true">↓</strong><small>LIGHT</small></div>
-                <div id="stack-diagram" className="stack-diagram">
-                  <div className="stack-medium stack-air"><strong>Ambient</strong><span>air · n = 1.000</span></div>
-                  <ol id="stack-layers" className="stack-layers" />
-                  <div className="stack-medium stack-substrate"><strong>Substrate</strong><span id="stack-substrate-index" /></div>
-                </div>
-                <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
-              </figure>
-            </section>
-            <section className="diagnostics">
-              <div className="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
-              <div className="diagnostic-grid">
-                <article><span>CONVERGENCE</span><strong id="diagnostic-convergence">Preview</strong><small id="diagnostic-evaluations">No optimizer run</small></article>
-                <article><span>JACOBIAN CONDITION</span><strong id="diagnostic-condition">—</strong><small>large means non-identifiable</small></article>
-                <article><span>BOUND HITS</span><strong id="diagnostic-bounds">—</strong><small>fitted parameters</small></article>
-                <article><span>MAX R + T</span><strong id="diagnostic-power">—</strong><small>physical model</small></article>
-              </div>
-              <p id="diagnostic-note">Preview the stack before fitting. Multilayer inverse problems can have several nearly equivalent solutions.</p>
-              <details id="uncertainty-panel" className="result-details"><summary>Parameter uncertainty and correlation</summary><div id="uncertainty-content" className="result-detail-content"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></details>
-              <details id="solutions-panel" className="result-details"><summary>Alternative fitted solutions</summary><div id="solutions-content" className="result-detail-content"><p>No fitted alternatives yet.</p></div></details>
-            </section>
-            <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
-            <PlotCard eyebrow="MODEL − DATA" title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />
-            <PlotCard eyebrow="ACTIVE LAYER" eyebrowId="nk-layer-label" title="Complex refractive index" canvasId="nk-chart" label="Interactive active-layer refractive index" legend={[{ className: "n-line", text: "n" }, { className: "k-line", text: "k" }]} />
-            <section className="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Residual bootstrap intervals assume exchangeable spectral residuals and local refits near the selected minimum. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></details></section>
+            <TabGroup className="results-tabs" onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
+              <TabList className="results-tab-list" aria-label="Result views">
+                <Tab className="results-tab">Overview</Tab>
+                <Tab className="results-tab">Spectra</Tab>
+                <Tab className="results-tab">Optical constants</Tab>
+              </TabList>
+              <TabPanels>
+                <TabPanel className="results-tab-panel" unmount={false}>
+                  <div className="metrics">
+                    <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
+                    <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
+                    <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
+                    <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
+                  </div>
+                  <section className="stack-card" aria-labelledby="stack-title">
+                    <div className="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
+                    <figure className="stack-figure">
+                      <div className="stack-beam"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow" aria-hidden="true">↓</strong><small>LIGHT</small></div>
+                      <div id="stack-diagram" className="stack-diagram">
+                        <div className="stack-medium stack-air"><strong>Ambient</strong><span>air · n = 1.000</span></div>
+                        <ol id="stack-layers" className="stack-layers" />
+                        <div className="stack-medium stack-substrate"><strong>Substrate</strong><span id="stack-substrate-index" /></div>
+                      </div>
+                      <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
+                    </figure>
+                  </section>
+                  <section className="diagnostics">
+                    <div className="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
+                    <div className="diagnostic-grid">
+                      <article><span>CONVERGENCE</span><strong id="diagnostic-convergence">Preview</strong><small id="diagnostic-evaluations">No optimizer run</small></article>
+                      <article><span>JACOBIAN CONDITION</span><strong id="diagnostic-condition">—</strong><small>large means non-identifiable</small></article>
+                      <article><span>BOUND HITS</span><strong id="diagnostic-bounds">—</strong><small>fitted parameters</small></article>
+                      <article><span>MAX R + T</span><strong id="diagnostic-power">—</strong><small>physical model</small></article>
+                    </div>
+                    <p id="diagnostic-note">Preview the stack before fitting. Multilayer inverse problems can have several nearly equivalent solutions.</p>
+                    <details id="uncertainty-panel" className="result-details"><summary>Parameter uncertainty and correlation</summary><div id="uncertainty-content" className="result-detail-content"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></details>
+                    <details id="solutions-panel" className="result-details"><summary>Alternative fitted solutions</summary><div id="solutions-content" className="result-detail-content"><p>No fitted alternatives yet.</p></div></details>
+                  </section>
+                </TabPanel>
+                <TabPanel className="results-tab-panel" unmount={false}>
+                  <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
+                  <PlotCard eyebrow="MODEL − DATA" title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />
+                </TabPanel>
+                <TabPanel className="results-tab-panel" unmount={false}>
+                  <PlotCard eyebrow="ACTIVE LAYER" eyebrowId="nk-layer-label" title="Complex refractive index" canvasId="nk-chart" label="Interactive active-layer refractive index" legend={[{ className: "n-line", text: "n" }, { className: "k-line", text: "k" }]} />
+                  <section className="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Residual bootstrap intervals assume exchangeable spectral residuals and local refits near the selected minimum. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></details></section>
+                </TabPanel>
+              </TabPanels>
+            </TabGroup>
             </div>
           </section>
         </div>
