@@ -1,4 +1,4 @@
-import { Button, Column, Content, Grid, Header, HeaderGlobalBar, HeaderName, Link, SkipToContent, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical, Tile, Toggletip, ToggletipButton, ToggletipContent } from "@carbon/react";
+import { Button, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical, Toggletip, ToggletipButton, ToggletipContent } from "@carbon/react";
 import { Add, ArrowRight, Download, Help, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import { useEffect } from "react";
 
@@ -39,29 +39,30 @@ export default function App() {
 
   return (
     <>
-      <Header aria-label="Reflectometry">
-        <SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>
-        <HeaderName href="./" prefix="">Reflectometry</HeaderName>
-        <p className="header-context">Multilayer optical modelling</p>
-        <HeaderGlobalBar>
-          <Toggletip align="bottom-end" className="app-help">
-            <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
-              <Help size={16} aria-hidden="true" />
-              Help
-            </ToggletipButton>
-            <ToggletipContent className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></ToggletipContent>
-          </Toggletip>
-        </HeaderGlobalBar>
-      </Header>
+      <a className="skip-link" href="#reflectometry-workspace">Skip to fitting workspace</a>
+      <header className="masthead">
+        <a className="brand" href="./" aria-label="Reflectometry home">
+          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
+          REFLECTO<span>METRY</span>
+        </a>
+        <p className="masthead-context">Multilayer optical modelling · local fitting</p>
+        <Toggletip align="bottom-end" className="app-help">
+          <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
+            <Help size={16} aria-hidden="true" />
+            Help
+          </ToggletipButton>
+          <ToggletipContent className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></ToggletipContent>
+        </Toggletip>
+      </header>
 
-      <Content id="reflectometry-workspace" className="app-main" tabIndex={-1} aria-label="Reflectometry workspace">
-        <h1 className="visually-hidden">Reflectometry</h1>
-        <Grid fullWidth condensed className="workspace-jump" as="nav" aria-label="Workspace areas">
-          <Column sm={2} md={4} lg={8}><Link href="#configuration-panel">Configuration</Link></Column>
-          <Column sm={2} md={4} lg={8}><Link href="#results-panel">Results</Link></Column>
-        </Grid>
-        <Grid fullWidth condensed className="workspace multilayer-workspace">
-          <Column sm={4} md={8} lg={5} id="configuration-panel" className="controls" as="aside" aria-label="Data, stack, and fit controls">
+      <main className="app-main" aria-label="Reflectometry workspace">
+        <nav className="workspace-jump" aria-label="Workspace areas">
+          <a href="#configuration-panel">Configuration</a>
+          <a href="#results-panel">Results</a>
+        </nav>
+
+        <div id="reflectometry-workspace" className="workspace multilayer-workspace" tabIndex={-1}>
+          <aside id="configuration-panel" className="controls" aria-label="Data, stack, and fit controls">
             <div className="configuration-tabs">
               <TabsVertical>
                 <TabListVertical className="configuration-rail" aria-label="Configuration sections">
@@ -114,9 +115,9 @@ export default function App() {
               </div>
               <div id="layers" className="layer-list" />
               <div className="stack-toolbar">
-                <Button id="undo-button" className="full" kind="ghost" renderIcon={Undo} type="button" disabled aria-label="Undo stack edit">Undo</Button>
-                <Button id="redo-button" className="full" kind="ghost" renderIcon={Redo} type="button" disabled aria-label="Redo stack edit">Redo</Button>
-                <Button id="add-layer" className="full" kind="tertiary" renderIcon={Add} type="button">Add layer</Button>
+                <Button id="undo-button" kind="ghost" renderIcon={Undo} type="button" disabled aria-label="Undo stack edit">Undo</Button>
+                <Button id="redo-button" kind="ghost" renderIcon={Redo} type="button" disabled aria-label="Redo stack edit">Redo</Button>
+                <Button id="add-layer" kind="tertiary" renderIcon={Add} type="button">Add layer</Button>
               </div>
               <div className="section-heading substrate-heading"><span>S</span><h3>Dispersive substrate</h3></div>
               <div id="substrate-editor" />
@@ -152,12 +153,12 @@ export default function App() {
                   </TabPanel>
                 </TabPanels>
               </TabsVertical>
-              <div className="actions"><Button id="preview-button" className="full" kind="secondary" renderIcon={Renew} type="button">Update model</Button><Button id="fit-button" className="full" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
+              <div className="actions"><Button id="preview-button" kind="secondary" renderIcon={Renew} type="button">Update model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
             </div>
-          </Column>
+          </aside>
 
-          <Column sm={4} md={8} lg={11} id="results-panel" className="results" as="section" aria-label="Fit results">
-            <Tile id="results-empty" className="results-empty"><span className="empty-mark" aria-hidden="true" /><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p><a href="#configuration-panel">Open configuration</a></Tile>
+          <section id="results-panel" className="results" aria-label="Fit results">
+            <div id="results-empty" className="results-empty"><span className="empty-mark" aria-hidden="true" /><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p><a href="#configuration-panel">Open configuration</a></div>
             <div id="results-content" hidden>
             <div className="status-row">
               <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
@@ -183,41 +184,35 @@ export default function App() {
               </TabList>
               <TabPanels>
                 <TabPanel className="results-tab-panel">
-                  <Grid fullWidth narrow withRowGap className="overview-grid">
-                    <Column sm={4} md={8} lg={11}>
-                      <section className="stack-card" aria-labelledby="stack-title">
-                        <div className="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
-                        <figure className="stack-figure">
-                          <div className="stack-beam"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow" aria-hidden="true">↓</strong><small>LIGHT</small></div>
-                          <div id="stack-diagram" className="stack-diagram">
-                            <div className="stack-medium stack-air"><strong>Ambient</strong><span>air · n = 1.000</span></div>
-                            <ol id="stack-layers" className="stack-layers" />
-                            <div className="stack-medium stack-substrate"><strong>Substrate</strong><span id="stack-substrate-index" /></div>
-                          </div>
-                          <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
-                        </figure>
-                      </section>
-                    </Column>
-                    <Column sm={4} md={8} lg={11}>
-                      <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
-                    </Column>
-                  </Grid>
+                  <section className="stack-card" aria-labelledby="stack-title">
+                    <div className="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
+                    <figure className="stack-figure">
+                      <div className="stack-beam"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow" aria-hidden="true">↓</strong><small>LIGHT</small></div>
+                      <div id="stack-diagram" className="stack-diagram">
+                        <div className="stack-medium stack-air"><strong>Ambient</strong><span>air · n = 1.000</span></div>
+                        <ol id="stack-layers" className="stack-layers" />
+                        <div className="stack-medium stack-substrate"><strong>Substrate</strong><span id="stack-substrate-index" /></div>
+                      </div>
+                      <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
+                    </figure>
+                  </section>
+                  <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
                 </TabPanel>
                 <TabPanel className="results-tab-panel">
-                  <Grid fullWidth narrow withRowGap className="metrics">
-                    <Column sm={2} md={2} lg={3}><article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article></Column>
-                    <Column sm={2} md={2} lg={3}><article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article></Column>
-                    <Column sm={2} md={2} lg={3}><article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article></Column>
-                    <Column sm={2} md={2} lg={2}><article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article></Column>
-                  </Grid>
+                  <div className="metrics">
+                    <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
+                    <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
+                    <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
+                    <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
+                  </div>
                   <section className="diagnostics">
                     <div className="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
-                    <Grid fullWidth narrow withRowGap className="diagnostic-grid">
-                      <Column sm={2} md={2} lg={3}><article><span>CONVERGENCE</span><strong id="diagnostic-convergence">Preview</strong><small id="diagnostic-evaluations">No optimizer run</small></article></Column>
-                      <Column sm={2} md={2} lg={3}><article><span>JACOBIAN CONDITION</span><strong id="diagnostic-condition">—</strong><small>large means non-identifiable</small></article></Column>
-                      <Column sm={2} md={2} lg={3}><article><span>BOUND HITS</span><strong id="diagnostic-bounds">—</strong><small>fitted parameters</small></article></Column>
-                      <Column sm={2} md={2} lg={2}><article><span>MAX R + T</span><strong id="diagnostic-power">—</strong><small>physical model</small></article></Column>
-                    </Grid>
+                    <div className="diagnostic-grid">
+                      <article><span>CONVERGENCE</span><strong id="diagnostic-convergence">Preview</strong><small id="diagnostic-evaluations">No optimizer run</small></article>
+                      <article><span>JACOBIAN CONDITION</span><strong id="diagnostic-condition">—</strong><small>large means non-identifiable</small></article>
+                      <article><span>BOUND HITS</span><strong id="diagnostic-bounds">—</strong><small>fitted parameters</small></article>
+                      <article><span>MAX R + T</span><strong id="diagnostic-power">—</strong><small>physical model</small></article>
+                    </div>
                     <p id="diagnostic-note">Preview the stack before fitting. Multilayer inverse problems can have several nearly equivalent solutions.</p>
                     <details id="uncertainty-panel" className="result-details"><summary>Parameter uncertainty and correlation</summary><div id="uncertainty-content" className="result-detail-content"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></details>
                     <details id="solutions-panel" className="result-details"><summary>Alternative fitted solutions</summary><div id="solutions-content" className="result-detail-content"><p>No fitted alternatives yet.</p></div></details>
@@ -232,9 +227,10 @@ export default function App() {
             </Tabs>
             </div>
             </div>
-          </Column>
-        </Grid>
-      </Content>
+          </section>
+        </div>
+      </main>
+      <footer><span>Reflectometry · v4.0.0</span><span>React + TypeScript + Vite</span></footer>
     </>
   );
 }
