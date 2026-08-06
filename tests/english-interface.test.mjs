@@ -30,7 +30,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.equal([...files[1].matchAll(/<TabPanel className="configuration-panel">/g)].length, 3);
   assert.doesNotMatch(files[1], /WorkflowSection|DisclosurePanel/);
   assert.match(files[1], /<ToggletipContent/);
-  assert.match(files[1], /<details className="export-menu">/);
+  assert.match(files[1], /<OverflowMenu className="export-menu"/);
   assert.doesNotMatch(files[1], /results-heading|Local computation/);
   assert.match(files[1], /<Tabs onChange=/);
   for (const tab of ["Overview", "Fit quality", "Optical constants"]) assert.match(files[1], new RegExp(`<Tab className="results-tab">${tab}<`));

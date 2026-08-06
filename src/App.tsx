@@ -1,4 +1,4 @@
-import { Button, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical, Toggletip, ToggletipButton, ToggletipContent } from "@carbon/react";
+import { Button, Column, Content, ContentSwitcher, Grid, Header, HeaderGlobalBar, HeaderName, OverflowMenu, OverflowMenuItem, SkipToContent, Switch, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical, Toggletip, ToggletipButton, ToggletipContent } from "@carbon/react";
 import { Add, ArrowRight, Download, Help, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import { useEffect } from "react";
 
@@ -29,6 +29,14 @@ function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCa
   );
 }
 
+function syncExportMenu() {
+  window.requestAnimationFrame(() => document.querySelectorAll<HTMLButtonElement>("[data-export-target]").forEach((item) => {
+    item.disabled = Boolean(document.getElementById(item.dataset.exportTarget ?? "")?.getAttribute("disabled") !== null);
+  }));
+}
+
+function runExport(id: string) { document.getElementById(id)?.click(); }
+
 export default function App() {
   useEffect(() => {
     void import("./multilayer-app.ts").catch((error: unknown) => {
@@ -39,30 +47,37 @@ export default function App() {
 
   return (
     <>
-      <a className="skip-link" href="#reflectometry-workspace">Skip to fitting workspace</a>
-      <header className="masthead">
-        <a className="brand" href="./" aria-label="Reflectometry home">
-          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
-          REFLECTO<span>METRY</span>
-        </a>
-        <p className="masthead-context">Multilayer optical modelling · local fitting</p>
-        <Toggletip align="bottom-end" className="app-help">
-          <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
-            <Help size={16} aria-hidden="true" />
-            Help
-          </ToggletipButton>
-          <ToggletipContent className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></ToggletipContent>
-        </Toggletip>
-      </header>
+      <Header aria-label="Reflectometry">
+        <SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>
+        <HeaderName href="./" prefix="">Reflectometry</HeaderName>
+        <HeaderGlobalBar>
+          <Toggletip align="bottom-end" className="app-help">
+            <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
+              <Help size={20} aria-hidden="true" />
+            </ToggletipButton>
+            <ToggletipContent className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl><small>Reflectometry v4.0.0</small></ToggletipContent>
+          </Toggletip>
+        </HeaderGlobalBar>
+      </Header>
 
-      <main className="app-main" aria-label="Reflectometry workspace">
+      <Content className="app-main" aria-label="Reflectometry workspace">
+        <h1 className="visually-hidden">Reflectometry</h1>
+        <ContentSwitcher className="mobile-view-switcher" selectedIndex={0} size="sm" onChange={({ index }) => {
+          const workspace = document.getElementById("reflectometry-workspace");
+          if (!workspace) return;
+          workspace.dataset.mobileView = index === 1 ? "results" : "configuration";
+          workspace.scrollIntoView({ block: "start" });
+        }}>
+          <Switch name="configuration" text="Configuration" />
+          <Switch name="results" text="Results" />
+        </ContentSwitcher>
         <nav className="workspace-jump" aria-label="Workspace areas">
           <a href="#configuration-panel">Configuration</a>
           <a href="#results-panel">Results</a>
         </nav>
 
-        <div id="reflectometry-workspace" className="workspace multilayer-workspace" tabIndex={-1}>
-          <aside id="configuration-panel" className="controls" aria-label="Data, stack, and fit controls">
+        <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view="configuration" fullWidth condensed tabIndex={-1}>
+          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={6} as="aside" aria-label="Data, stack, and fit controls">
             <div className="configuration-tabs">
               <TabsVertical>
                 <TabListVertical className="configuration-rail" aria-label="Configuration sections">
@@ -72,15 +87,17 @@ export default function App() {
                 </TabListVertical>
                 <TabPanels>
                   <TabPanel className="configuration-panel">
-              <header className="configuration-panel-heading"><h2>Measurement</h2><p>Choose spectra or start with generated data.</p></header>
-              <Button id="reset-example" className="full" kind="tertiary" type="button">Load synthetic example</Button>
+              <header className="configuration-panel-heading"><h2>Measurement</h2><p>Choose the data source and processing.</p></header>
+              <h3 className="section-label">Data source</h3>
+              <p id="source-name" className="source-name">No measurement loaded</p>
+              <Button id="reset-example" className="full" kind="tertiary" type="button">Use synthetic example</Button>
               <details>
                 <summary>Open a saved fitting result</summary>
                 <label>Saved fit JSON<input id="saved-fit-file" type="file" accept=".json,application/json" /></label>
                 <p className="model-note">Current exports restore the measurement, complete stack, n,k tables, fitted values, bounds, and fit controls. Older exports restore the configuration available in those files.</p>
               </details>
               <details>
-                <summary>Load my measurement files</summary>
+                <summary>Load measurement files</summary>
                 <div className="file-grid">
                   <label>Sample name<input id="sample-name" type="text" maxLength={80} placeholder="My stack" /></label>
                   <label>Sample R<input id="file-sample-r" type="file" accept=".txt,text/plain" /></label>
@@ -92,7 +109,6 @@ export default function App() {
                 <Button id="load-files" className="full" kind="tertiary" type="button">Process local files</Button>
                 <p className="model-note">Signal files use wavelength (nm) and counts. The reference R and layer n,k tables accept wavelength in nm or µm.</p>
               </details>
-              <p id="source-name" className="source-name">No measurement loaded</p>
               <details className="advanced-controls">
                 <summary>Measurement processing</summary>
                 <div className="field-pair">
@@ -108,7 +124,7 @@ export default function App() {
 
                   <TabPanel className="configuration-panel">
               <header className="configuration-panel-heading"><h2>Layer stack</h2><p>Geometry, optical models and substrate.</p></header>
-              <p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p>
+              <details className="stack-scope"><summary>Model assumptions</summary><p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p></details>
               <div className="field-pair compact-pair">
                 <label>Substrate thickness <span>micrometres (µm)</span><input id="substrate-thickness" type="number" defaultValue="1000" min="10" max="1000000" step="1" /></label>
                 <label>Incidence<select id="incidence" defaultValue="film"><option value="film">Stack side</option><option value="substrate">Substrate side</option></select></label>
@@ -153,26 +169,30 @@ export default function App() {
                   </TabPanel>
                 </TabPanels>
               </TabsVertical>
-              <div className="actions"><Button id="preview-button" kind="secondary" renderIcon={Renew} type="button">Update model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
+              <div className="actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Update model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
             </div>
-          </aside>
+          </Column>
 
-          <section id="results-panel" className="results" aria-label="Fit results">
-            <div id="results-empty" className="results-empty"><span className="empty-mark" aria-hidden="true" /><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p><a href="#configuration-panel">Open configuration</a></div>
+          <Column id="results-panel" className="results" sm={4} md={8} lg={10} as="section" aria-label="Fit results">
+            <div id="results-empty" className="results-empty"><strong>Start with measurement data</strong><p>Load spectra or use the built-in example to inspect the optical response.</p><Button kind="tertiary" type="button" onClick={() => document.getElementById("reset-example")?.click()}>Use example</Button></div>
             <div id="results-content" hidden>
             <div className="status-row">
+              <span id="status-indicator" className="status-indicator" aria-hidden="true" />
               <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
               <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
               <Button id="cancel-operation" className="cancel-action" kind="ghost" size="sm" type="button" hidden aria-controls="fit-progress">Cancel</Button>
-              <details className="export-menu">
-                <summary className="export-menu-button"><Download size={16} aria-hidden="true" />Export</summary>
-                <div className="export-menu-items">
-                  <Button id="print-report" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Print report</Button>
-                  <Button id="download-json" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Project JSON</Button>
-                  <Button id="download-csv" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Spectra CSV</Button>
-                  <Button id="download-nk" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Layers n,k</Button>
-                </div>
-              </details>
+              <div hidden>
+                <button id="print-report" disabled type="button" />
+                <button id="download-json" disabled type="button" />
+                <button id="download-csv" disabled type="button" />
+                <button id="download-nk" disabled type="button" />
+              </div>
+              <OverflowMenu className="export-menu" renderIcon={Download} iconDescription="Export results" size="sm" direction="bottom" onOpen={syncExportMenu}>
+                <OverflowMenuItem data-export-target="print-report" disabled itemText="Print report" onClick={() => runExport("print-report")} />
+                <OverflowMenuItem data-export-target="download-json" disabled itemText="Project JSON" onClick={() => runExport("download-json")} />
+                <OverflowMenuItem data-export-target="download-csv" disabled itemText="Spectra CSV" onClick={() => runExport("download-csv")} />
+                <OverflowMenuItem data-export-target="download-nk" disabled itemText="Layers n,k" onClick={() => runExport("download-nk")} />
+              </OverflowMenu>
             </div>
             <header id="report-meta" className="report-meta" />
             <div className="results-tabs">
@@ -227,10 +247,9 @@ export default function App() {
             </Tabs>
             </div>
             </div>
-          </section>
-        </div>
-      </main>
-      <footer><span>Reflectometry · v4.0.0</span><span>React + TypeScript + Vite</span></footer>
+          </Column>
+        </Grid>
+      </Content>
     </>
   );
 }

@@ -28,6 +28,8 @@ const DEFAULT_COMPONENTS = { taucLorentz: 1, lorentz: 0, gaussian: false, cody: 
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
 const SAVED_CONTROL_IDS = ["wavelength-min", "wavelength-max", "reference-threshold", "bin-width", "sample-snr", "subtract-background", "use-r", "use-t", "prefer-shape", "sigma-r", "sigma-t", "sigma-n", "sigma-k", "fit-r-gain", "fit-t-gain", "r-gain", "t-gain", "screening-points", "local-refinements", "bootstrap-samples"];
 const OPTIMIZER_CONTROL_IDS = new Set(["screening-points", "local-refinements", "bootstrap-samples"]);
+const PLOT_BLUE = "#0f62fe";
+const PLOT_TEAL = "#009d9a";
 const elements: Record<string, any> = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state: any = { spectrum: null, fitData: null, evaluation: null, fitResult: null, resultStale: false, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
 const chartStates = new Map<any, any>();
@@ -398,7 +400,10 @@ function renderMaterialCard(material, index, substrate = false) {
   for (const text of ["Fit", "Parameter", "Value", "Min", "Max", "1σ"]) { const span = document.createElement("span"); span.textContent = text; tableHeader.append(span); }
   const table = document.createElement("div"); table.className = "parameter-table";
   for (const [parameter, specification] of Object.entries(material.specs)) table.append(parameterRow(material, parameter, specification));
-  card.append(header, selectors, renderModelHelp(material), components, ema, reference, flags, tableHeader, table);
+  const editor = document.createElement("details"); editor.className = "layer-editor"; editor.setAttribute("name", "material-editor"); editor.open = !substrate && material.id === state.activeLayerId;
+  const summary = document.createElement("summary"); summary.textContent = substrate ? "Edit substrate model" : "Edit optical model and fit parameters";
+  const body = document.createElement("div"); body.className = "layer-editor-body"; body.append(selectors, renderModelHelp(material), components, ema, reference, flags, tableHeader, table);
+  editor.append(summary, body); card.append(header, editor);
   return card;
 }
 
@@ -443,7 +448,7 @@ function parameterRow(layer, parameter, specification) {
   const description = parameterDescription(parameter);
   const label = document.createElement("span"); label.className = "parameter-name"; label.append(document.createTextNode(specification.label));
   const helpId = `${layer.id}-${parameter}-help`;
-  const helpButton = document.createElement("button"); helpButton.type = "button"; helpButton.className = "parameter-help-button"; helpButton.textContent = "?"; helpButton.setAttribute("aria-label", `Help for ${specification.label}`); helpButton.setAttribute("aria-controls", helpId); helpButton.setAttribute("aria-expanded", "false"); label.append(helpButton);
+  const helpButton = document.createElement("button"); helpButton.type = "button"; helpButton.className = "parameter-help-button"; helpButton.textContent = "i"; helpButton.setAttribute("aria-label", `Information for ${specification.label}`); helpButton.setAttribute("aria-controls", helpId); helpButton.setAttribute("aria-expanded", "false"); label.append(helpButton);
   const help = document.createElement("span"); help.id = helpId; help.className = "parameter-help-popover"; help.setAttribute("role", "tooltip"); help.hidden = true; help.textContent = description; label.append(help);
   if (specification.unit) { const unit = document.createElement("span"); unit.className = "parameter-unit"; unit.textContent = specification.unit; label.append(unit); }
   if (layer.id !== "substrate") {
@@ -831,21 +836,21 @@ function drawAll() {
   const x = state.fitData.wavelengthNm;
   const bootstrapBands = state.fitResult?.diagnostics.bootstrap?.bands;
   drawChart(elements["rt-chart"], x, [
-    ...(bootstrapBands ? [{ lower: bootstrapBands.reflectance.map((entry) => entry.lower95), upper: bootstrapBands.reflectance.map((entry) => entry.upper95), color: "rgba(0,114,178,.12)", band: true }, { lower: bootstrapBands.transmittance.map((entry) => entry.lower95), upper: bootstrapBands.transmittance.map((entry) => entry.upper95), color: "rgba(213,94,0,.11)", band: true }] : []),
-    { label: "R data", values: state.fitData.reflectance.map((value, index) => state.fitData.reflectanceValid[index] ? value : NaN), color: "#0072b2", points: true, marker: "circle", line: false },
-    { label: "R model", values: state.evaluation.reflectanceScaled, color: "#0072b2" },
-    { label: "T data", values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : NaN), color: "#d55e00", points: true, marker: "square", line: false },
-    { label: "T model", values: state.evaluation.transmittanceScaled, color: "#d55e00", dash: [7, 4] },
+    ...(bootstrapBands ? [{ lower: bootstrapBands.reflectance.map((entry) => entry.lower95), upper: bootstrapBands.reflectance.map((entry) => entry.upper95), color: "rgba(15,98,254,.12)", band: true }, { lower: bootstrapBands.transmittance.map((entry) => entry.lower95), upper: bootstrapBands.transmittance.map((entry) => entry.upper95), color: "rgba(0,157,154,.12)", band: true }] : []),
+    { label: "R data", values: state.fitData.reflectance.map((value, index) => state.fitData.reflectanceValid[index] ? value : NaN), color: PLOT_BLUE, points: true, marker: "circle", line: false },
+    { label: "R model", values: state.evaluation.reflectanceScaled, color: PLOT_BLUE },
+    { label: "T data", values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : NaN), color: PLOT_TEAL, points: true, marker: "square", line: false },
+    { label: "T model", values: state.evaluation.transmittanceScaled, color: PLOT_TEAL, dash: [7, 4] },
   ], { minimumY: 0, yLabel: "Reflectance / transmittance", xLabel: "Wavelength (nm)" });
   drawChart(elements["residual-chart"], x, [
-    { label: "R residual", values: state.evaluation.reflectanceScaled.map((value, index) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : NaN), color: "#0072b2" },
-    { label: "T residual", values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : NaN), color: "#d55e00", dash: [7, 4] },
+    { label: "R residual", values: state.evaluation.reflectanceScaled.map((value, index) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : NaN), color: PLOT_BLUE },
+    { label: "T residual", values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : NaN), color: PLOT_TEAL, dash: [7, 4] },
   ], { symmetricY: true, zeroLine: true, yLabel: "Residual (model − data)", xLabel: "Wavelength (nm)" });
   const active = state.evaluation.layerIndices.find((layer) => layer.id === state.activeLayerId) ?? state.evaluation.layerIndices[0];
   elements["nk-layer-label"].textContent = `${active.name.toUpperCase()} / ${modelLabel(active.model).toUpperCase()}`;
   const activeBands = bootstrapBands?.layers?.[active.id] ?? (bootstrapBands?.layerId === active.id ? bootstrapBands : null);
-  const indexBands = activeBands ? [{ lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: "rgba(0,114,178,.12)", band: true }, { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: "rgba(213,94,0,.11)", band: true }] : [];
-  drawChart(elements["nk-chart"], x, [...indexBands, { label: "n", values: active.n, color: "#0072b2" }, { label: "k", values: active.k, color: "#d55e00", dash: [7, 4] }], { minimumY: 0, yLabel: "Optical constants, n and k", xLabel: "Wavelength (nm)" });
+  const indexBands = activeBands ? [{ lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: "rgba(15,98,254,.12)", band: true }, { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: "rgba(0,157,154,.12)", band: true }] : [];
+  drawChart(elements["nk-chart"], x, [...indexBands, { label: "n", values: active.n, color: PLOT_BLUE }, { label: "k", values: active.k, color: PLOT_TEAL, dash: [7, 4] }], { minimumY: 0, yLabel: "Optical constants, n and k", xLabel: "Wavelength (nm)" });
 }
 
 function drawCanvasChart(canvas, x, series, options) {
@@ -877,14 +882,14 @@ function renderChart(canvas) {
   if (yMaximum <= yMinimum) yMaximum = yMinimum + 1;
   const xPixel = (value) => margin.left + (value - chart.minimumX) / (chart.maximumX - chart.minimumX || 1) * plotWidth; const yPixel = (value) => margin.top + (yMaximum - value) / (yMaximum - yMinimum) * plotHeight;
   Object.assign(chart, { geometry: { margin, plotWidth, plotHeight, width, height, xPixel, yPixel }, yMinimum, yMaximum });
-  context.fillStyle = "#ffffff"; context.fillRect(0, 0, width, height); context.font = "11px Arial, Helvetica, sans-serif"; context.lineWidth = 1;
+  context.fillStyle = "#f4f4f4"; context.fillRect(0, 0, width, height); context.font = '11px "IBM Plex Mono", monospace'; context.lineWidth = 1;
   const xTicks = niceTicks(chart.minimumX, chart.maximumX, width < 480 ? 4 : 6); const yTicks = niceTicks(yMinimum, yMaximum, 5);
   context.strokeStyle = "#d9dde0"; context.fillStyle = "#38413d";
   for (const value of yTicks) { const y = yPixel(value); context.beginPath(); context.moveTo(margin.left, y); context.lineTo(width - margin.right, y); context.stroke(); context.textAlign = "right"; context.fillText(formatTick(value), margin.left - 8, y + 4); }
   for (const value of xTicks) { const px = xPixel(value); context.beginPath(); context.moveTo(px, margin.top); context.lineTo(px, height - margin.bottom); context.stroke(); context.textAlign = "center"; context.fillText(formatTick(value), px, height - margin.bottom + 18); }
   if (chart.options.zeroLine && yMinimum < 0 && yMaximum > 0) { context.save(); context.strokeStyle = "#747b78"; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(margin.left, yPixel(0)); context.lineTo(width - margin.right, yPixel(0)); context.stroke(); context.restore(); }
   context.strokeStyle = "#111713"; context.lineWidth = 1.2; context.beginPath(); context.moveTo(margin.left, margin.top); context.lineTo(margin.left, height - margin.bottom); context.lineTo(width - margin.right, height - margin.bottom); context.stroke();
-  context.fillStyle = "#111713"; context.font = "12px Arial, Helvetica, sans-serif"; context.textAlign = "center"; context.fillText(chart.options.xLabel, margin.left + plotWidth / 2, height - 7);
+  context.fillStyle = "#161616"; context.font = '12px "IBM Plex Mono", monospace'; context.textAlign = "center"; context.fillText(chart.options.xLabel, margin.left + plotWidth / 2, height - 7);
   context.save(); context.translate(16, margin.top + plotHeight / 2); context.rotate(-Math.PI / 2); context.fillText(chart.options.yLabel, 0, 0); context.restore();
   context.save(); context.beginPath(); context.rect(margin.left, margin.top, plotWidth, plotHeight); context.clip();
   for (const entry of chart.series.filter((candidate) => candidate.band)) { context.fillStyle = entry.color; context.beginPath(); visible.forEach((index, order) => order ? context.lineTo(xPixel(chart.x[index]), yPixel(entry.lower[index])) : context.moveTo(xPixel(chart.x[index]), yPixel(entry.lower[index]))); [...visible].reverse().forEach((index) => context.lineTo(xPixel(chart.x[index]), yPixel(entry.upper[index]))); context.closePath(); context.fill(); }
@@ -963,19 +968,19 @@ function drawChart(chart, x, series, options) {
     height: 330,
     margin: { l: 68, r: 20, t: 32, b: 56 },
     paper_bgcolor: "rgba(0,0,0,0)",
-    plot_bgcolor: "#ffffff",
-    font: { family: "Inter, Arial, sans-serif", size: 11, color: "#40555c" },
+    plot_bgcolor: "#f4f4f4",
+    font: { family: "IBM Plex Mono, monospace", size: 11, color: "#525252" },
     hovermode: "x unified",
     dragmode: "pan",
     uirevision: chart.id,
     showlegend: false,
-    xaxis: { title: { text: options.xLabel }, gridcolor: "#e7edef", showline: true, linecolor: "#9fb0b5" },
+    xaxis: { title: { text: options.xLabel }, gridcolor: "#e0e0e0", showline: true, linecolor: "#8d8d8d" },
     yaxis: {
       title: { text: options.yLabel },
-      gridcolor: "#e7edef",
-      zerolinecolor: "#b7c6ca",
+      gridcolor: "#e0e0e0",
+      zerolinecolor: "#8d8d8d",
       showline: true,
-      linecolor: "#9fb0b5",
+      linecolor: "#8d8d8d",
       ...(options.symmetricY ? { range: [-maximumAbsolute * 1.08, maximumAbsolute * 1.08] } : {}),
       ...(!options.symmetricY && options.minimumY != null ? { rangemode: "tozero" } : {}),
     },
@@ -1050,7 +1055,11 @@ function format(value, digits = 3) { return Number.isFinite(value) ? Number(valu
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
 function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) elements[id].disabled = busy; if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } if (message) setStatus(message); }
-function setStatus(message) { elements.status.textContent = message; }
+function setStatus(message) {
+  elements.status.textContent = message;
+  const row = elements.status.closest(".status-row");
+  if (row) row.dataset.kind = /^Error:/i.test(message) ? "error" : /fitting|bootstrap/i.test(message) ? "running" : /optimized|complete|exported/i.test(message) ? "success" : "neutral";
+}
 function showError(error) { setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`); }
 function safeName(value) { return String(value ?? "sample").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sample"; }
 function csvCell(value) { return `"${String(value).replaceAll('"', '""')}"`; }
