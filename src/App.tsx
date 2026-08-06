@@ -1,5 +1,5 @@
-import { Disclosure, DisclosureButton, DisclosurePanel, Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
-import { ArrowPathIcon, ArrowRightIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
+import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems, Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
+import { ArrowDownTrayIcon, ArrowPathIcon, ArrowRightIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 import { useEffect, type ReactNode } from "react";
 
 type PlotCardProps = {
@@ -166,19 +166,21 @@ export default function App() {
           </aside>
 
           <section id="results-panel" className="results grid min-w-0 content-start gap-6 bg-ui-canvas-muted px-[clamp(1rem,4vw,2.5rem)] pt-8 pb-10" aria-label="Fit results">
-            <header className="results-heading"><div><h2>Results</h2><p>Model comparison, diagnostics and optical constants.</p></div><span>Local computation</span></header>
             <div id="results-empty" className="results-empty"><span className="empty-mark" aria-hidden="true" /><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p><a href="#configuration-panel">Open configuration</a></div>
             <div id="results-content" hidden>
             <div className="status-row">
               <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
               <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
               <button id="cancel-operation" className="text-button cancel-action" type="button" hidden aria-controls="fit-progress">CANCEL</button>
-              <div className="export-actions">
-                <button id="print-report" className="text-button" disabled type="button">PRINT REPORT</button>
-                <button id="download-json" className="text-button" disabled type="button">JSON</button>
-                <button id="download-csv" className="text-button" disabled type="button">SPECTRA CSV</button>
-                <button id="download-nk" className="text-button" disabled type="button">LAYERS N,K</button>
-              </div>
+              <Menu as="div" className="export-menu">
+                <MenuButton className="text-button export-menu-button button-with-icon"><ArrowDownTrayIcon className="ui-icon" aria-hidden="true" />Export<ChevronDownIcon className="menu-chevron" aria-hidden="true" /></MenuButton>
+                <MenuItems className="export-menu-items" unmount={false}>
+                  <MenuItem><button id="print-report" className="export-menu-item" disabled type="button">Print report</button></MenuItem>
+                  <MenuItem><button id="download-json" className="export-menu-item" disabled type="button">Project JSON</button></MenuItem>
+                  <MenuItem><button id="download-csv" className="export-menu-item" disabled type="button">Spectra CSV</button></MenuItem>
+                  <MenuItem><button id="download-nk" className="export-menu-item" disabled type="button">Layers n,k</button></MenuItem>
+                </MenuItems>
+              </Menu>
             </div>
             <header id="report-meta" className="report-meta" />
             <TabGroup className="results-tabs" onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
