@@ -1,0 +1,8 @@
+{
+  "date": "2026-08-06",
+  "framework": "React 19 + TypeScript + Vite 8",
+  "font": "Inter declared without a bundled or imported font",
+  "palette": "warm light CSS variables with signal orange",
+  "motion": "motion-cut; no animation dependency",
+  "spacing": "mixed raw values; no complete named scale"
+}

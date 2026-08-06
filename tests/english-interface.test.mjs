@@ -7,6 +7,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   const main = await readFile(new URL("../src/main.tsx", import.meta.url), "utf8");
   const vite = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
   const styles = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+  const tokens = await readFile(new URL("../tokens.css", import.meta.url), "utf8");
   const combined = files.join("\n");
   assert.match(files[0], /<html lang="en">/);
   for (const metadata of ["theme-color", "canonical", "favicon.svg", "og:site_name", "og:url", "og:image:alt", "twitter:title", "twitter:description", "twitter:image:alt"]) {
@@ -19,6 +20,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /Capabilities and model scope/);
   assert.match(files[1], /href="#reflectometry-workspace"/);
   assert.match(files[1], /id="reflectometry-workspace"/);
+  assert.match(files[1], /id="configuration-panel"/);
+  assert.match(files[1], /id="results-panel"/);
+  assert.match(files[1], /className="workflow-section" open/);
   assert.match(files[1], /href="https:\/\/jorpago2\.github\.io\/"/);
   assert.match(files[1], /id="reset-example"/);
   assert.match(files[1], /id="saved-fit-file"/);
@@ -53,7 +57,12 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /aria-expanded/);
   assert.match(styles, /\.parameter-help-popover\b/);
   assert.match(styles, /\.chart-tooltip\b/);
-  assert.match(styles, /--plot-blue: #0072b2/);
+  assert.match(styles, /Hallmark · macrostructure: Workbench · genre: modern-minimal/);
+  assert.match(styles, /@import url\("\.\.\/tokens\.css"\)/);
+  assert.match(styles, /--plot-blue: var\(--color-plot-r\)/);
+  assert.match(tokens, /--color-accent: oklch\(/);
+  assert.match(tokens, /--font-display: "Geist"/);
+  assert.doesNotMatch(styles, /:\s*#[0-9a-f]{3,8}\b|rgba?\(|100vw/i);
   assert.doesNotMatch(styles, /parameter-help-mark/);
   assert.match(files[2], /substrateThicknessNm: 1000 \* substrateThicknessUm/);
   assert.match(files[2], /parseSavedFit/);
@@ -69,7 +78,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
-  assert.match(styles, /\.tool-heading h1 \{ font-size: clamp\(28px, 9vw, 36px\); \}/);
+  assert.match(styles, /\.tool-heading h1 \{/);
+  assert.match(styles, /overflow-x: clip/);
   assert.match(files[2], /initializeWorkspace\(\);/);
   assert.doesNotMatch(files[2], /loadSyntheticExample\(\);\s*$/);
   assert.doesNotMatch(combined, new RegExp(["single", "layer"].join("[- ]") + "|material " + "preset|included example", "i"));

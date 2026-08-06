@@ -55,9 +55,8 @@ export default function App() {
       <main>
         <section className="tool-heading" aria-labelledby="page-title">
           <div>
-            <p className="eyebrow">OPTICAL MODELLING / REFLECTOMETRY</p>
             <h1 id="page-title">Reflectometry</h1>
-            <p className="lede">Load spectra, define the optical stack and run the fit when ready.</p>
+            <p className="lede">Load spectra, define the optical stack, then fit reflectance and transmittance when ready.</p>
           </div>
           <details className="tool-about">
             <summary>Capabilities and model scope</summary>
@@ -71,10 +70,16 @@ export default function App() {
           </details>
         </section>
 
+        <nav className="workspace-jump" aria-label="Workspace areas">
+          <a href="#configuration-panel">Configuration</a>
+          <a href="#results-panel">Results</a>
+        </nav>
+
         <div id="reflectometry-workspace" className="workspace multilayer-workspace" tabIndex={-1}>
-          <aside className="controls" aria-label="Data, stack, and fit controls">
-            <section className="control-section">
-              <div className="section-heading"><span>01</span><h2>Measurement</h2></div>
+          <aside id="configuration-panel" className="controls" aria-label="Data, stack, and fit controls">
+            <details className="workflow-section" open>
+              <summary><span><strong>Measurement</strong><small>Choose spectra or start with generated data</small></span></summary>
+              <div className="workflow-content">
               <button id="reset-example" className="secondary full" type="button">Load synthetic example</button>
               <details>
                 <summary>Open a saved fitting result</summary>
@@ -106,10 +111,12 @@ export default function App() {
                 <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" defaultValue="5" min="0" max="100" step="0.5" /></label>
                 <label className="check"><input id="subtract-background" type="checkbox" defaultChecked /><span>Subtract 195–250 nm background</span></label>
               </details>
-            </section>
+              </div>
+            </details>
 
-            <section className="control-section">
-              <div className="section-heading"><span>02</span><h2>Layer stack</h2></div>
+            <details className="workflow-section">
+              <summary><span><strong>Layer stack</strong><small>Geometry, optical models and substrate</small></span></summary>
+              <div className="workflow-content">
               <p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p>
               <div className="field-pair compact-pair">
                 <label>Substrate thickness <span>micrometres (µm)</span><input id="substrate-thickness" type="number" defaultValue="1000" min="10" max="1000000" step="1" /></label>
@@ -123,10 +130,12 @@ export default function App() {
               </div>
               <div className="section-heading substrate-heading"><span>S</span><h3>Dispersive substrate</h3></div>
               <div id="substrate-editor" />
-            </section>
+              </div>
+            </details>
 
-            <section className="control-section">
-              <div className="section-heading"><span>03</span><h2>Fit</h2></div>
+            <details className="workflow-section">
+              <summary><span><strong>Fit</strong><small>Channels, optimizer and uncertainty</small></span></summary>
+              <div className="workflow-content">
               <div className="channel-row">
                 <label className="check"><input id="use-r" type="checkbox" defaultChecked /><span>Fit R</span></label>
                 <label className="check"><input id="use-t" type="checkbox" defaultChecked /><span>Fit T</span></label>
@@ -152,13 +161,15 @@ export default function App() {
                 <button id="bootstrap-button" className="secondary full" type="button" disabled>Estimate bootstrap uncertainty</button>
               </details>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
-            </section>
+              </div>
+            </details>
 
             <div className="actions"><button id="preview-button" className="secondary" type="button">Update model</button><button id="fit-button" className="primary" type="button">Fit parameters <span aria-hidden="true">→</span></button></div>
           </aside>
 
-          <section className="results" aria-label="Fit results">
-            <div id="results-empty" className="results-empty"><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p></div>
+          <section id="results-panel" className="results" aria-label="Fit results">
+            <header className="results-heading"><div><h2>Results</h2><p>Model comparison, diagnostics and optical constants.</p></div><span>Local computation</span></header>
+            <div id="results-empty" className="results-empty"><span className="empty-mark" aria-hidden="true" /><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p><a href="#configuration-panel">Open configuration</a></div>
             <div id="results-content" hidden>
             <div className="status-row">
               <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
