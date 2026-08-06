@@ -24,8 +24,10 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /id="results-panel"/);
   assert.match(files[1], /from "@headlessui\/react"/);
   assert.match(files[1], /from "@heroicons\/react\/24\/outline"/);
-  assert.match(files[1], /<WorkflowSection[^>]+defaultOpen/);
-  assert.match(files[1], /<DisclosurePanel[^>]+unmount=\{false\}/);
+  assert.match(files[1], /<TabGroup as="div" className="configuration-tabs" vertical>/);
+  for (const tab of ["Measurement", "Layer stack", "Fit"]) assert.match(files[1], new RegExp(`<span>${tab}<`));
+  assert.equal([...files[1].matchAll(/<TabPanel className="configuration-panel" unmount=\{false\}>/g)].length, 3);
+  assert.doesNotMatch(files[1], /WorkflowSection|DisclosurePanel/);
   assert.match(files[1], /<PopoverPanel/);
   assert.match(files[1], /<details className="export-menu">/);
   assert.doesNotMatch(files[1], /results-heading|Local computation/);

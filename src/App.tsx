@@ -1,6 +1,6 @@
-import { Disclosure, DisclosureButton, DisclosurePanel, Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
-import { ArrowDownTrayIcon, ArrowPathIcon, ArrowRightIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
-import { useEffect, type ReactNode } from "react";
+import { Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
+import { AdjustmentsHorizontalIcon, ArrowDownTrayIcon, ArrowPathIcon, ArrowRightIcon, ArrowUpTrayIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
+import { useEffect } from "react";
 
 type PlotCardProps = {
   eyebrow: string;
@@ -10,25 +10,6 @@ type PlotCardProps = {
   legend: Array<{ className: string; text: string }>;
   eyebrowId?: string;
 };
-
-type WorkflowSectionProps = {
-  title: string;
-  description: string;
-  children: ReactNode;
-  defaultOpen?: boolean;
-};
-
-function WorkflowSection({ title, description, children, defaultOpen = false }: WorkflowSectionProps) {
-  return (
-    <Disclosure as="section" className="workflow-section" defaultOpen={defaultOpen}>
-      <DisclosureButton className="workflow-trigger">
-        <span><strong>{title}</strong><small>{description}</small></span>
-        <ChevronDownIcon className="disclosure-icon" aria-hidden="true" />
-      </DisclosureButton>
-      <DisclosurePanel className="workflow-content" unmount={false}>{children}</DisclosurePanel>
-    </Disclosure>
-  );
-}
 
 function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCardProps) {
   return (
@@ -82,7 +63,16 @@ export default function App() {
 
         <div id="reflectometry-workspace" className="workspace multilayer-workspace grid min-h-240 grid-cols-1" tabIndex={-1}>
           <aside id="configuration-panel" className="controls bg-ui-surface" aria-label="Data, stack, and fit controls">
-            <WorkflowSection title="Measurement" description="Choose spectra or start with generated data" defaultOpen>
+            <TabGroup as="div" className="configuration-tabs" vertical>
+              <TabList className="configuration-rail" aria-label="Configuration sections">
+                <Tab className="configuration-tab"><ArrowUpTrayIcon aria-hidden="true" /><span>Measurement</span></Tab>
+                <Tab className="configuration-tab"><Square3Stack3DIcon aria-hidden="true" /><span>Layer stack</span></Tab>
+                <Tab className="configuration-tab"><AdjustmentsHorizontalIcon aria-hidden="true" /><span>Fit</span></Tab>
+              </TabList>
+              <div className="configuration-body">
+                <TabPanels className="configuration-panels">
+                  <TabPanel className="configuration-panel" unmount={false}>
+              <header className="configuration-panel-heading"><h2>Measurement</h2><p>Choose spectra or start with generated data.</p></header>
               <button id="reset-example" className="secondary full" type="button">Load synthetic example</button>
               <details>
                 <summary>Open a saved fitting result</summary>
@@ -114,9 +104,10 @@ export default function App() {
                 <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" defaultValue="5" min="0" max="100" step="0.5" /></label>
                 <label className="check"><input id="subtract-background" type="checkbox" defaultChecked /><span>Subtract 195–250 nm background</span></label>
               </details>
-            </WorkflowSection>
+                  </TabPanel>
 
-            <WorkflowSection title="Layer stack" description="Geometry, optical models and substrate">
+                  <TabPanel className="configuration-panel" unmount={false}>
+              <header className="configuration-panel-heading"><h2>Layer stack</h2><p>Geometry, optical models and substrate.</p></header>
               <p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p>
               <div className="field-pair compact-pair">
                 <label>Substrate thickness <span>micrometres (µm)</span><input id="substrate-thickness" type="number" defaultValue="1000" min="10" max="1000000" step="1" /></label>
@@ -130,9 +121,10 @@ export default function App() {
               </div>
               <div className="section-heading substrate-heading"><span>S</span><h3>Dispersive substrate</h3></div>
               <div id="substrate-editor" />
-            </WorkflowSection>
+                  </TabPanel>
 
-            <WorkflowSection title="Fit" description="Channels, optimizer and uncertainty">
+                  <TabPanel className="configuration-panel" unmount={false}>
+              <header className="configuration-panel-heading"><h2>Fit</h2><p>Channels, optimizer and uncertainty.</p></header>
               <div className="channel-row">
                 <label className="check"><input id="use-r" type="checkbox" defaultChecked /><span>Fit R</span></label>
                 <label className="check"><input id="use-t" type="checkbox" defaultChecked /><span>Fit T</span></label>
@@ -158,9 +150,12 @@ export default function App() {
                 <button id="bootstrap-button" className="secondary full" type="button" disabled>Estimate bootstrap uncertainty</button>
               </details>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
-            </WorkflowSection>
+                  </TabPanel>
+                </TabPanels>
 
-            <div className="actions"><button id="preview-button" className="secondary button-with-icon" type="button"><ArrowPathIcon className="ui-icon" aria-hidden="true" />Update model</button><button id="fit-button" className="primary button-with-icon" type="button">Fit parameters <ArrowRightIcon className="ui-icon" aria-hidden="true" /></button></div>
+                <div className="actions"><button id="preview-button" className="secondary button-with-icon" type="button"><ArrowPathIcon className="ui-icon" aria-hidden="true" />Update model</button><button id="fit-button" className="primary button-with-icon" type="button">Fit parameters <ArrowRightIcon className="ui-icon" aria-hidden="true" /></button></div>
+              </div>
+            </TabGroup>
           </aside>
 
           <section id="results-panel" className="results grid min-w-0 content-start gap-6 bg-ui-canvas-muted px-[clamp(1rem,4vw,2.5rem)] pt-8 pb-10" aria-label="Fit results">
