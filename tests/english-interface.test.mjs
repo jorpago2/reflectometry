@@ -36,7 +36,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(resultPanels[0], /stack-card/);
   assert.match(resultPanels[0], /canvasId="rt-chart"/);
   assert.doesNotMatch(resultPanels[0], /metrics|diagnostics|residual-chart|nk-chart/);
-  assert.match(files[1], /href="https:\/\/jorpago2\.github\.io\/"/);
+  assert.doesNotMatch(files[1], /All tools|Local processing/i);
   assert.match(files[1], /id="reset-example"/);
   assert.match(files[1], /id="saved-fit-file"/);
   assert.match(files[1], /R reference signal/);

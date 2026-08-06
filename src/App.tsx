@@ -65,7 +65,6 @@ export default function App() {
           REFLECTO<span>METRY</span>
         </a>
         <p className="masthead-context">Multilayer optical modelling · local fitting</p>
-        <a className="suite-link" href="https://jorpago2.github.io/" aria-label="Online Simulators & Tools">All tools</a>
         <Popover className="app-help">
           <PopoverButton id="app-help" className="app-help-button" aria-keyshortcuts="?">
             <QuestionMarkCircleIcon className="ui-icon" aria-hidden="true" />
@@ -73,7 +72,6 @@ export default function App() {
           </PopoverButton>
           <PopoverPanel className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></PopoverPanel>
         </Popover>
-        <p className="privacy"><span aria-hidden="true" /> Local processing</p>
       </header>
 
       <main className="min-h-dvh w-full bg-ui-canvas font-ui-body text-ui-ink" aria-label="Reflectometry workspace">
@@ -236,7 +234,7 @@ export default function App() {
           </section>
         </div>
       </main>
-      <footer><span>Reflectometry · v4.0.0</span><span>React + TypeScript + Vite · local processing</span><a href="https://jorpago2.github.io/" aria-label="Online Simulators & Tools">All tools</a></footer>
+      <footer><span>Reflectometry · v4.0.0</span><span>React + TypeScript + Vite</span></footer>
     </>
   );
 }
