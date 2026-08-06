@@ -314,9 +314,9 @@ input[type="checkbox"] { width: 20px; min-width: 20px; height: 20px; min-height:
 
 .check span { color: inherit; }
 
-details:not(.workflow-section) { margin: var(--space-sm) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+details:not(.workflow-section):not(.export-menu) { margin: var(--space-sm) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 summary { min-height: 44px; padding: var(--space-xs) 0; display: flex; align-items: center; color: var(--ink); font-size: var(--text-xs); font-weight: 600; }
-details:not(.workflow-section)[open] { padding-bottom: var(--space-sm); }
+details:not(.workflow-section):not(.export-menu)[open] { padding-bottom: var(--space-sm); }
 
 .source-name {
   margin: var(--space-sm) 0;
@@ -542,8 +542,11 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .status-row p { margin: 0; flex: 1 1 16rem; }
 .status-row progress { width: min(180px, 25%); accent-color: var(--orange); }
 .export-menu { position: relative; margin-left: auto; }
-.export-menu-button { min-height: 36px; padding: 0 var(--space-xs); }
-.menu-chevron { width: 1rem; height: 1rem; }
+.export-menu > summary { list-style: none; }
+.export-menu > summary::-webkit-details-marker { display: none; }
+.export-menu-button { min-height: 36px; padding: 0 var(--space-xs); border: 1px solid var(--ink); border-radius: var(--radius-input); background: transparent; cursor: pointer; }
+.menu-chevron { width: 1rem; height: 1rem; transition: transform 160ms ease; }
+.export-menu[open] .menu-chevron { transform: rotate(180deg); }
 .export-menu-items {
   position: absolute;
   z-index: var(--z-dropdown);

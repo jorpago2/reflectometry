@@ -1,4 +1,4 @@
-import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems, Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
+import { Disclosure, DisclosureButton, DisclosurePanel, Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
 import { ArrowDownTrayIcon, ArrowPathIcon, ArrowRightIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 import { useEffect, type ReactNode } from "react";
 
@@ -172,17 +172,15 @@ export default function App() {
               <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
               <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
               <button id="cancel-operation" className="text-button cancel-action" type="button" hidden aria-controls="fit-progress">CANCEL</button>
-              <Menu as="div" className="export-menu">
-                {({ open }) => <>
-                  <MenuButton className="text-button export-menu-button button-with-icon"><ArrowDownTrayIcon className="ui-icon" aria-hidden="true" />Export<ChevronDownIcon className="menu-chevron" aria-hidden="true" /></MenuButton>
-                  <MenuItems className="export-menu-items" static hidden={!open}>
-                    <MenuItem><button id="print-report" className="export-menu-item" disabled type="button">Print report</button></MenuItem>
-                    <MenuItem><button id="download-json" className="export-menu-item" disabled type="button">Project JSON</button></MenuItem>
-                    <MenuItem><button id="download-csv" className="export-menu-item" disabled type="button">Spectra CSV</button></MenuItem>
-                    <MenuItem><button id="download-nk" className="export-menu-item" disabled type="button">Layers n,k</button></MenuItem>
-                  </MenuItems>
-                </>}
-              </Menu>
+              <details className="export-menu">
+                <summary className="text-button export-menu-button button-with-icon"><ArrowDownTrayIcon className="ui-icon" aria-hidden="true" />Export<ChevronDownIcon className="menu-chevron" aria-hidden="true" /></summary>
+                <div className="export-menu-items">
+                  <button id="print-report" className="export-menu-item" disabled type="button">Print report</button>
+                  <button id="download-json" className="export-menu-item" disabled type="button">Project JSON</button>
+                  <button id="download-csv" className="export-menu-item" disabled type="button">Spectra CSV</button>
+                  <button id="download-nk" className="export-menu-item" disabled type="button">Layers n,k</button>
+                </div>
+              </details>
             </div>
             <header id="report-meta" className="report-meta" />
             <TabGroup className="results-tabs" onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
