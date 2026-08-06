@@ -15,19 +15,18 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@headlessui/react": "^2.2.10",
-    "@heroicons/react": "^2.2.0",
+    "@carbon/react": "^1.113.0",
+    "@ibm/plex": "^6.4.1",
     "plotly.js-basic-dist-min": "^3.7.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.3.3",
     "@types/plotly.js": "^3.0.10",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",
-    "tailwindcss": "4.3.3",
+    "sass": "^1.102.0",
     "typescript": "6.0.2",
     "vite": "8.2.0"
   }

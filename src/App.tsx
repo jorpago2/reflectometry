@@ -1,5 +1,5 @@
-import { Popover, PopoverButton, PopoverPanel, Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
-import { AdjustmentsHorizontalIcon, ArrowDownTrayIcon, ArrowPathIcon, ArrowRightIcon, ArrowUpTrayIcon, ChevronDownIcon, PlusIcon, QuestionMarkCircleIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
+import { Button, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical, Toggletip, ToggletipButton, ToggletipContent } from "@carbon/react";
+import { Add, ArrowRight, Download, Help, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import { useEffect } from "react";
 
 type PlotCardProps = {
@@ -23,7 +23,7 @@ function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCa
       </div>
       <div className="chart-toolbar">
         <span id={`${canvasId}-help`}>Hover to inspect · Wheel or +/− to zoom · Drag or ←/→ to pan</span>
-        <button className="chart-reset" type="button" data-reset-chart={canvasId}>Reset view</button>
+        <Button className="chart-reset" kind="ghost" size="sm" type="button" data-reset-chart={canvasId}>Reset view</Button>
       </div>
     </section>
   );
@@ -40,40 +40,40 @@ export default function App() {
   return (
     <>
       <a className="skip-link" href="#reflectometry-workspace">Skip to fitting workspace</a>
-      <header className="masthead flex min-h-16 items-center gap-6 bg-ui-surface/94 px-[clamp(1rem,4vw,2.5rem)] py-3">
+      <header className="masthead">
         <a className="brand" href="./" aria-label="Reflectometry home">
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           REFLECTO<span>METRY</span>
         </a>
         <p className="masthead-context">Multilayer optical modelling · local fitting</p>
-        <Popover className="app-help">
-          <PopoverButton id="app-help" className="app-help-button" aria-keyshortcuts="?">
-            <QuestionMarkCircleIcon className="ui-icon" aria-hidden="true" />
+        <Toggletip align="bottom-end" className="app-help">
+          <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
+            <Help size={16} aria-hidden="true" />
             Help
-          </PopoverButton>
-          <PopoverPanel className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></PopoverPanel>
-        </Popover>
+          </ToggletipButton>
+          <ToggletipContent className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl></ToggletipContent>
+        </Toggletip>
       </header>
 
-      <main className="min-h-dvh w-full bg-ui-canvas font-ui-body text-ui-ink" aria-label="Reflectometry workspace">
+      <main className="app-main" aria-label="Reflectometry workspace">
         <nav className="workspace-jump" aria-label="Workspace areas">
           <a href="#configuration-panel">Configuration</a>
           <a href="#results-panel">Results</a>
         </nav>
 
-        <div id="reflectometry-workspace" className="workspace multilayer-workspace grid min-h-240 grid-cols-1" tabIndex={-1}>
-          <aside id="configuration-panel" className="controls bg-ui-surface" aria-label="Data, stack, and fit controls">
-            <TabGroup as="div" className="configuration-tabs" vertical>
-              <TabList className="configuration-rail" aria-label="Configuration sections">
-                <Tab className="configuration-tab"><ArrowUpTrayIcon aria-hidden="true" /><span>Measurement</span></Tab>
-                <Tab className="configuration-tab"><Square3Stack3DIcon aria-hidden="true" /><span>Layer stack</span></Tab>
-                <Tab className="configuration-tab"><AdjustmentsHorizontalIcon aria-hidden="true" /><span>Fit</span></Tab>
-              </TabList>
-              <div className="configuration-body">
-                <TabPanels className="configuration-panels">
-                  <TabPanel className="configuration-panel" unmount={false}>
+        <div id="reflectometry-workspace" className="workspace multilayer-workspace" tabIndex={-1}>
+          <aside id="configuration-panel" className="controls" aria-label="Data, stack, and fit controls">
+            <div className="configuration-tabs">
+              <TabsVertical>
+                <TabListVertical className="configuration-rail" aria-label="Configuration sections">
+                  <Tab renderIcon={Upload}>Measurement</Tab>
+                  <Tab renderIcon={Layers}>Layer stack</Tab>
+                  <Tab renderIcon={SettingsAdjust}>Fit</Tab>
+                </TabListVertical>
+                <TabPanels>
+                  <TabPanel className="configuration-panel">
               <header className="configuration-panel-heading"><h2>Measurement</h2><p>Choose spectra or start with generated data.</p></header>
-              <button id="reset-example" className="secondary full" type="button">Load synthetic example</button>
+              <Button id="reset-example" className="full" kind="tertiary" type="button">Load synthetic example</Button>
               <details>
                 <summary>Open a saved fitting result</summary>
                 <label>Saved fit JSON<input id="saved-fit-file" type="file" accept=".json,application/json" /></label>
@@ -89,7 +89,7 @@ export default function App() {
                   <label>T reference signal<input id="file-t-reference" type="file" accept=".txt,text/plain" /></label>
                   <label>Reference R table<input id="file-reference-model" type="file" accept=".txt,text/plain" /></label>
                 </div>
-                <button id="load-files" className="secondary full" type="button">Process local files</button>
+                <Button id="load-files" className="full" kind="tertiary" type="button">Process local files</Button>
                 <p className="model-note">Signal files use wavelength (nm) and counts. The reference R and layer n,k tables accept wavelength in nm or µm.</p>
               </details>
               <p id="source-name" className="source-name">No measurement loaded</p>
@@ -106,7 +106,7 @@ export default function App() {
               </details>
                   </TabPanel>
 
-                  <TabPanel className="configuration-panel" unmount={false}>
+                  <TabPanel className="configuration-panel">
               <header className="configuration-panel-heading"><h2>Layer stack</h2><p>Geometry, optical models and substrate.</p></header>
               <p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p>
               <div className="field-pair compact-pair">
@@ -115,15 +115,15 @@ export default function App() {
               </div>
               <div id="layers" className="layer-list" />
               <div className="stack-toolbar">
-                <button id="undo-button" className="secondary" type="button" disabled aria-label="Undo stack edit">↶ Undo</button>
-                <button id="redo-button" className="secondary" type="button" disabled aria-label="Redo stack edit">↷ Redo</button>
-                <button id="add-layer" className="secondary button-with-icon" type="button"><PlusIcon className="ui-icon" aria-hidden="true" />Add layer</button>
+                <Button id="undo-button" kind="ghost" renderIcon={Undo} type="button" disabled aria-label="Undo stack edit">Undo</Button>
+                <Button id="redo-button" kind="ghost" renderIcon={Redo} type="button" disabled aria-label="Redo stack edit">Redo</Button>
+                <Button id="add-layer" kind="tertiary" renderIcon={Add} type="button">Add layer</Button>
               </div>
               <div className="section-heading substrate-heading"><span>S</span><h3>Dispersive substrate</h3></div>
               <div id="substrate-editor" />
                   </TabPanel>
 
-                  <TabPanel className="configuration-panel" unmount={false}>
+                  <TabPanel className="configuration-panel">
               <header className="configuration-panel-heading"><h2>Fit</h2><p>Channels, optimizer and uncertainty.</p></header>
               <div className="channel-row">
                 <label className="check"><input id="use-r" type="checkbox" defaultChecked /><span>Fit R</span></label>
@@ -147,43 +147,43 @@ export default function App() {
                   <label>Local refinements<input id="local-refinements" type="number" defaultValue="16" min="1" max="50" step="1" /></label>
                   <label>Bootstrap replicates<select id="bootstrap-samples" defaultValue="20"><option>20</option><option>50</option><option>100</option></select></label>
                 </div>
-                <button id="bootstrap-button" className="secondary full" type="button" disabled>Estimate bootstrap uncertainty</button>
+                <Button id="bootstrap-button" className="full" kind="tertiary" type="button" disabled>Estimate bootstrap uncertainty</Button>
               </details>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
                   </TabPanel>
                 </TabPanels>
-
-                <div className="actions"><button id="preview-button" className="secondary button-with-icon" type="button"><ArrowPathIcon className="ui-icon" aria-hidden="true" />Update model</button><button id="fit-button" className="primary button-with-icon" type="button">Fit parameters <ArrowRightIcon className="ui-icon" aria-hidden="true" /></button></div>
-              </div>
-            </TabGroup>
+              </TabsVertical>
+              <div className="actions"><Button id="preview-button" kind="secondary" renderIcon={Renew} type="button">Update model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
+            </div>
           </aside>
 
-          <section id="results-panel" className="results grid min-w-0 content-start gap-6 bg-ui-canvas-muted px-[clamp(1rem,4vw,2.5rem)] pt-8 pb-10" aria-label="Fit results">
+          <section id="results-panel" className="results" aria-label="Fit results">
             <div id="results-empty" className="results-empty"><span className="empty-mark" aria-hidden="true" /><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p><a href="#configuration-panel">Open configuration</a></div>
             <div id="results-content" hidden>
             <div className="status-row">
               <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
               <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
-              <button id="cancel-operation" className="text-button cancel-action" type="button" hidden aria-controls="fit-progress">CANCEL</button>
+              <Button id="cancel-operation" className="cancel-action" kind="ghost" size="sm" type="button" hidden aria-controls="fit-progress">Cancel</Button>
               <details className="export-menu">
-                <summary className="text-button export-menu-button button-with-icon"><ArrowDownTrayIcon className="ui-icon" aria-hidden="true" />Export<ChevronDownIcon className="menu-chevron" aria-hidden="true" /></summary>
+                <summary className="export-menu-button"><Download size={16} aria-hidden="true" />Export</summary>
                 <div className="export-menu-items">
-                  <button id="print-report" className="export-menu-item" disabled type="button">Print report</button>
-                  <button id="download-json" className="export-menu-item" disabled type="button">Project JSON</button>
-                  <button id="download-csv" className="export-menu-item" disabled type="button">Spectra CSV</button>
-                  <button id="download-nk" className="export-menu-item" disabled type="button">Layers n,k</button>
+                  <Button id="print-report" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Print report</Button>
+                  <Button id="download-json" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Project JSON</Button>
+                  <Button id="download-csv" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Spectra CSV</Button>
+                  <Button id="download-nk" className="export-menu-item" kind="ghost" size="sm" disabled type="button">Layers n,k</Button>
                 </div>
               </details>
             </div>
             <header id="report-meta" className="report-meta" />
-            <TabGroup className="results-tabs" onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
-              <TabList className="results-tab-list" aria-label="Result views">
+            <div className="results-tabs">
+            <Tabs onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
+              <TabList contained className="results-tab-list" aria-label="Result views">
                 <Tab className="results-tab">Overview</Tab>
                 <Tab className="results-tab">Fit quality</Tab>
                 <Tab className="results-tab">Optical constants</Tab>
               </TabList>
               <TabPanels>
-                <TabPanel className="results-tab-panel" unmount={false}>
+                <TabPanel className="results-tab-panel">
                   <section className="stack-card" aria-labelledby="stack-title">
                     <div className="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
                     <figure className="stack-figure">
@@ -198,7 +198,7 @@ export default function App() {
                   </section>
                   <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
                 </TabPanel>
-                <TabPanel className="results-tab-panel" unmount={false}>
+                <TabPanel className="results-tab-panel">
                   <div className="metrics">
                     <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
                     <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
@@ -219,12 +219,13 @@ export default function App() {
                   </section>
                   <PlotCard eyebrow="MODEL − DATA" title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />
                 </TabPanel>
-                <TabPanel className="results-tab-panel" unmount={false}>
+                <TabPanel className="results-tab-panel">
                   <PlotCard eyebrow="ACTIVE LAYER" eyebrowId="nk-layer-label" title="Complex refractive index" canvasId="nk-chart" label="Interactive active-layer refractive index" legend={[{ className: "n-line", text: "n" }, { className: "k-line", text: "k" }]} />
                   <section className="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Residual bootstrap intervals assume exchangeable spectral residuals and local refits near the selected minimum. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></details></section>
                 </TabPanel>
               </TabPanels>
-            </TabGroup>
+            </Tabs>
+            </div>
             </div>
           </section>
         </div>
