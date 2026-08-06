@@ -27,7 +27,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /<WorkflowSection[^>]+defaultOpen/);
   assert.match(files[1], /<DisclosurePanel[^>]+unmount=\{false\}/);
   assert.match(files[1], /<PopoverPanel/);
-  assert.match(files[1], /<MenuItems[^>]+unmount=\{false\}/);
+  assert.match(files[1], /<MenuItems[^>]+static hidden=\{!open\}/);
   assert.doesNotMatch(files[1], /results-heading|Local computation/);
   assert.match(files[1], /<TabGroup/);
   for (const tab of ["Overview", "Fit quality", "Optical constants"]) assert.match(files[1], new RegExp(`<Tab className="results-tab">${tab}<`));
@@ -46,7 +46,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /micrometres \(µm\)/);
   assert.match(files[1], /id="stack-diagram"/);
   assert.match(files[1], /Layers n,k/);
-  for (const id of ["undo-button", "redo-button", "bootstrap-button", "cancel-operation", "print-report", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
+  for (const id of ["undo-button", "redo-button", "bootstrap-button", "cancel-operation", "print-report", "download-json", "download-csv", "download-nk", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
   for (const id of ["rt-chart", "residual-chart", "nk-chart"]) {
     assert.match(files[1], new RegExp(`canvasId="${id}"`));
   }

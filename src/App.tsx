@@ -173,13 +173,15 @@ export default function App() {
               <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
               <button id="cancel-operation" className="text-button cancel-action" type="button" hidden aria-controls="fit-progress">CANCEL</button>
               <Menu as="div" className="export-menu">
-                <MenuButton className="text-button export-menu-button button-with-icon"><ArrowDownTrayIcon className="ui-icon" aria-hidden="true" />Export<ChevronDownIcon className="menu-chevron" aria-hidden="true" /></MenuButton>
-                <MenuItems className="export-menu-items" unmount={false}>
-                  <MenuItem><button id="print-report" className="export-menu-item" disabled type="button">Print report</button></MenuItem>
-                  <MenuItem><button id="download-json" className="export-menu-item" disabled type="button">Project JSON</button></MenuItem>
-                  <MenuItem><button id="download-csv" className="export-menu-item" disabled type="button">Spectra CSV</button></MenuItem>
-                  <MenuItem><button id="download-nk" className="export-menu-item" disabled type="button">Layers n,k</button></MenuItem>
-                </MenuItems>
+                {({ open }) => <>
+                  <MenuButton className="text-button export-menu-button button-with-icon"><ArrowDownTrayIcon className="ui-icon" aria-hidden="true" />Export<ChevronDownIcon className="menu-chevron" aria-hidden="true" /></MenuButton>
+                  <MenuItems className="export-menu-items" static hidden={!open}>
+                    <MenuItem><button id="print-report" className="export-menu-item" disabled type="button">Print report</button></MenuItem>
+                    <MenuItem><button id="download-json" className="export-menu-item" disabled type="button">Project JSON</button></MenuItem>
+                    <MenuItem><button id="download-csv" className="export-menu-item" disabled type="button">Spectra CSV</button></MenuItem>
+                    <MenuItem><button id="download-nk" className="export-menu-item" disabled type="button">Layers n,k</button></MenuItem>
+                  </MenuItems>
+                </>}
               </Menu>
             </div>
             <header id="report-meta" className="report-meta" />
