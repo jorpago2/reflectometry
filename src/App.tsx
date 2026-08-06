@@ -38,7 +38,7 @@ export default function App() {
   return (
     <>
       <a className="skip-link" href="#reflectometry-workspace">Skip to fitting workspace</a>
-      <header className="masthead">
+      <header className="masthead flex min-h-16 items-center gap-6 bg-ui-surface/94 px-[clamp(1rem,4vw,2.5rem)] py-3">
         <a className="brand" href="./" aria-label="Reflectometry home">
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           REFLECTO<span>METRY</span>
@@ -52,8 +52,8 @@ export default function App() {
         <p className="privacy"><span aria-hidden="true" /> Local processing</p>
       </header>
 
-      <main>
-        <section className="tool-heading" aria-labelledby="page-title">
+      <main className="min-h-dvh w-full bg-ui-canvas font-ui-body text-ui-ink">
+        <section className="tool-heading grid grid-cols-1 items-center justify-between gap-6 px-[clamp(1rem,4vw,2.5rem)] pt-6 pb-8" aria-labelledby="page-title">
           <div>
             <h1 id="page-title">Reflectometry</h1>
             <p className="lede">Load spectra, define the optical stack, then fit reflectance and transmittance when ready.</p>
@@ -75,8 +75,8 @@ export default function App() {
           <a href="#results-panel">Results</a>
         </nav>
 
-        <div id="reflectometry-workspace" className="workspace multilayer-workspace" tabIndex={-1}>
-          <aside id="configuration-panel" className="controls" aria-label="Data, stack, and fit controls">
+        <div id="reflectometry-workspace" className="workspace multilayer-workspace grid min-h-240 grid-cols-1" tabIndex={-1}>
+          <aside id="configuration-panel" className="controls bg-ui-surface" aria-label="Data, stack, and fit controls">
             <details className="workflow-section" open>
               <summary><span><strong>Measurement</strong><small>Choose spectra or start with generated data</small></span></summary>
               <div className="workflow-content">
@@ -167,7 +167,7 @@ export default function App() {
             <div className="actions"><button id="preview-button" className="secondary" type="button">Update model</button><button id="fit-button" className="primary" type="button">Fit parameters <span aria-hidden="true">→</span></button></div>
           </aside>
 
-          <section id="results-panel" className="results" aria-label="Fit results">
+          <section id="results-panel" className="results grid min-w-0 content-start gap-6 bg-ui-canvas-muted px-[clamp(1rem,4vw,2.5rem)] pt-8 pb-10" aria-label="Fit results">
             <header className="results-heading"><div><h2>Results</h2><p>Model comparison, diagnostics and optical constants.</p></div><span>Local computation</span></header>
             <div id="results-empty" className="results-empty"><span className="empty-mark" aria-hidden="true" /><strong>No results yet</strong><p>Load measurement data or the synthetic example, then update the model or fit the selected parameters.</p><a href="#configuration-panel">Open configuration</a></div>
             <div id="results-content" hidden>

@@ -59,9 +59,13 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(styles, /\.chart-tooltip\b/);
   assert.match(styles, /Hallmark · macrostructure: Workbench · genre: modern-minimal/);
   assert.match(styles, /@import url\("\.\.\/tokens\.css"\)/);
+  assert.match(styles, /tailwindcss\/utilities\.css/);
+  assert.match(styles, /@theme inline/);
+  assert.doesNotMatch(styles, /tailwindcss\/preflight|@import\s+["']tailwindcss["']/);
+  assert.match(files[1], /bg-ui-canvas/);
   assert.match(styles, /--plot-blue: var\(--color-plot-r\)/);
   assert.match(tokens, /--color-accent: oklch\(/);
-  assert.match(tokens, /--font-display: "Geist"/);
+  assert.match(tokens, /--font-display: "Space Grotesk"/);
   assert.doesNotMatch(styles, /:\s*#[0-9a-f]{3,8}\b|rgba?\(|100vw/i);
   assert.doesNotMatch(styles, /parameter-help-mark/);
   assert.match(files[2], /substrateThicknessNm: 1000 \* substrateThicknessUm/);

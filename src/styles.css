@@ -1,6 +1,29 @@
 /* Hallmark · pre-emit critique: P5 H4 E4 S5 R5 V4 */
 /* Hallmark · macrostructure: Workbench · genre: modern-minimal · tone: technical-austere · theme: Coral · enrichment: none · nav: N9 · footer: Ft2 · design-system: design.md · designed-as-app · contrast-pass · slop-pass · responsive-pass */
 @import url("../tokens.css");
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme inline {
+  --color-ui-canvas: var(--color-paper);
+  --color-ui-canvas-muted: var(--color-paper-2);
+  --color-ui-surface: var(--color-paper-raised);
+  --color-ui-surface-raised: var(--color-paper-raised);
+  --color-ui-ink: var(--color-ink);
+  --color-ui-muted: var(--color-muted);
+  --color-ui-border: var(--color-rule);
+  --color-ui-border-strong: var(--color-rule-2);
+  --color-ui-accent: var(--color-accent);
+  --color-ui-focus: var(--color-focus);
+  --color-ui-danger: var(--color-danger);
+  --color-ui-success: var(--color-success);
+  --font-ui-body: var(--font-body);
+  --font-ui-display: var(--font-display);
+  --radius-ui-control: var(--radius-input);
+  --radius-ui-panel: var(--radius-card);
+  --shadow-ui-raised: var(--shadow-card);
+}
 
 :root {
   color-scheme: light;
@@ -56,13 +79,7 @@ button, summary { cursor: pointer; }
 .skip-link:focus { transform: translateY(0); }
 
 .masthead {
-  min-height: 64px;
-  padding: var(--space-xs) clamp(var(--space-sm), 4vw, var(--space-xl));
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
   border-bottom: 1px solid var(--line);
-  background: color-mix(in oklch, var(--panel) 94%, transparent);
   backdrop-filter: blur(14px);
 }
 
@@ -134,15 +151,7 @@ button, summary { cursor: pointer; }
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-success) 16%, transparent);
 }
 
-main { width: 100%; }
-
 .tool-heading {
-  padding: var(--space-md) clamp(var(--space-sm), 4vw, var(--space-xl)) var(--space-lg);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-lg);
   border-bottom: 1px solid var(--line);
 }
 
@@ -208,11 +217,6 @@ footer {
 .profile dt { color: var(--orange); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .profile dd { margin: var(--space-3xs) 0 0; font-size: 11px; line-height: 1.4; }
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-height: 60rem;
-}
 
 .workspace-jump {
   position: sticky;
@@ -240,10 +244,6 @@ footer {
   white-space: nowrap;
 }
 
-.controls {
-  background: var(--panel);
-  border-right: 0;
-}
 
 .workflow-section {
   margin: 0;
@@ -579,14 +579,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   backdrop-filter: blur(8px);
 }
 
-.results {
-  padding: var(--space-lg) clamp(var(--space-sm), 4vw, var(--space-xl)) var(--space-xl);
-  display: grid;
-  align-content: start;
-  gap: var(--space-md);
-  min-width: 0;
-  background: var(--results);
-}
 
 .results-heading {
   padding-bottom: var(--space-sm);

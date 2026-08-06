@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;700&family=Geist+Mono:wght@500;700&family=IBM+Plex+Sans:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap");
 
 :root {
   --color-paper: oklch(97% 0.009 65);
@@ -19,7 +19,7 @@
   --color-plot-r: oklch(52% 0.15 245);
   --color-plot-t: oklch(55% 0.16 42);
 
-  --font-display: "Geist", ui-sans-serif, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, sans-serif;
   --font-body: "IBM Plex Sans", ui-sans-serif, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
 
@@ -44,9 +44,9 @@
 
   --rule-hair: 1px;
   --rule-fine: 2px;
-  --radius-card: 0.5rem;
+  --radius-card: 0.875rem;
   --radius-pill: 999px;
-  --radius-input: 0.375rem;
+  --radius-input: 0.5rem;
   --shadow-card: 0 1px 2px oklch(17% 0.016 55 / 0.06);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
