@@ -43,7 +43,7 @@ Four-point named scale defined in `tokens.css`. Components consume named tokens 
 - Focus is immediate and never animated.
 - Hover uses a single colour or one-pixel position change.
 - Popovers and primary workflow disclosures use Headless UI interaction primitives.
-- Results use Headless UI tabs for overview, spectra and optical constants.
+- Results use Headless UI tabs for overview, fit quality and optical constants.
 - Interface icons use the Heroicons 24 px outline set at an 18 px rendered size.
 
 ## CTA voice

@@ -184,17 +184,11 @@ export default function App() {
             <TabGroup className="results-tabs" onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
               <TabList className="results-tab-list" aria-label="Result views">
                 <Tab className="results-tab">Overview</Tab>
-                <Tab className="results-tab">Spectra</Tab>
+                <Tab className="results-tab">Fit quality</Tab>
                 <Tab className="results-tab">Optical constants</Tab>
               </TabList>
               <TabPanels>
                 <TabPanel className="results-tab-panel" unmount={false}>
-                  <div className="metrics">
-                    <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
-                    <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
-                    <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
-                    <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
-                  </div>
                   <section className="stack-card" aria-labelledby="stack-title">
                     <div className="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
                     <figure className="stack-figure">
@@ -207,6 +201,15 @@ export default function App() {
                       <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
                     </figure>
                   </section>
+                  <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
+                </TabPanel>
+                <TabPanel className="results-tab-panel" unmount={false}>
+                  <div className="metrics">
+                    <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
+                    <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
+                    <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
+                    <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
+                  </div>
                   <section className="diagnostics">
                     <div className="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
                     <div className="diagnostic-grid">
@@ -219,9 +222,6 @@ export default function App() {
                     <details id="uncertainty-panel" className="result-details"><summary>Parameter uncertainty and correlation</summary><div id="uncertainty-content" className="result-detail-content"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></details>
                     <details id="solutions-panel" className="result-details"><summary>Alternative fitted solutions</summary><div id="solutions-content" className="result-detail-content"><p>No fitted alternatives yet.</p></div></details>
                   </section>
-                </TabPanel>
-                <TabPanel className="results-tab-panel" unmount={false}>
-                  <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
                   <PlotCard eyebrow="MODEL − DATA" title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />
                 </TabPanel>
                 <TabPanel className="results-tab-panel" unmount={false}>
