@@ -52,24 +52,7 @@ export default function App() {
         <p className="privacy"><span aria-hidden="true" /> Local processing</p>
       </header>
 
-      <main className="min-h-dvh w-full bg-ui-canvas font-ui-body text-ui-ink">
-        <section className="tool-heading grid grid-cols-1 items-center justify-between gap-6 px-[clamp(1rem,4vw,2.5rem)] pt-6 pb-8" aria-labelledby="page-title">
-          <div>
-            <h1 id="page-title">Reflectometry</h1>
-            <p className="lede">Load spectra, define the optical stack, then fit reflectance and transmittance when ready.</p>
-          </div>
-          <details className="tool-about">
-            <summary>Capabilities and model scope</summary>
-            <p className="hero-flow">SPECTRA <span>→</span> STACK <span>→</span> OPTICAL CONSTANTS</p>
-            <p className="lede">Assign an independent tabulated, dispersion, oscillator, free-carrier, Kramers–Kronig spline, or effective-medium model to every coherent layer.</p>
-            <dl className="profile">
-              <div><dt>STACK</dt><dd>Up to 12 coherent layers</dd></div>
-              <div><dt>GEOMETRY</dt><dd>Normal incidence</dd></div>
-              <div><dt>SUBSTRATE</dt><dd>Finite, incoherent, dispersive</dd></div>
-            </dl>
-          </details>
-        </section>
-
+      <main className="min-h-dvh w-full bg-ui-canvas font-ui-body text-ui-ink" aria-label="Reflectometry workspace">
         <nav className="workspace-jump" aria-label="Workspace areas">
           <a href="#configuration-panel">Configuration</a>
           <a href="#results-panel">Results</a>

@@ -17,7 +17,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(main, /createRoot/);
   assert.match(files[1], /useEffect/);
   assert.match(vite, /base: "\/reflectometry\/"/);
-  assert.match(files[1], /Capabilities and model scope/);
+  assert.doesNotMatch(files[1], /tool-heading|Capabilities and model scope/);
   assert.match(files[1], /href="#reflectometry-workspace"/);
   assert.match(files[1], /id="reflectometry-workspace"/);
   assert.match(files[1], /id="configuration-panel"/);
@@ -82,7 +82,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
-  assert.match(styles, /\.tool-heading h1 \{/);
+  assert.doesNotMatch(styles, /\.tool-heading\b/);
   assert.match(styles, /overflow-x: clip/);
   assert.match(files[2], /initializeWorkspace\(\);/);
   assert.doesNotMatch(files[2], /loadSyntheticExample\(\);\s*$/);
