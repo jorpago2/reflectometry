@@ -47,6 +47,7 @@ export default function WorkspaceView() {
   const [sampleName, setSampleName] = useState("");
   const [wavelengthRange, setWavelengthRange] = useState({ min: "300", max: "1100" });
   const [measurementProcessing, setMeasurementProcessing] = useState({ threshold: "5", bin: "2", snr: "5", subtractBackground: true });
+  const [fitChannels, setFitChannels] = useState({ reflectance: true, transmittance: true, shape: true });
   return (
     <>
       <>
@@ -119,9 +120,9 @@ export default function WorkspaceView() {
                   <TabPanel className="configuration-panel">
               <header className="configuration-panel-heading"><h2>Fit</h2><p>Channels, optimizer and uncertainty.</p></header>
               <div className="channel-row">
-                <label className="check"><input id="use-r" type="checkbox" defaultChecked /><span>Fit R</span></label>
-                <label className="check"><input id="use-t" type="checkbox" defaultChecked /><span>Fit T</span></label>
-                <label className="check"><input id="prefer-shape" type="checkbox" defaultChecked /><span>Shape residual</span></label>
+                <label className="check"><input id="use-r" type="checkbox" checked={fitChannels.reflectance} onChange={(event) => setFitChannels((current) => ({ ...current, reflectance: event.target.checked }))} /><span>Fit R</span></label>
+                <label className="check"><input id="use-t" type="checkbox" checked={fitChannels.transmittance} onChange={(event) => setFitChannels((current) => ({ ...current, transmittance: event.target.checked }))} /><span>Fit T</span></label>
+                <label className="check"><input id="prefer-shape" type="checkbox" checked={fitChannels.shape} onChange={(event) => setFitChannels((current) => ({ ...current, shape: event.target.checked }))} /><span>Shape residual</span></label>
               </div>
               <details className="advanced-controls">
                 <summary>Weights and optimizer</summary>
