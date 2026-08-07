@@ -1,7 +1,8 @@
 import { Button, Column, ContentSwitcher, Grid, OverflowMenu, OverflowMenuItem, Switch, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
 import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
+import PlotCard from "./PlotCard.tsx";
 
-type PlotCardProps = {
+type LegacyPlotCardProps = {
   eyebrow?: string;
   title: string;
   canvasId: string;
@@ -10,7 +11,7 @@ type PlotCardProps = {
   eyebrowId?: string;
 };
 
-function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCardProps) {
+function LegacyPlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: LegacyPlotCardProps) {
   return (
     <section className="plot-card">
       <div className="plot-heading">
