@@ -44,6 +44,7 @@ function runExport(id: string) { document.getElementById(id)?.click(); }
 export default function WorkspaceView() {
   const [mobileView, setMobileView] = useState<"configuration" | "results">("configuration");
   const [configurationTab, setConfigurationTab] = useState(0);
+  const [sampleName, setSampleName] = useState("");
   return (
     <>
       <>
@@ -73,7 +74,7 @@ export default function WorkspaceView() {
               <details>
                 <summary>Load measurement files</summary>
                 <div className="file-grid">
-                  <label>Sample name<input id="sample-name" type="text" maxLength={80} placeholder="My stack" /></label>
+                  <label>Sample name<input id="sample-name" type="text" maxLength={80} placeholder="My stack" value={sampleName} onChange={(event) => setSampleName(event.target.value)} /></label>
                   <label>Sample R<input id="file-sample-r" type="file" accept=".txt,text/plain" /></label>
                   <label>Sample T<input id="file-sample-t" type="file" accept=".txt,text/plain" /></label>
                   <label>R reference signal<input id="file-r-reference" type="file" accept=".txt,text/plain" /></label>
