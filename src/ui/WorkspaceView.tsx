@@ -45,6 +45,7 @@ export default function WorkspaceView() {
   const [mobileView, setMobileView] = useState<"configuration" | "results">("configuration");
   const [configurationTab, setConfigurationTab] = useState(0);
   const [sampleName, setSampleName] = useState("");
+  const [wavelengthRange, setWavelengthRange] = useState({ min: "300", max: "1100" });
   return (
     <>
       <>
@@ -87,8 +88,8 @@ export default function WorkspaceView() {
               <details className="advanced-controls">
                 <summary>Measurement processing</summary>
                 <div className="field-pair">
-                  <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" defaultValue="300" min="195" max="2500" step="10" /></label>
-                  <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" defaultValue="1100" min="200" max="3000" step="10" /></label>
+                  <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" value={wavelengthRange.min} onChange={(event) => setWavelengthRange((current) => ({ ...current, min: event.target.value }))} min="195" max="2500" step="10" /></label>
+                  <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" value={wavelengthRange.max} onChange={(event) => setWavelengthRange((current) => ({ ...current, max: event.target.value }))} min="200" max="3000" step="10" /></label>
                   <label>Reference threshold <span>%</span><input id="reference-threshold" type="number" defaultValue="5" min="0" max="99" step="1" /></label>
                   <label>Median bin <span>nm</span><input id="bin-width" type="number" defaultValue="2" min="0.1" max="100" step="0.5" /></label>
                 </div>
