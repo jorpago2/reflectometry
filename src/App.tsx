@@ -3,7 +3,7 @@ import { Add, ArrowRight, Download, Help, Layers, Redo, Renew, SettingsAdjust, U
 import { useEffect } from "react";
 
 type PlotCardProps = {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   canvasId: string;
   label: string;
@@ -15,7 +15,7 @@ function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCa
   return (
     <section className="plot-card">
       <div className="plot-heading">
-        <div><p id={eyebrowId}>{eyebrow}</p><h2>{title}</h2></div>
+        <div>{eyebrow ? <p id={eyebrowId}>{eyebrow}</p> : null}<h2>{title}</h2></div>
         <div className="legend">{legend.map((item) => <span className={item.className} key={item.text}>{item.text}</span>)}</div>
       </div>
       <div className="chart-shell">
@@ -67,6 +67,7 @@ export default function App() {
           if (!workspace) return;
           workspace.dataset.mobileView = index === 1 ? "results" : "configuration";
           workspace.scrollIntoView({ block: "start" });
+          window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
         }}>
           <Switch name="configuration" text="Configuration" />
           <Switch name="results" text="Results" />
@@ -77,7 +78,7 @@ export default function App() {
         </nav>
 
         <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view="configuration" fullWidth condensed tabIndex={-1}>
-          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={6} as="aside" aria-label="Data, stack, and fit controls">
+          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={16} xlg={8} max={6} as="aside" aria-label="Data, stack, and fit controls">
             <div className="configuration-tabs">
               <TabsVertical>
                 <TabListVertical className="configuration-rail" aria-label="Configuration sections">
@@ -169,11 +170,11 @@ export default function App() {
                   </TabPanel>
                 </TabPanels>
               </TabsVertical>
-              <div className="actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Update model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
+              <div className="actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Update</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
             </div>
           </Column>
 
-          <Column id="results-panel" className="results" sm={4} md={8} lg={10} as="section" aria-label="Fit results">
+          <Column id="results-panel" className="results" sm={4} md={8} lg={16} xlg={8} max={10} as="section" aria-label="Fit results">
             <div id="results-empty" className="results-empty"><strong>Start with measurement data</strong><p>Load spectra or use the built-in example to inspect the optical response.</p><Button kind="tertiary" type="button" onClick={() => document.getElementById("reset-example")?.click()}>Use example</Button></div>
             <div id="results-content" hidden>
             <div className="status-row">
@@ -200,12 +201,12 @@ export default function App() {
               <TabList contained className="results-tab-list" aria-label="Result views">
                 <Tab className="results-tab">Overview</Tab>
                 <Tab className="results-tab">Fit quality</Tab>
-                <Tab className="results-tab">Optical constants</Tab>
+                <Tab className="results-tab">Optical n,k</Tab>
               </TabList>
               <TabPanels>
                 <TabPanel className="results-tab-panel">
                   <section className="stack-card" aria-labelledby="stack-title">
-                    <div className="plot-heading"><div><p>PHYSICAL CROSS-SECTION</p><h2 id="stack-title">Layer stack</h2></div></div>
+                    <div className="plot-heading"><div><h2 id="stack-title">Layer stack</h2></div></div>
                     <figure className="stack-figure">
                       <div className="stack-beam"><span id="stack-direction">INCIDENT / STACK SIDE</span><strong id="stack-arrow" aria-hidden="true">↓</strong><small>LIGHT</small></div>
                       <div id="stack-diagram" className="stack-diagram">
@@ -216,7 +217,7 @@ export default function App() {
                       <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
                     </figure>
                   </section>
-                  <PlotCard eyebrow="MEASUREMENT / MODEL" title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
+                  <PlotCard title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
                 </TabPanel>
                 <TabPanel className="results-tab-panel">
                   <div className="metrics">
@@ -237,10 +238,10 @@ export default function App() {
                     <details id="uncertainty-panel" className="result-details"><summary>Parameter uncertainty and correlation</summary><div id="uncertainty-content" className="result-detail-content"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></details>
                     <details id="solutions-panel" className="result-details"><summary>Alternative fitted solutions</summary><div id="solutions-content" className="result-detail-content"><p>No fitted alternatives yet.</p></div></details>
                   </section>
-                  <PlotCard eyebrow="MODEL − DATA" title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />
+                  <PlotCard title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />
                 </TabPanel>
                 <TabPanel className="results-tab-panel">
-                  <PlotCard eyebrow="ACTIVE LAYER" eyebrowId="nk-layer-label" title="Complex refractive index" canvasId="nk-chart" label="Interactive active-layer refractive index" legend={[{ className: "n-line", text: "n" }, { className: "k-line", text: "k" }]} />
+                  <PlotCard eyebrow="Active layer" eyebrowId="nk-layer-label" title="Complex refractive index" canvasId="nk-chart" label="Interactive active-layer refractive index" legend={[{ className: "n-line", text: "n" }, { className: "k-line", text: "k" }]} />
                   <section className="provenance"><details><summary>Model assumptions and scope</summary><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Residual bootstrap intervals assume exchangeable spectral residuals and local refits near the selected minimum. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></details></section>
                 </TabPanel>
               </TabPanels>

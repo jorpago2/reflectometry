@@ -26,8 +26,28 @@ const MULTILAYER_MODEL_LABELS = {
 const COMPONENT_LABELS = { gaussian: "Gaussian", cody: "Cody–Lorentz", drude: "Drude", drudeSmith: "Drude–Smith", brendelBormann: "Brendel–Bormann", criticalPoint: "Critical point / Adachi" };
 const DEFAULT_COMPONENTS = { taucLorentz: 1, lorentz: 0, gaussian: false, cody: false, drude: false, drudeSmith: false, brendelBormann: false, criticalPoint: false };
 const TABLE_MODELS = new Set(["fixed", "scaled"]);
+const LAYER_ACTION_ICONS = {
+  up: { viewBox: "0 0 16 16", paths: ["M3.7 6.7 7.5 2.9 7.5 15 8.5 15 8.5 2.9 12.3 6.7 13 6 8 1 3 6z"] },
+  down: { viewBox: "0 0 16 16", paths: ["M12.3 9.3 8.5 13.1 8.5 1 7.5 1 7.5 13.1 3.7 9.3 3 10 8 15 13 10z"] },
+  duplicate: { viewBox: "0 0 32 32", paths: ["M28,10V28H10V10H28m0-2H10a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V10a2,2,0,0,0-2-2Z", "M4,18H2V4A2,2,0,0,1,4,2H18V4H4Z"] },
+  remove: { viewBox: "0 0 32 32", paths: ["M12 12H14V24H12z", "M18 12H20V24H18z", "M4,6V8H6V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V8h2V6ZM8,28V8H24V28Z", "M12 2H20V4H12z"] },
+} as const;
 const SAVED_CONTROL_IDS = ["wavelength-min", "wavelength-max", "reference-threshold", "bin-width", "sample-snr", "subtract-background", "use-r", "use-t", "prefer-shape", "sigma-r", "sigma-t", "sigma-n", "sigma-k", "fit-r-gain", "fit-t-gain", "r-gain", "t-gain", "screening-points", "local-refinements", "bootstrap-samples"];
 const OPTIMIZER_CONTROL_IDS = new Set(["screening-points", "local-refinements", "bootstrap-samples"]);
+
+function appendLayerActionIcon(button: HTMLButtonElement, action: keyof typeof LAYER_ACTION_ICONS) {
+  const specification = LAYER_ACTION_ICONS[action];
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", specification.viewBox);
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("focusable", "false");
+  for (const pathData of specification.paths) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", pathData);
+    icon.append(path);
+  }
+  button.append(icon);
+}
 const PLOT_BLUE = "#0f62fe";
 const PLOT_TEAL = "#009d9a";
 const elements: Record<string, any> = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -364,8 +384,8 @@ function renderMaterialCard(material, index, substrate = false) {
   header.append(order, name);
   if (!substrate) {
     const actions = document.createElement("div"); actions.className = "layer-actions";
-    for (const [action, label, disabled] of [["up", "↑", index === 0], ["down", "↓", index === state.layers.length - 1], ["duplicate", "⧉", state.layers.length === 12], ["remove", "×", state.layers.length === 1]] as [string, string, boolean][]) {
-      const button = document.createElement("button"); button.type = "button"; button.dataset.action = action; button.textContent = label; button.disabled = disabled; button.setAttribute("aria-label", `${action} ${material.name}`); actions.append(button);
+    for (const [action, label, disabled] of [["up", "Move up", index === 0], ["down", "Move down", index === state.layers.length - 1], ["duplicate", "Duplicate", state.layers.length === 12], ["remove", "Remove", state.layers.length === 1]] as [keyof typeof LAYER_ACTION_ICONS, string, boolean][]) {
+      const button = document.createElement("button"); button.type = "button"; button.dataset.action = action; button.disabled = disabled; button.setAttribute("aria-label", `${label} ${material.name}`); appendLayerActionIcon(button, action); actions.append(button);
     }
     header.append(actions);
   }
@@ -847,7 +867,7 @@ function drawAll() {
     { label: "T residual", values: state.evaluation.transmittanceScaled.map((value, index) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : NaN), color: PLOT_TEAL, dash: [7, 4] },
   ], { symmetricY: true, zeroLine: true, yLabel: "Residual (model − data)", xLabel: "Wavelength (nm)" });
   const active = state.evaluation.layerIndices.find((layer) => layer.id === state.activeLayerId) ?? state.evaluation.layerIndices[0];
-  elements["nk-layer-label"].textContent = `${active.name.toUpperCase()} / ${modelLabel(active.model).toUpperCase()}`;
+  elements["nk-layer-label"].textContent = `${active.name} · ${modelLabel(active.model)}`;
   const activeBands = bootstrapBands?.layers?.[active.id] ?? (bootstrapBands?.layerId === active.id ? bootstrapBands : null);
   const indexBands = activeBands ? [{ lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: "rgba(15,98,254,.12)", band: true }, { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: "rgba(0,157,154,.12)", band: true }] : [];
   drawChart(elements["nk-chart"], x, [...indexBands, { label: "n", values: active.n, color: PLOT_BLUE }, { label: "k", values: active.k, color: PLOT_TEAL, dash: [7, 4] }], { minimumY: 0, yLabel: "Optical constants, n and k", xLabel: "Wavelength (nm)" });
