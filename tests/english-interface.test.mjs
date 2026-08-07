@@ -4,7 +4,8 @@ import test from "node:test";
 
 test("ships one English-only material-agnostic multilayer interface", async () => {
   const files = await Promise.all(["index.html", "src/app/App.tsx", "src/multilayer-app.ts", "src/features/layer-stack/model-help.ts", "src/scientific/solvers/scientific-core.ts", "src/scientific/models/dielectric-models.ts"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
-  files[1] += await readFile(new URL("../src/features/measurement/WorkspaceView.tsx", import.meta.url), "utf8");
+  const workspaceView = await readFile(new URL("../src/features/measurement/WorkspaceView.tsx", import.meta.url), "utf8");
+  files[1] += workspaceView;
   files[1] += await readFile(new URL("../src/app/AppHeader.tsx", import.meta.url), "utf8");
   files[1] += await readFile(new URL("../src/features/results/ResultsStatusBar.tsx", import.meta.url), "utf8");
   files[1] += await readFile(new URL("../src/shared/plots/PlotCard.tsx", import.meta.url), "utf8");
@@ -31,6 +32,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(ui, /id="results-panel"/);
   assert.match(ui, /from "@carbon\/react"/);
   assert.match(ui, /from "@carbon\/react\/icons"/);
+  for (const component of ["Accordion", "Checkbox", "CheckboxGroup", "FileUploaderButton", "NumberInput", "Select", "TextInput"]) assert.match(workspaceView, new RegExp(`<${component}\\b`));
+  assert.doesNotMatch(workspaceView, /<(?:input|select|details)\b/);
   assert.doesNotMatch(ui, /TabsVertical|TabListVertical/);
   assert.doesNotMatch(ui, /ContentSwitcher|mobileView/);
   for (const label of ["Data", "Layer stack", "Fit"]) assert.match(ui, new RegExp(`label: "${label}"`));

@@ -1091,7 +1091,8 @@ function format(value, digits = 3) { return Number.isFinite(value) ? Number(valu
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
 function setSourceName(value) { elements["source-name"].textContent = value; const context = document.getElementById("header-source-name"); if (context) { context.textContent = value; context.title = value; } }
-function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) elements[id].disabled = busy; if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } if (message) setStatus(message); }
+function setControlDisabled(id, disabled) { elements[id].disabled = disabled; const fileButton = document.querySelector<HTMLButtonElement>(`button[data-file-input="${id}"]`); if (fileButton) fileButton.disabled = disabled; }
+function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) setControlDisabled(id, busy); if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } if (message) setStatus(message); }
 function setStatus(message) {
   elements.status.textContent = message;
   const row = elements.status.closest(".status-row");
