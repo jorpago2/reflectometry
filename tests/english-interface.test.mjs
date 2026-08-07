@@ -28,7 +28,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(ui, /id="results-panel"/);
   assert.match(ui, /from "@carbon\/react"/);
   assert.match(ui, /from "@carbon\/react\/icons"/);
-  assert.match(ui, /<TabsVertical>/);
+  assert.match(ui, /<TabsVertical(?:\s|>)/);
   assert.match(ui, /<TabListVertical className="configuration-rail"/);
   for (const tab of ["Measurement", "Layer stack", "Fit"]) assert.match(ui, new RegExp(`>${tab}<\/Tab>`));
   assert.equal([...ui.matchAll(/<TabPanel className="configuration-panel">/g)].length, 3);
