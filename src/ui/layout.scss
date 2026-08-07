@@ -10,6 +10,33 @@
 .results-tabs { min-width: 0; }
 .results-tab-list { overflow-x: auto; }
 .plotly-chart { width: 100%; min-width: 0; }
+.field-pair, .file-grid, .layer-reference, .model-parameter-help { grid-template-columns: minmax(0, 1fr); }
+.plot-heading, .chart-toolbar { align-items: flex-start; flex-direction: column; display: flex; }
+.layer-card-header { grid-template-columns: auto minmax(0, 1fr); }
+.layer-actions { grid-column: 1 / -1; justify-content: flex-end; }
+.stack-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stack-toolbar #add-layer { grid-column: 1 / -1; }
+.parameter-header, .parameter-row { grid-template-columns: 24px minmax(58px, 1.1fr) repeat(3, minmax(0, .72fr)) minmax(38px, .75fr); gap: var(--space-3xs); }
+.parameter-header { font-size: 8px; letter-spacing: 0; }
+.parameter-row input[type="number"] { min-height: 44px; padding: var(--space-3xs); font-size: 10px; }
+.legend { justify-content: flex-start; }
+.plot-card { padding: var(--space-sm); }
+.stack-figure { grid-template-columns: minmax(0, 1fr); }
+.stack-beam { min-height: 72px; flex-direction: row; }
+.stack-beam strong { font-size: 38px; }
+.stack-figure figcaption { grid-column: 1; }
+.stack-layer { grid-template-columns: 30px minmax(0, 1fr); }
+.stack-thickness { grid-column: 2; }
+.plotly-chart { height: 275px; }
+.actions { padding: 0; }
+.solution-card { grid-template-columns: minmax(0, 1fr); }
+.model-parameter-help dt { padding-bottom: var(--space-3xs); border-bottom: 0; }
+.model-parameter-help dd { padding-top: var(--space-3xs); }
+.modebar { width: 100%; display: flex !important; flex-wrap: wrap; justify-content: flex-end; }
+.modebar-group { display: flex !important; }
+.modebar-btn { width: 44px !important; }
+.workspace .parameter-help-button { width: 44px; min-height: 44px; }
+.check { min-height: 44px; }
 
 @media (max-width: 41.99rem) {
   .configuration-tabs { display: block; }
