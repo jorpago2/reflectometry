@@ -1,39 +1,55 @@
-import { Button, Column, Grid, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
-import { Add, ArrowRight, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
+import { Button, Column, Grid, Tab, TabList, TabPanel, TabPanels, Tabs } from "@carbon/react";
+import { Add, ArrowRight, Redo, Renew, Undo } from "@carbon/react/icons";
 import PlotCard from "../../shared/plots/PlotCard.tsx";
 import { useEffect, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
-import WorkspaceNavigation from "../../shared/carbon/WorkspaceNavigation.tsx";
+import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
+
+type PanelHeadingProps = { title: string; description: string; onClose: () => void };
+
+function PanelHeading({ title, description, onClose }: PanelHeadingProps) {
+  return <header className="configuration-panel-heading"><div><h2>{title}</h2><p>{description}</p></div><Button kind="ghost" size="sm" type="button" onClick={onClose}>Close</Button></header>;
+}
 
 export default function WorkspaceView() {
-  const [mobileView, setMobileView] = useState<"configuration" | "results">("configuration");
-  const [configurationTab, setConfigurationTab] = useState(0);
+  const [activeSection, setActiveSection] = useState<WorkflowSection | null>(null);
   const [sampleName, setSampleName] = useState("");
   const [wavelengthRange, setWavelengthRange] = useState({ min: "300", max: "1100" });
   const [measurementProcessing, setMeasurementProcessing] = useState({ threshold: "5", bin: "2", snr: "5", subtractBackground: true });
   const [fitChannels, setFitChannels] = useState({ reflectance: true, transmittance: true, shape: true });
+  const closePanel = () => {
+    const trigger = activeSection;
+    setActiveSection(null);
+    if (trigger) window.requestAnimationFrame(() => document.getElementById(`workflow-${trigger}`)?.focus());
+  };
+  const togglePanel = (section: WorkflowSection) => {
+    setActiveSection((current) => current === section ? null : section);
+    window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  };
   useEffect(() => {
-    if (mobileView === "results") window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
-  }, [mobileView]);
+    if (!activeSection) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== "Escape") return;
+      event.preventDefault();
+      const trigger = activeSection;
+      setActiveSection(null);
+      window.requestAnimationFrame(() => document.getElementById(`workflow-${trigger}`)?.focus());
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [activeSection]);
   return (
     <>
-      <>
-        <h1 className="visually-hidden">Reflectometry</h1>
-        <WorkspaceNavigation view={mobileView} onViewChange={setMobileView} />
-
-        <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view={mobileView} fullWidth condensed tabIndex={-1}>
-          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={9} xlg={9} max={9} as="aside" aria-label="Data, stack, and fit controls">
-            <div className="configuration-tabs">
-              <TabsVertical selectedIndex={configurationTab} onChange={({ selectedIndex }) => setConfigurationTab(selectedIndex ?? 0)}>
-                <TabListVertical className="configuration-rail" aria-label="Configuration sections">
-                  <Tab renderIcon={Upload}>Measurement</Tab>
-                  <Tab renderIcon={Layers}>Layer stack</Tab>
-                  <Tab renderIcon={SettingsAdjust}>Fit</Tab>
-                </TabListVertical>
-                <TabPanels>
-                  <TabPanel className="configuration-panel">
-              <header className="configuration-panel-heading"><h2>Measurement</h2><p>Choose the data source and processing.</p></header>
+      <h1 className="visually-hidden">Reflectometry</h1>
+      <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" fullWidth condensed tabIndex={-1}>
+        <Column className="workbench-column" sm={4} md={8} lg={16} xlg={16} max={16}>
+          <div className="workbench-shell" data-panel-open={Boolean(activeSection)}>
+            <WorkspaceNavigation activeSection={activeSection} onToggle={togglePanel} />
+            <aside id="configuration-panel" className="controls" aria-label="Data, stack, and fit controls" hidden={!activeSection}>
+              <div className="configuration-tabs">
+                <section className="configuration-panel" hidden={activeSection !== "measurement"}>
+              <PanelHeading title="Measurement" description="Choose the data source and processing." onClose={closePanel} />
               <h3 className="section-label">Data source</h3>
               <p id="source-name" className="source-name">No measurement loaded</p>
               <Button id="reset-example" className="full" kind="tertiary" type="button">Use synthetic example</Button>
@@ -66,10 +82,10 @@ export default function WorkspaceView() {
                 <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" value={measurementProcessing.snr} onChange={(event) => setMeasurementProcessing((current) => ({ ...current, snr: event.target.value }))} min="0" max="100" step="0.5" /></label>
                 <label className="check"><input id="subtract-background" type="checkbox" checked={measurementProcessing.subtractBackground} onChange={(event) => setMeasurementProcessing((current) => ({ ...current, subtractBackground: event.target.checked }))} /><span>Subtract 195–250 nm background</span></label>
               </details>
-                  </TabPanel>
+                </section>
 
-                  <TabPanel className="configuration-panel">
-              <header className="configuration-panel-heading"><h2>Layer stack</h2><p>Geometry, optical models and substrate.</p></header>
+                <section className="configuration-panel" hidden={activeSection !== "layers"}>
+              <PanelHeading title="Layer stack" description="Geometry, optical models and substrate." onClose={closePanel} />
               <details className="stack-scope"><summary>Model assumptions</summary><p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p></details>
               <div className="field-pair compact-pair">
                 <label>Substrate thickness <span>micrometres (µm)</span><input id="substrate-thickness" type="number" defaultValue="1000" min="10" max="1000000" step="1" /></label>
@@ -83,10 +99,10 @@ export default function WorkspaceView() {
               </div>
               <div className="section-heading substrate-heading"><span>S</span><h3>Dispersive substrate</h3></div>
               <div id="substrate-editor" />
-                  </TabPanel>
+                </section>
 
-                  <TabPanel className="configuration-panel">
-              <header className="configuration-panel-heading"><h2>Fit</h2><p>Channels, optimizer and uncertainty.</p></header>
+                <section className="configuration-panel" hidden={activeSection !== "fit"}>
+              <PanelHeading title="Fit" description="Channels, optimizer and uncertainty." onClose={closePanel} />
               <div className="channel-row">
                 <label className="check"><input id="use-r" type="checkbox" checked={fitChannels.reflectance} onChange={(event) => setFitChannels((current) => ({ ...current, reflectance: event.target.checked }))} /><span>Fit R</span></label>
                 <label className="check"><input id="use-t" type="checkbox" checked={fitChannels.transmittance} onChange={(event) => setFitChannels((current) => ({ ...current, transmittance: event.target.checked }))} /><span>Fit T</span></label>
@@ -112,20 +128,14 @@ export default function WorkspaceView() {
                 <Button id="bootstrap-button" className="full" kind="tertiary" type="button" disabled>Estimate bootstrap uncertainty</Button>
               </details>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
-                  </TabPanel>
-                </TabPanels>
-              </TabsVertical>
-              <div className="actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Update</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
-            </div>
-          </Column>
+                </section>
+              </div>
+            </aside>
 
-          <Column id="results-panel" className="results" sm={4} md={8} lg={7} xlg={7} max={7} as="section" aria-label="Fit results">
+            <section id="results-panel" className="results" aria-label="Fit results">
             <ResultsEmpty />
             <div id="results-content" hidden>
-            <div className="results-context">
-            <ResultsStatusBar />
-            <p id="report-meta" className="report-meta" />
-            </div>
+            <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Update</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
             <div className="results-tabs">
             <Tabs onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
               <TabList contained className="results-tab-list" aria-label="Result views">
@@ -134,7 +144,8 @@ export default function WorkspaceView() {
                 <Tab className="results-tab">Optical n,k</Tab>
               </TabList>
               <TabPanels>
-                <TabPanel className="results-tab-panel">
+                <TabPanel className="results-tab-panel overview-panel">
+                  <PlotCard title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
                   <section className="stack-card" aria-labelledby="stack-title">
                     <div className="plot-heading"><div><h2 id="stack-title">Layer stack</h2></div></div>
                     <figure className="stack-figure">
@@ -147,7 +158,6 @@ export default function WorkspaceView() {
                       <figcaption>Schematic view · layer thicknesses are labelled, not drawn to scale.</figcaption>
                     </figure>
                   </section>
-                  <PlotCard title="Reflectance and transmittance" canvasId="rt-chart" label="Interactive reflectance and transmittance spectra" legend={[{ className: "r-data", text: "R data" }, { className: "r-model", text: "R model" }, { className: "t-data", text: "T data" }, { className: "t-model", text: "T model" }]} />
                 </TabPanel>
                 <TabPanel className="results-tab-panel">
                   <div className="metrics">
@@ -156,6 +166,7 @@ export default function WorkspaceView() {
                     <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
                     <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
                   </div>
+                  <details className="result-details report-details"><summary>Report information</summary><p id="report-meta" className="report-meta" /></details>
                   <section className="diagnostics">
                     <div className="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
                     <div className="diagnostic-grid">
@@ -178,9 +189,13 @@ export default function WorkspaceView() {
             </Tabs>
             </div>
             </div>
-          </Column>
-        </Grid>
-      </>
+            <div className="results-context">
+              <ResultsStatusBar />
+            </div>
+            </section>
+          </div>
+        </Column>
+      </Grid>
     </>
   );
 }

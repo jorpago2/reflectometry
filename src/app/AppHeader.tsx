@@ -6,6 +6,9 @@ export default function AppHeader() {
     <Header aria-label="Reflectometry">
       <SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>
       <HeaderName href="./" prefix="">Reflectometry</HeaderName>
+      <div className="header-context" aria-label="Current measurement">
+        <span id="header-source-name">No measurement loaded</span>
+      </div>
       <HeaderGlobalBar>
         <Toggletip align="bottom-end" autoAlign className="app-help">
           <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">

@@ -102,9 +102,13 @@ function handleGlobalShortcut(event: KeyboardEvent) {
     event.preventDefault();
     if (!state.worker && !elements["fit-button"].disabled) elements["fit-button"].click();
   } else if (event.key === "Escape") {
+    const parameterHelpOpen = Boolean(document.querySelector('.parameter-help-button[aria-expanded="true"]'));
+    const appHelpOpen = elements["app-help"].getAttribute("aria-expanded") === "true";
+    const operationRunning = Boolean(state.worker);
     closeParameterHelp();
-    if (elements["app-help"].getAttribute("aria-expanded") === "true") elements["app-help"].click();
+    if (appHelpOpen) elements["app-help"].click();
     if (state.worker) cancelOperation();
+    if (parameterHelpOpen || appHelpOpen || operationRunning) event.preventDefault();
   } else if (event.key === "?" && !isEditableTarget(event.target)) {
     event.preventDefault();
     elements["app-help"].click();
@@ -165,7 +169,7 @@ function loadSyntheticExample() {
     state.layers = [layer];
     state.activeLayerId = layer.id;
     state.source = { sampleName: "Synthetic stack", type: "deterministic browser-generated example", truth: { layers: [{ thicknessNm: 150, n: 2, k: 0.05 }], substrate: { n: 1.46, k: 0, thicknessUm: 1000 } } };
-    elements["source-name"].textContent = "Synthetic stack · generated locally";
+    setSourceName("Synthetic stack · generated locally");
     elements["use-t"].checked = true;
     renderLayers();
     previewModel();
@@ -198,7 +202,7 @@ async function loadLocalFiles() {
     const sampleName = elements["sample-name"].value.trim() || files.sampleR.name.replace(/-ref\.txt$/i, "") || "sample";
     state.spectrum = createSpectrum({ sampleName, ...texts });
     state.source = { sampleName, type: "local files", files: Object.fromEntries(Object.entries(files).map(([name, file]) => [name, file.name])) };
-    elements["source-name"].textContent = `${sampleName} · local files`;
+    setSourceName(`${sampleName} · local files`);
     if (!state.layers.length) {
       const layer = makeLayer("constant", 100, null);
       state.layers = [layer]; state.activeLayerId = layer.id; renderLayers();
@@ -259,7 +263,7 @@ function restoreSavedFit(saved, fileName) {
     state.source = { ...(saved.source ?? {}), sampleName: saved.spectrum.sampleName };
   }
   const sampleName = saved.spectrum?.sampleName ?? state.source?.sampleName ?? fileName.replace(/\.json$/i, "");
-  elements["source-name"].textContent = `${sampleName} · ${saved.spectrum ? "restored saved fit" : "legacy fit configuration"}`;
+  setSourceName(`${sampleName} · ${saved.spectrum ? "restored saved fit" : "legacy fit configuration"}`);
   renderLayers();
   const missingTables = [...layers, state.substrate].filter((layer) => (TABLE_MODELS.has(layer.model) && !layer.nk) || (layer.model === "ema" && (!layer.ema.hostNk || !layer.ema.inclusionNk)));
   if (missingTables.length) {
@@ -376,7 +380,7 @@ function restoreHistorySnapshot(snapshot) {
   state.restoringHistory = true;
   state.spectrum = snapshot.spectrum; state.source = snapshot.source; state.layers = snapshot.layers; state.substrate = snapshot.substrate; state.activeLayerId = snapshot.activeLayerId; state.nextLayer = snapshot.nextLayer;
   applySavedControls(snapshot.controls); elements["substrate-thickness"].value = snapshot.controls["substrate-thickness"]; elements.incidence.value = snapshot.controls.incidence;
-  elements["source-name"].textContent = `${state.source?.sampleName ?? "Measurement"} · restored edit`;
+  setSourceName(`${state.source?.sampleName ?? "Measurement"} · restored edit`);
   renderLayers(); state.restoringHistory = false; previewModel(); state.lastSnapshot = editorSnapshot(); updateHistoryButtons();
 }
 function undoEdit() { if (!state.history.length) return; state.future.push(state.lastSnapshot); restoreHistorySnapshot(state.history.pop()); }
@@ -1086,6 +1090,7 @@ function integerValue(id, minimum, maximum) { const value = numberValue(id, mini
 function format(value, digits = 3) { return Number.isFinite(value) ? Number(value).toFixed(digits).replace(/\.?0+$/, "") : "—"; }
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
+function setSourceName(value) { elements["source-name"].textContent = value; const context = document.getElementById("header-source-name"); if (context) { context.textContent = value; context.title = value; } }
 function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) elements[id].disabled = busy; if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } if (message) setStatus(message); }
 function setStatus(message) {
   elements.status.textContent = message;
