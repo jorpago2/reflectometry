@@ -1,33 +1,56 @@
 import { Accordion, AccordionItem, Button, Checkbox, CheckboxGroup, Column, FileUploaderButton, Grid, NumberInput, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs, TextInput } from "@carbon/react";
 import { Add, ArrowRight, Redo, Renew, Undo } from "@carbon/react/icons";
 import PlotCard from "../../shared/plots/PlotCard.tsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
 
-type PanelHeadingProps = { title: string; description: string; onClose: () => void };
-type FileControlProps = { id: string; label: string; accept: string[] };
+type PanelHeadingProps = { id: string; title: string; description: string; onClose: () => void };
+type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
 
-function PanelHeading({ title, description, onClose }: PanelHeadingProps) {
-  return <header className="configuration-panel-heading"><div><h2>{title}</h2><p>{description}</p></div><Button kind="ghost" size="sm" type="button" onClick={onClose}>Close</Button></header>;
+const OVERLAY_LAYOUT_QUERY = "(max-width: 61.99rem)";
+
+function PanelHeading({ id, title, description, onClose }: PanelHeadingProps) {
+  return <header className="configuration-panel-heading"><div><h2 id={id} tabIndex={-1}>{title}</h2><p>{description}</p></div><Button kind="ghost" size="sm" type="button" onClick={onClose}>Close</Button></header>;
 }
 
-function FileControl({ id, label, accept }: FileControlProps) {
-  return <div className="file-control"><FileUploaderButton id={id} labelText={label} accept={accept} buttonKind="tertiary" size="sm" data-file-input={id} /></div>;
+function FileControl({ id, fieldLabel, label, accept }: FileControlProps) {
+  return <div className="file-control"><span className="file-control-label">{fieldLabel}</span><FileUploaderButton id={id} labelText={label} accept={accept} buttonKind="tertiary" size="sm" data-file-input={id} /></div>;
 }
 
 export default function WorkspaceView() {
   const [activeSection, setActiveSection] = useState<WorkflowSection | null>(null);
+  const [isOverlayLayout, setIsOverlayLayout] = useState(() => typeof window !== "undefined" && window.matchMedia(OVERLAY_LAYOUT_QUERY).matches);
+  const panelRef = useRef<HTMLElement>(null);
+  const overlayPanelOpen = Boolean(activeSection && isOverlayLayout);
   const closePanel = () => {
     const trigger = activeSection;
     setActiveSection(null);
     if (trigger) window.requestAnimationFrame(() => document.getElementById(`workflow-${trigger}`)?.focus());
   };
   const togglePanel = (section: WorkflowSection) => {
-    setActiveSection((current) => current === section ? null : section);
-    window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+    const opening = activeSection !== section;
+    setActiveSection(opening ? section : null);
+    window.requestAnimationFrame(() => {
+      if (opening) {
+        panelRef.current?.scrollTo({ top: 0 });
+        if (isOverlayLayout) document.getElementById(`configuration-panel-title-${section}`)?.focus();
+      }
+      window.dispatchEvent(new Event("resize"));
+    });
   };
+  useEffect(() => {
+    const query = window.matchMedia(OVERLAY_LAYOUT_QUERY);
+    const updateLayout = () => setIsOverlayLayout(query.matches);
+    updateLayout();
+    query.addEventListener("change", updateLayout);
+    return () => query.removeEventListener("change", updateLayout);
+  }, []);
+  useEffect(() => {
+    if (!overlayPanelOpen || panelRef.current?.contains(document.activeElement)) return;
+    window.requestAnimationFrame(() => document.getElementById(`configuration-panel-title-${activeSection}`)?.focus());
+  }, [activeSection, overlayPanelOpen]);
   useEffect(() => {
     if (!activeSection) return;
     const handleEscape = (event: KeyboardEvent) => {
@@ -47,17 +70,17 @@ export default function WorkspaceView() {
         <Column className="workbench-column" sm={4} md={8} lg={16} xlg={16} max={16}>
           <div className="workbench-shell" data-panel-open={Boolean(activeSection)}>
             <WorkspaceNavigation activeSection={activeSection} onToggle={togglePanel} />
-            <aside id="configuration-panel" className="controls" aria-label="Data, stack, and fit controls" hidden={!activeSection}>
+            <aside ref={panelRef} id="configuration-panel" className="controls" aria-labelledby={activeSection ? `configuration-panel-title-${activeSection}` : undefined} hidden={!activeSection}>
               <div className="configuration-tabs">
                 <section className="configuration-panel" hidden={activeSection !== "measurement"}>
-              <PanelHeading title="Measurement" description="Choose the data source and processing." onClose={closePanel} />
+              <PanelHeading id="configuration-panel-title-measurement" title="Measurement" description="Choose the data source and processing." onClose={closePanel} />
               <h3 className="section-label">Data source</h3>
               <p id="source-name" className="source-name">No measurement loaded</p>
               <Button id="reset-example" className="full" kind="tertiary" type="button">Use synthetic example</Button>
-              <Accordion className="configuration-accordion" size="sm">
+              <Accordion className="configuration-accordion" size="sm" isFlush>
                 <AccordionItem title="Open a saved fitting result">
                   <div className="accordion-content">
-                    <FileControl id="saved-fit-file" label="Select saved fit JSON" accept={[".json", "application/json"]} />
+                    <FileControl id="saved-fit-file" fieldLabel="Saved fit" label="Select saved fit JSON" accept={[".json", "application/json"]} />
                     <p className="model-note">Current exports restore the measurement, complete stack, n,k tables, fitted values, bounds, and fit controls. Older exports restore the configuration available in those files.</p>
                   </div>
                 </AccordionItem>
@@ -65,11 +88,11 @@ export default function WorkspaceView() {
                   <div className="accordion-content">
                     <div className="file-grid">
                       <TextInput id="sample-name" labelText="Sample name" maxLength={80} placeholder="My stack" />
-                      <FileControl id="file-sample-r" label="Select sample R" accept={[".txt", "text/plain"]} />
-                      <FileControl id="file-sample-t" label="Select sample T" accept={[".txt", "text/plain"]} />
-                      <FileControl id="file-r-reference" label="Select R reference signal" accept={[".txt", "text/plain"]} />
-                      <FileControl id="file-t-reference" label="Select T reference signal" accept={[".txt", "text/plain"]} />
-                      <FileControl id="file-reference-model" label="Select reference R table" accept={[".txt", "text/plain"]} />
+                      <FileControl id="file-sample-r" fieldLabel="Sample R" label="Select sample R" accept={[".txt", "text/plain"]} />
+                      <FileControl id="file-sample-t" fieldLabel="Sample T" label="Select sample T" accept={[".txt", "text/plain"]} />
+                      <FileControl id="file-r-reference" fieldLabel="R reference signal" label="Select R reference signal" accept={[".txt", "text/plain"]} />
+                      <FileControl id="file-t-reference" fieldLabel="T reference signal" label="Select T reference signal" accept={[".txt", "text/plain"]} />
+                      <FileControl id="file-reference-model" fieldLabel="Reference R table" label="Select reference R table" accept={[".txt", "text/plain"]} />
                     </div>
                     <Button id="load-files" className="full" kind="tertiary" type="button">Process local files</Button>
                     <p className="model-note">Signal files use wavelength (nm) and counts. The reference R and layer n,k tables accept wavelength in nm or µm.</p>
@@ -91,8 +114,8 @@ export default function WorkspaceView() {
                 </section>
 
                 <section className="configuration-panel" hidden={activeSection !== "layers"}>
-              <PanelHeading title="Layer stack" description="Geometry, optical models and substrate." onClose={closePanel} />
-              <Accordion className="configuration-accordion stack-scope" size="sm">
+              <PanelHeading id="configuration-panel-title-layers" title="Layer stack" description="Geometry, optical models and substrate." onClose={closePanel} />
+              <Accordion className="configuration-accordion stack-scope" size="sm" isFlush>
                 <AccordionItem title="Model assumptions"><p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p></AccordionItem>
               </Accordion>
               <div className="field-pair compact-pair">
@@ -110,13 +133,13 @@ export default function WorkspaceView() {
                 </section>
 
                 <section className="configuration-panel" hidden={activeSection !== "fit"}>
-              <PanelHeading title="Fit" description="Channels, optimizer and uncertainty." onClose={closePanel} />
+              <PanelHeading id="configuration-panel-title-fit" title="Fit" description="Channels, optimizer and uncertainty." onClose={closePanel} />
               <CheckboxGroup className="channel-row" legendText="Fit channels" orientation="vertical">
                 <Checkbox id="use-r" labelText="Fit R" defaultChecked />
                 <Checkbox id="use-t" labelText="Fit T" defaultChecked />
                 <Checkbox id="prefer-shape" labelText="Shape residual" defaultChecked />
               </CheckboxGroup>
-              <Accordion className="configuration-accordion advanced-controls" size="sm">
+              <Accordion className="configuration-accordion advanced-controls" size="sm" isFlush>
                 <AccordionItem title="Weights and optimizer">
                   <div className="accordion-content">
                     <div className="field-pair">
@@ -149,12 +172,15 @@ export default function WorkspaceView() {
               </div>
             </aside>
 
-            <section id="results-panel" className="results" aria-label="Fit results">
+            <section id="results-panel" className="results" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
             <ResultsEmpty />
             <div id="results-content" hidden>
             <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Update</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
             <div className="results-tabs">
-            <Tabs onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
+            <Tabs onChange={() => window.requestAnimationFrame(() => {
+              document.getElementById("results-content")?.scrollTo({ top: 0 });
+              window.dispatchEvent(new Event("resize"));
+            })}>
               <TabList contained className="results-tab-list" aria-label="Result views">
                 <Tab className="results-tab">Overview</Tab>
                 <Tab className="results-tab">Fit quality</Tab>

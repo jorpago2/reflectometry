@@ -415,14 +415,11 @@ function renderMaterialCard(material, index, substrate = false) {
   const emaLegend = document.createElement("legend"); emaLegend.textContent = "Effective-medium constituents"; ema.append(emaLegend);
   ema.append(selectControl("Mixing rule", "ema-method", { bruggeman: "Bruggeman (symmetric)", "maxwell-garnett": "Maxwell–Garnett (inclusions in host)" }, material.ema.method));
   for (const role of ["host", "inclusion"]) {
-    const control = document.createElement("label"); control.textContent = `${role[0].toUpperCase()}${role.slice(1)} n,k table`;
-    const input = document.createElement("input"); input.type = "file"; input.accept = ".txt,text/plain"; input.dataset.field = `ema-${role}-file`; control.append(input);
-    const source = document.createElement("p"); source.textContent = material.ema[`${role}Source`] ?? "No n,k table loaded."; ema.append(control, source);
+    const label = `${role[0].toUpperCase()}${role.slice(1)} n,k table`;
+    ema.append(fileControl(material.id, label, `ema-${role}-file`, material.ema[`${role}Source`]));
   }
   const reference = document.createElement("div"); reference.className = "layer-reference"; reference.hidden = material.model === "ema";
-  const fileLabel = document.createElement("label"); fileLabel.textContent = `${substrate ? "Substrate" : "Layer"} n,k table`;
-  const file = document.createElement("input"); file.type = "file"; file.accept = ".txt,text/plain"; file.dataset.field = "nk-file"; fileLabel.append(file);
-  const source = document.createElement("p"); source.textContent = material.nkSource ?? "No n,k table loaded."; reference.append(fileLabel, source);
+  reference.append(fileControl(material.id, `${substrate ? "Substrate" : "Layer"} n,k table`, "nk-file", material.nkSource));
   const flags = document.createElement("div"); flags.className = "layer-flags";
   if (!substrate) flags.append(checkControl("Active n,k plot", "active", state.activeLayerId === material.id, false, "radio"));
   flags.append(checkControl("Regularize to n,k", "regularize", material.regularize, !material.nk || material.model === "fixed" || material.model === "ema"));
@@ -463,6 +460,18 @@ function selectControl(labelText, field, choices: Record<string, string>, value)
   const select = document.createElement("select"); select.dataset.field = field;
   for (const [choice, text] of Object.entries(choices)) { const option = document.createElement("option"); option.value = choice; option.textContent = text; option.selected = choice === value; select.append(option); }
   label.append(select); return label;
+}
+
+function fileControl(materialId, labelText, field, sourceText) {
+  const control = document.createElement("div"); control.className = "native-file-control";
+  const label = document.createElement("span"); label.className = "native-file-label"; label.textContent = labelText;
+  const input = document.createElement("input"); input.type = "file"; input.accept = ".txt,text/plain"; input.dataset.field = field; input.className = "visually-hidden"; input.id = `${materialId}-${field}`;
+  const trigger = document.createElement("label"); trigger.className = "native-file-trigger"; trigger.htmlFor = input.id; trigger.textContent = "Choose file";
+  input.setAttribute("aria-label", `Choose file for ${labelText}`);
+  const source = document.createElement("p"); source.id = `${input.id}-source`; source.className = "model-note"; source.textContent = sourceText ?? "No n,k table loaded.";
+  input.setAttribute("aria-describedby", source.id);
+  control.append(label, input, trigger, source);
+  return control;
 }
 
 function checkControl(text, field, checked, disabled, type = "checkbox") {

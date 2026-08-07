@@ -20,23 +20,23 @@
 html { scroll-padding-top: var(--workspace-sticky-offset); }
 body { margin: 0; background: var(--cds-background); color: var(--cds-text-primary); font-family: var(--font-display); @include type.type-style("body-01"); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.app-main { min-height: calc(100dvh - 3rem); padding: 0; }
+.app-main { block-size: calc(100dvh - 3rem); min-block-size: 0; padding: 0; }
 .header-context { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; padding-inline: spacing.$spacing-05; color: var(--cds-text-secondary); }
 .header-context span { display: block; max-inline-size: 100%; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; @include type.type-style("body-compact-01"); }
-.workspace, .workbench-column { min-width: 0; }
+.workspace, .workbench-column { min-width: 0; min-block-size: 0; block-size: 100%; }
 .workbench-column { padding-inline: 0; }
-.workbench-shell { position: relative; display: grid; grid-template-columns: 5rem minmax(0, 1fr); block-size: calc(100dvh - 3rem); min-block-size: 0; background: var(--cds-background); }
-.workbench-shell[data-panel-open="true"] { grid-template-columns: 5rem minmax(18rem, 20rem) minmax(0, 1fr); }
+.workbench-shell { position: relative; display: grid; grid-template-columns: 5rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); block-size: 100%; min-block-size: 0; background: var(--cds-background); }
+.workbench-shell[data-panel-open="true"] { grid-template-columns: 5rem minmax(22rem, 24rem) minmax(0, 1fr); }
 .workflow-navigation { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; border-inline-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .workflow-nav-item { inline-size: 5rem; max-inline-size: none; min-block-size: 4.5rem; padding: spacing.$spacing-03; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: spacing.$spacing-02; text-align: center; }
 .workflow-nav-item span { overflow-wrap: anywhere; @include type.type-style("label-01"); }
-.controls { container-type: inline-size; grid-column: 2; grid-row: 1; min-width: 0; max-block-size: calc(100dvh - 3rem); overflow: auto; padding: spacing.$spacing-05; border-inline-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
+.controls { container-type: inline-size; grid-column: 2; grid-row: 1; min-width: 0; min-block-size: 0; block-size: 100%; overflow: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .results { container-type: inline-size; grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; block-size: 100%; background: var(--cds-background); }
 .workbench-shell[data-panel-open="true"] .results { grid-column: 3; }
 #results-content, .results-empty { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .configuration-tabs { display: block; }
 .configuration-panel { min-width: 0; }
-.configuration-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: spacing.$spacing-03; margin-bottom: spacing.$spacing-05; border-bottom: 1px solid var(--cds-border-subtle); }
+.configuration-panel-heading { position: sticky; z-index: 2; inset-block-start: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: spacing.$spacing-03; margin-bottom: spacing.$spacing-05; padding-block-start: spacing.$spacing-05; border-bottom: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .configuration-panel-heading h2, .plot-heading h2 { margin: 0; @include type.type-style("heading-03"); }
 .configuration-panel-heading p { margin-block: spacing.$spacing-02 spacing.$spacing-04; }
 .configuration-panel-heading p, .model-note, .chart-toolbar span { color: var(--cds-text-secondary); }
@@ -44,6 +44,8 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .field-pair > *, .file-grid > * { min-width: 0; }
 .configuration-accordion { margin-block: spacing.$spacing-04; }
 .accordion-content, .global-parameter-grid { display: grid; gap: spacing.$spacing-04; }
+.file-control { display: grid; gap: spacing.$spacing-02; }
+.file-control-label, .native-file-label { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .file-control > button { inline-size: 100%; max-inline-size: none; }
 .layer-list label, .substrate-editor label { display: grid; gap: spacing.$spacing-02; }
 .controls input, .controls select { min-width: 0; }
@@ -67,14 +69,19 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .substrate-editor input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
 .substrate-editor select:focus { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
 .layer-list input:disabled, .layer-list select:disabled, .substrate-editor input:disabled, .substrate-editor select:disabled { background: var(--cds-field); color: var(--cds-text-disabled); }
-.layer-list input[type="file"], .substrate-editor input[type="file"] { inline-size: 100%; min-block-size: 2.5rem; color: var(--cds-text-secondary); }
-.layer-list input[type="file"]::file-selector-button, .substrate-editor input[type="file"]::file-selector-button { min-block-size: 2rem; margin-inline-end: spacing.$spacing-03; padding-inline: spacing.$spacing-04; border: 1px solid var(--cds-button-tertiary); background: transparent; color: var(--cds-button-tertiary); font: inherit; }
 .layer-list .check, .substrate-editor .check { display: flex; align-items: center; gap: spacing.$spacing-03; min-block-size: 2rem; }
-.layer-list .check input, .substrate-editor .check input { flex: 0 0 auto; margin: 0; accent-color: var(--cds-icon-primary); }
-.layer-list summary, .substrate-editor summary { min-block-size: 2.5rem; padding-block: spacing.$spacing-03; cursor: pointer; }
+.layer-list .check input, .substrate-editor .check input { flex: 0 0 auto; inline-size: 1rem; block-size: 1rem; margin: 0; accent-color: var(--cds-icon-primary); }
+.layer-list summary, .substrate-editor summary { display: flex; align-items: center; justify-content: space-between; gap: spacing.$spacing-03; min-block-size: 2.5rem; padding: spacing.$spacing-03; cursor: pointer; list-style: none; }
+.layer-list summary::-webkit-details-marker, .substrate-editor summary::-webkit-details-marker { display: none; }
+.layer-list summary::after, .substrate-editor summary::after { content: ""; flex: 0 0 auto; inline-size: .5rem; block-size: .5rem; border-inline-end: 1px solid currentColor; border-block-end: 1px solid currentColor; transform: rotate(45deg); }
+.layer-list details[open] > summary::after, .substrate-editor details[open] > summary::after { transform: rotate(225deg); }
 .full { inline-size: 100%; max-inline-size: none; }
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: spacing.$spacing-03; padding: spacing.$spacing-04 spacing.$spacing-05; border-block-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .app-help-button { inline-size: 3rem; block-size: 3rem; display: inline-grid; place-items: center; }
+.app-help-panel p { margin-block: spacing.$spacing-03; }
+.app-help-panel dl { display: grid; gap: spacing.$spacing-02; margin-block: spacing.$spacing-04; }
+.app-help-panel dl > div { display: grid; grid-template-columns: minmax(6rem, auto) minmax(0, 1fr); gap: spacing.$spacing-03; }
+.app-help-panel dt, .app-help-panel dd { margin: 0; }
 .layer-list, .stack-toolbar, .results-tabs, .plot-card, .stack-card, .diagnostics { min-width: 0; }
 .stack-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: spacing.$spacing-03; }
 .layer-card { margin-block: spacing.$spacing-04; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
@@ -92,7 +99,19 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .layer-actions button:disabled { color: var(--cds-icon-disabled); cursor: not-allowed; }
 .layer-editor-body { display: grid; gap: spacing.$spacing-04; padding: 0 spacing.$spacing-04 spacing.$spacing-04; }
 .layer-reference p { margin-block: spacing.$spacing-02 0; color: var(--cds-text-secondary); }
+.native-file-control { display: grid; gap: spacing.$spacing-02; }
+.layer-list .native-file-trigger, .substrate-editor .native-file-trigger { display: inline-flex; align-items: center; justify-content: space-between; inline-size: 100%; min-block-size: 2rem; box-sizing: border-box; padding: spacing.$spacing-03 spacing.$spacing-04; border: 1px solid var(--cds-button-tertiary); color: var(--cds-button-tertiary); cursor: pointer; @include type.type-style("body-compact-01"); }
+.native-file-trigger:hover { background: var(--cds-button-tertiary-hover); color: var(--cds-text-on-color); }
+.native-file-control input:focus-visible + .native-file-trigger { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
+.native-file-control p { margin: 0; }
 .layer-flags { display: grid; gap: spacing.$spacing-02; }
+.model-help-body { display: grid; gap: spacing.$spacing-03; padding: 0 spacing.$spacing-03 spacing.$spacing-04; }
+.model-help-body p, .model-help-body h4, .model-help-body h5 { margin: 0; }
+.model-parameter-help { display: grid; grid-template-columns: minmax(0, 1fr); gap: spacing.$spacing-02; margin: 0; }
+.model-parameter-help dt { font-weight: 600; }
+.model-parameter-help dd { margin: 0 0 spacing.$spacing-02; color: var(--cds-text-secondary); }
+.model-references { margin: 0; padding-inline-start: spacing.$spacing-05; }
+.model-notation { color: var(--cds-text-secondary); }
 .parameter-header, .parameter-row { display: grid; grid-template-columns: 1.5rem minmax(7rem, 1.25fr) repeat(4, minmax(3.5rem, .75fr)); gap: spacing.$spacing-02; align-items: center; }
 .parameter-header { padding: spacing.$spacing-02 spacing.$spacing-03; color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .parameter-row { position: relative; padding: spacing.$spacing-03; border-top: 1px solid var(--cds-border-subtle); }
@@ -149,7 +168,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .k-line { color: var(--color-plot-t); }
 .component-selector, .layer-reference, .layer-flags { min-width: 0; }
 .parameter-help-popover, .chart-tooltip { position: absolute; z-index: 10; }
-.parameter-help-popover { box-sizing: border-box; inset-block-start: calc(100% + #{spacing.$spacing-02}); inset-inline-start: 0; inline-size: min(18rem, calc(100vw - 4rem)); padding: spacing.$spacing-04; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-02); color: var(--cds-text-primary); @include type.type-style("body-compact-01"); }
+.parameter-help-popover { box-sizing: border-box; inset-block-end: calc(100% + #{spacing.$spacing-02}); inset-inline-end: 0; inline-size: min(18rem, 100%); padding: spacing.$spacing-04; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-02); color: var(--cds-text-primary); @include type.type-style("body-compact-01"); }
 
 @container (max-width: 30rem) {
   .field-pair, .file-grid, .channel-row { grid-template-columns: 1fr; }
@@ -168,12 +187,11 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 }
 
 @media (max-width: 61.99rem) {
-  .app-main { padding-block-end: 4rem; }
   .header-context { padding-inline: spacing.$spacing-03; }
   .workbench-shell, .workbench-shell[data-panel-open="true"] { display: block; block-size: calc(100dvh - 7rem); min-block-size: 0; }
-  .workflow-navigation { position: fixed; z-index: 2; inset-inline: 0; inset-block-end: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); block-size: 4rem; border-block-start: 1px solid var(--cds-border-subtle); border-inline-end: 0; }
+  .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); block-size: 4rem; border-block-start: 1px solid var(--cds-border-subtle); border-inline-end: 0; }
   .workflow-nav-item { inline-size: 100%; min-block-size: 4rem; flex-direction: row; }
-  .controls { position: fixed; z-index: 1; inset: 3rem 0 4rem; max-block-size: none; padding: spacing.$spacing-05; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); }
+  .controls { position: fixed; z-index: 2; inset: 3rem 0 4rem; block-size: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
   .configuration-tabs { max-inline-size: 42rem; margin-inline: auto; }
   .results, .workbench-shell[data-panel-open="true"] .results { block-size: 100%; min-block-size: 0; }
   .stack-figure { grid-template-columns: 1fr; }
