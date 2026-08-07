@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scrambledSobolPoints } from "../src/sobol.ts";
+import { scrambledSobolPoints } from "../src/scientific/fitting/sobol.ts";
 
 test("matches scipy.stats.qmc.Sobol with scramble=True and seed=1729", () => {
   assert.deepEqual(scrambledSobolPoints(1, 4), [

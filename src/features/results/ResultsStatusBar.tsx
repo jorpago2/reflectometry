@@ -1,7 +1,7 @@
 import { Button, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { Download } from "@carbon/react/icons";
 import { useSyncExternalStore } from "react";
-import { workbenchBridge } from "../scientific/workbench-bridge.ts";
+import { workbenchBridge } from "../../scientific/workbench-bridge.ts";
 
 function syncExportMenu() {
   window.requestAnimationFrame(() => document.querySelectorAll<HTMLButtonElement>("[data-export-target]").forEach((item) => {

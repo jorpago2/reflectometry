@@ -21,8 +21,8 @@ import {
   sellmeierRefractiveIndex,
   taucGaussianDielectric,
   taucLorentzDielectric,
-} from "../src/dielectric-models.ts";
-import { filmOnThickSubstrate, fitEllipsometrySeed, fitOpticalModel } from "../src/scientific-core.ts";
+} from "../src/scientific/models/dielectric-models.ts";
+import { filmOnThickSubstrate, fitEllipsometrySeed, fitOpticalModel } from "../src/scientific/solvers/scientific-core.ts";
 
 const wavelengthNm = [300, 400, 700, 1064];
 

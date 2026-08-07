@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MODEL_LABELS, modelParameterSpecs } from "../src/dielectric-models.ts";
-import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "../src/model-help.ts";
+import { MODEL_LABELS, modelParameterSpecs } from "../src/scientific/models/dielectric-models.ts";
+import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "../src/features/layer-stack/model-help.ts";
 
 test("documents every optical model, component, and current parameter", () => {
   assert.deepEqual(Object.keys(MODEL_GUIDES).sort(), Object.keys(MODEL_LABELS).sort());

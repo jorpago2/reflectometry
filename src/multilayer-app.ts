@@ -6,10 +6,10 @@ import {
   loadNkTable,
   prepareFitData,
   restrictToNkRange,
-} from "./scientific-core.ts";
-import { MODEL_LABELS, modelParameterSpecs } from "./dielectric-models.ts";
-import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./model-help.ts";
-import { parseSavedFit, SAVED_FIT_SCHEMA } from "./saved-fit.ts";
+} from "./scientific/solvers/scientific-core.ts";
+import { MODEL_LABELS, modelParameterSpecs } from "./scientific/models/dielectric-models.ts";
+import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./features/layer-stack/model-help.ts";
+import { parseSavedFit, SAVED_FIT_SCHEMA } from "./scientific/fitting/saved-fit.ts";
 import Plotly from "plotly.js-basic-dist-min";
 
 const MULTILAYER_MODEL_LABELS = {
@@ -772,7 +772,7 @@ function handleWorkerMessage({ data }) {
 
 function startFitWorker(message) {
   if (state.worker) state.worker.terminate();
-  state.worker = new Worker(new URL("./fit-worker.ts", import.meta.url), { type: "module" });
+  state.worker = new Worker(new URL("./scientific/workers/fit-worker.ts", import.meta.url), { type: "module" });
   state.worker.addEventListener("message", handleWorkerMessage); state.worker.addEventListener("error", (event) => finishFitError(event.message));
   elements["fit-progress"].hidden = false; elements["fit-progress"].value = 0; elements["cancel-operation"].hidden = false; setBusy(true, message);
 }

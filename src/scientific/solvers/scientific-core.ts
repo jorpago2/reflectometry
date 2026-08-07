@@ -1,5 +1,5 @@
-import { refractiveIndexModel } from "./dielectric-models.ts";
-import { scrambledSobolPoints } from "./sobol.ts";
+import { refractiveIndexModel } from "../models/dielectric-models.ts";
+import { scrambledSobolPoints } from "../fitting/sobol.ts";
 
 const EPSILON = Number.EPSILON;
 const LOG_PARAMETERS = new Set(["amplitude", "amplitudeEv", "amplitude1Ev", "amplitude2Ev", "strength", "broadeningEv", "broadening1Ev", "broadening2Ev", "fwhmEv", "gammaEv", "sigmaEv", "urbachEnergyEv", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);

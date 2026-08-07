@@ -3,13 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("ships one English-only material-agnostic multilayer interface", async () => {
-  const files = await Promise.all(["index.html", "src/App.tsx", "src/multilayer-app.ts", "src/model-help.ts", "src/scientific-core.ts", "src/dielectric-models.ts"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
-  files[1] += await readFile(new URL("../src/ui/WorkspaceView.tsx", import.meta.url), "utf8");
-  files[1] += await readFile(new URL("../src/ui/AppHeader.tsx", import.meta.url), "utf8");
-  files[1] += await readFile(new URL("../src/ui/ResultsStatusBar.tsx", import.meta.url), "utf8");
+  const files = await Promise.all(["index.html", "src/app/App.tsx", "src/multilayer-app.ts", "src/features/layer-stack/model-help.ts", "src/scientific/solvers/scientific-core.ts", "src/scientific/models/dielectric-models.ts"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
+  files[1] += await readFile(new URL("../src/features/measurement/WorkspaceView.tsx", import.meta.url), "utf8");
+  files[1] += await readFile(new URL("../src/app/AppHeader.tsx", import.meta.url), "utf8");
+  files[1] += await readFile(new URL("../src/features/results/ResultsStatusBar.tsx", import.meta.url), "utf8");
   const main = await readFile(new URL("../src/main.tsx", import.meta.url), "utf8");
   const vite = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
-  const styles = await readFile(new URL("../src/styles.scss", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../src/styles/carbon.scss", import.meta.url), "utf8");
   const packageJson = await readFile(new URL("../package.json", import.meta.url), "utf8");
   const combined = files.join("\n");
   assert.match(files[0], /<html lang="en">/);

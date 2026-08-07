@@ -1,10 +1,10 @@
 import { Button, Column, Grid, OverflowMenu, OverflowMenuItem, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
 import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
-import PlotCard from "./PlotCard.tsx";
+import PlotCard from "../../shared/plots/PlotCard.tsx";
 import { useState } from "react";
-import ResultsEmpty from "./ResultsEmpty.tsx";
-import ResultsStatusBar from "./ResultsStatusBar.tsx";
-import WorkspaceNavigation from "./WorkspaceNavigation.tsx";
+import ResultsEmpty from "../results/ResultsEmpty.tsx";
+import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
+import WorkspaceNavigation from "../../shared/carbon/WorkspaceNavigation.tsx";
 
 type LegacyPlotCardProps = {
   eyebrow?: string;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseSavedFit, SAVED_FIT_SCHEMA } from "../src/saved-fit.ts";
+import { parseSavedFit, SAVED_FIT_SCHEMA } from "../src/scientific/fitting/saved-fit.ts";
 
 test("saved fits restore complete v8 data and legacy substrate units", () => {
   const wavelengthNm = Array.from({ length: 20 }, (_, index) => 195 + 2 * index);

@@ -1,4 +1,4 @@
-import { bootstrapFitUncertainty, calibrateSharedGains, fitEllipsometrySeed, fitOpticalModel } from "./scientific/engine.ts";
+import { bootstrapFitUncertainty, calibrateSharedGains, fitEllipsometrySeed, fitOpticalModel } from "../engine.ts";
 
 self.addEventListener("message", ({ data }) => {
   try {

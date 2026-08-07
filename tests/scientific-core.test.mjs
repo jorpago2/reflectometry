@@ -13,7 +13,7 @@ import {
   fitTabulated,
   prepareFitData,
   robustBackground,
-} from "../src/scientific-core.ts";
+} from "../src/scientific/solvers/scientific-core.ts";
 
 test("loads generic reference spectra with nm or µm wavelength tables", () => {
   const signal = "400 10\n500 20";
