@@ -1,6 +1,7 @@
 import { Button, Column, Grid, OverflowMenu, OverflowMenuItem, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
 import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import PlotCard from "./PlotCard.tsx";
+import { useState } from "react";
 import ResultsEmpty from "./ResultsEmpty.tsx";
 import ResultsStatusBar from "./ResultsStatusBar.tsx";
 import WorkspaceNavigation from "./WorkspaceNavigation.tsx";
@@ -41,13 +42,14 @@ function syncExportMenu() {
 function runExport(id: string) { document.getElementById(id)?.click(); }
 
 export default function WorkspaceView() {
+  const [mobileView, setMobileView] = useState<"configuration" | "results">("configuration");
   return (
     <>
       <>
         <h1 className="visually-hidden">Reflectometry</h1>
-        <WorkspaceNavigation />
+        <WorkspaceNavigation view={mobileView} onViewChange={setMobileView} />
 
-        <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view="configuration" fullWidth condensed tabIndex={-1}>
+        <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view={mobileView} fullWidth condensed tabIndex={-1}>
           <Column id="configuration-panel" className="controls" sm={4} md={8} lg={16} xlg={8} max={6} as="aside" aria-label="Data, stack, and fit controls">
             <div className="configuration-tabs">
               <TabsVertical>
