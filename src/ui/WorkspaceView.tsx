@@ -40,7 +40,7 @@ function syncExportMenu() {
 
 function runExport(id: string) { document.getElementById(id)?.click(); }
 
-export default function App() {
+export default function WorkspaceView() {
   return (
     <>
       <>
