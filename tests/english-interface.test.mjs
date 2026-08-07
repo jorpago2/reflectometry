@@ -101,6 +101,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
   assert.doesNotMatch(styles, /\.tool-heading\b/);
   assert.match(styles, /overflow-x: clip/);
+  assert.match(styles, /data-mobile-view="configuration"/);
+  assert.match(styles, /data-mobile-view="results"/);
+  assert.match(styles, /mobile-view-switcher/);
   assert.match(files[2], /initializeWorkspace\(\);/);
   assert.doesNotMatch(files[2], /loadSyntheticExample\(\);\s*$/);
   assert.doesNotMatch(combined, new RegExp(["single", "layer"].join("[- ]") + "|material " + "preset|included example", "i"));
