@@ -1,45 +1,10 @@
-import { Button, Column, Grid, OverflowMenu, OverflowMenuItem, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
-import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
+import { Button, Column, Grid, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
+import { Add, ArrowRight, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import PlotCard from "../../shared/plots/PlotCard.tsx";
 import { useEffect, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation from "../../shared/carbon/WorkspaceNavigation.tsx";
-
-type LegacyPlotCardProps = {
-  eyebrow?: string;
-  title: string;
-  canvasId: string;
-  label: string;
-  legend: Array<{ className: string; text: string }>;
-  eyebrowId?: string;
-};
-
-function LegacyPlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: LegacyPlotCardProps) {
-  return (
-    <section className="plot-card">
-      <div className="plot-heading">
-        <div>{eyebrow ? <p id={eyebrowId}>{eyebrow}</p> : null}<h2>{title}</h2></div>
-        <div className="legend">{legend.map((item) => <span className={item.className} key={item.text}>{item.text}</span>)}</div>
-      </div>
-      <div className="chart-shell">
-        <div id={canvasId} className="plotly-chart" tabIndex={0} role="img" aria-label={label} aria-describedby={`${canvasId}-help`} />
-      </div>
-      <div className="chart-toolbar">
-        <span id={`${canvasId}-help`}>Hover to inspect · Wheel or +/− to zoom · Drag or ←/→ to pan</span>
-        <Button className="chart-reset" kind="ghost" size="sm" type="button" data-reset-chart={canvasId}>Reset view</Button>
-      </div>
-    </section>
-  );
-}
-
-function syncExportMenu() {
-  window.requestAnimationFrame(() => document.querySelectorAll<HTMLButtonElement>("[data-export-target]").forEach((item) => {
-    item.disabled = Boolean(document.getElementById(item.dataset.exportTarget ?? "")?.getAttribute("disabled") !== null);
-  }));
-}
-
-function runExport(id: string) { document.getElementById(id)?.click(); }
 
 export default function WorkspaceView() {
   const [mobileView, setMobileView] = useState<"configuration" | "results">("configuration");
@@ -58,7 +23,7 @@ export default function WorkspaceView() {
         <WorkspaceNavigation view={mobileView} onViewChange={setMobileView} />
 
         <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view={mobileView} fullWidth condensed tabIndex={-1}>
-          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={8} xlg={8} max={6} as="aside" aria-label="Data, stack, and fit controls">
+          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={9} xlg={9} max={9} as="aside" aria-label="Data, stack, and fit controls">
             <div className="configuration-tabs">
               <TabsVertical selectedIndex={configurationTab} onChange={({ selectedIndex }) => setConfigurationTab(selectedIndex ?? 0)}>
                 <TabListVertical className="configuration-rail" aria-label="Configuration sections">
@@ -154,29 +119,13 @@ export default function WorkspaceView() {
             </div>
           </Column>
 
-          <Column id="results-panel" className="results" sm={4} md={8} lg={8} xlg={8} max={10} as="section" aria-label="Fit results">
+          <Column id="results-panel" className="results" sm={4} md={8} lg={7} xlg={7} max={7} as="section" aria-label="Fit results">
             <ResultsEmpty />
             <div id="results-content" hidden>
+            <div className="results-context">
             <ResultsStatusBar />
-            <div className="status-row" hidden>
-              <span id="legacy-status-indicator" className="status-indicator" aria-hidden="true" />
-              <p id="legacy-status" role="status" aria-live="polite">Waiting for measurement data.</p>
-              <progress id="legacy-fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
-              <Button id="legacy-cancel-operation" className="cancel-action" kind="ghost" size="sm" type="button" hidden aria-controls="legacy-fit-progress">Cancel</Button>
-              <div hidden>
-                <button id="legacy-print-report" disabled type="button" />
-                <button id="legacy-download-json" disabled type="button" />
-                <button id="legacy-download-csv" disabled type="button" />
-                <button id="legacy-download-nk" disabled type="button" />
-              </div>
-              <OverflowMenu className="export-menu" renderIcon={Download} iconDescription="Export results" size="sm" direction="bottom" onOpen={syncExportMenu}>
-                <OverflowMenuItem data-export-target="print-report" disabled itemText="Print report" onClick={() => runExport("print-report")} />
-                <OverflowMenuItem data-export-target="download-json" disabled itemText="Project JSON" onClick={() => runExport("download-json")} />
-                <OverflowMenuItem data-export-target="download-csv" disabled itemText="Spectra CSV" onClick={() => runExport("download-csv")} />
-                <OverflowMenuItem data-export-target="download-nk" disabled itemText="Layers n,k" onClick={() => runExport("download-nk")} />
-              </OverflowMenu>
+            <p id="report-meta" className="report-meta" />
             </div>
-            <header id="report-meta" className="report-meta" />
             <div className="results-tabs">
             <Tabs onChange={() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
               <TabList contained className="results-tab-list" aria-label="Result views">

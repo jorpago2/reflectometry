@@ -488,9 +488,15 @@ function parameterRow(layer, parameter, specification) {
   }
   row.append(fit, label);
   for (const [kind, value] of [["value", specification.value], ["minimum", specification.minimum], ["maximum", specification.maximum]]) {
-    const input = document.createElement("input"); input.type = "number"; input.step = "any"; input.dataset.kind = kind; input.value = String(value); input.disabled = Boolean(linkedSource); input.setAttribute("aria-label", `${kind} ${layer.name} ${specification.label}`); row.append(input);
+    const field = document.createElement("label"); field.className = "parameter-field";
+    const fieldLabel = document.createElement("span"); fieldLabel.textContent = kind === "value" ? "Value" : kind === "minimum" ? "Min" : "Max";
+    const input = document.createElement("input"); input.type = "number"; input.step = "any"; input.dataset.kind = kind; input.value = String(value); input.disabled = Boolean(linkedSource); input.setAttribute("aria-label", `${kind} ${layer.name} ${specification.label}`);
+    field.append(fieldLabel, input); row.append(field);
   }
-  const uncertainty = document.createElement("span"); uncertainty.className = "parameter-uncertainty"; uncertainty.textContent = specification.uncertainty ?? "—"; row.append(uncertainty);
+  const uncertaintyField = document.createElement("span"); uncertaintyField.className = "parameter-field parameter-uncertainty-field";
+  const uncertaintyLabel = document.createElement("span"); uncertaintyLabel.textContent = "1σ";
+  const uncertainty = document.createElement("span"); uncertainty.className = "parameter-uncertainty"; uncertainty.textContent = specification.uncertainty ?? "—";
+  uncertaintyField.append(uncertaintyLabel, uncertainty); row.append(uncertaintyField);
   return row;
 }
 

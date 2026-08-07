@@ -7,6 +7,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   files[1] += await readFile(new URL("../src/features/measurement/WorkspaceView.tsx", import.meta.url), "utf8");
   files[1] += await readFile(new URL("../src/app/AppHeader.tsx", import.meta.url), "utf8");
   files[1] += await readFile(new URL("../src/features/results/ResultsStatusBar.tsx", import.meta.url), "utf8");
+  files[1] += await readFile(new URL("../src/shared/plots/PlotCard.tsx", import.meta.url), "utf8");
   const main = await readFile(new URL("../src/main.tsx", import.meta.url), "utf8");
   const vite = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
   const styles = await readFile(new URL("../src/styles/carbon.scss", import.meta.url), "utf8");
@@ -18,6 +19,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   }
   assert.match(files[0], /src="\/src\/main\.tsx"/);
   assert.match(main, /createRoot/);
+  assert.match(main, /document\.documentElement\.classList\.add\("cds--white"\)/);
   assert.match(files[1], /useEffect/);
   assert.match(vite, /base: "\/reflectometry\/"/);
   assert.doesNotMatch(files[1], /tool-heading|Capabilities and model scope/);
@@ -82,7 +84,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(styles, /@use "@carbon\/react\/scss\/spacing" as spacing/);
   assert.doesNotMatch(styles, /var\(--cds-spacing-/);
   assert.match(styles, /\[hidden\]\s*\{\s*display:\s*none;/);
-  assert.equal([...files[1].matchAll(/ lg=\{8\}/g)].length, 2);
+  assert.equal([...files[1].matchAll(/ lg=\{9\}/g)].length, 1);
+  assert.equal([...files[1].matchAll(/ lg=\{7\}/g)].length, 1);
   assert.match(files[1], /mobileView === "results"[\s\S]*dispatchEvent\(new Event\("resize"\)\)/);
   assert.match(styles, /--color-paper: var\(--cds-background\)/);
   assert.match(packageJson, /"@carbon\/react"/);
@@ -104,6 +107,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /thicknessUm: Number\(elements\["substrate-thickness"\]\.value\)/);
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
+  assert.match(files[2], /className = "parameter-field"/);
+  assert.doesNotMatch(files[1], /LegacyPlotCard/);
+  assert.doesNotMatch(files[1], /legacy-/);
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
   assert.doesNotMatch(styles, /\.tool-heading\b/);
   assert.doesNotMatch(styles, /(?:html|body)\s*\{[^}]*overflow-x:\s*(?:clip|hidden)/);
