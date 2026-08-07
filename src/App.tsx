@@ -1,4 +1,3 @@
-import { Content } from "@carbon/react";
 import WorkspaceView from "./ui/WorkspaceView.tsx";
 import { useEffect } from "react";
 
@@ -11,9 +10,5 @@ export default function App() {
     });
   }, []);
 
-  return (
-    <Content className="app-main" aria-label="Reflectometry workspace">
-      <WorkspaceView />
-    </Content>
-  );
+  return <WorkspaceView />;
 }
