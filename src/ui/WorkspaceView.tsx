@@ -1,5 +1,5 @@
-import { Button, Column, Content, ContentSwitcher, Grid, Header, HeaderGlobalBar, HeaderName, OverflowMenu, OverflowMenuItem, SkipToContent, Switch, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical, Toggletip, ToggletipButton, ToggletipContent } from "@carbon/react";
-import { Add, ArrowRight, Download, Help, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
+import { Button, Column, Content, ContentSwitcher, Grid, OverflowMenu, OverflowMenuItem, Switch, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
+import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 
 type PlotCardProps = {
   eyebrow?: string;
@@ -39,19 +39,6 @@ function runExport(id: string) { document.getElementById(id)?.click(); }
 export default function App() {
   return (
     <>
-      <Header aria-label="Reflectometry">
-        <SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>
-        <HeaderName href="./" prefix="">Reflectometry</HeaderName>
-        <HeaderGlobalBar>
-          <Toggletip align="bottom-end" className="app-help">
-            <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
-              <Help size={20} aria-hidden="true" />
-            </ToggletipButton>
-            <ToggletipContent className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Fit parameters</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl><small>Reflectometry v4.0.0</small></ToggletipContent>
-          </Toggletip>
-        </HeaderGlobalBar>
-      </Header>
-
       <Content className="app-main" aria-label="Reflectometry workspace">
         <h1 className="visually-hidden">Reflectometry</h1>
         <ContentSwitcher className="mobile-view-switcher" selectedIndex={0} size="sm" onChange={({ index }) => {

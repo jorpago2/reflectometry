@@ -1,4 +1,5 @@
 import WorkspaceView from "./ui/WorkspaceView.tsx";
+import AppHeader from "./ui/AppHeader.tsx";
 import { useEffect } from "react";
 
 /** Presentation shell. Scientific behaviour lives outside this component. */
@@ -10,5 +11,5 @@ export default function App() {
     });
   }, []);
 
-  return <WorkspaceView />;
+  return <><AppHeader /><WorkspaceView /></>;
 }
