@@ -2,3 +2,6 @@
 Thumbs.db
 node_modules/
 dist/
+
+*storybook.log
+storybook-static

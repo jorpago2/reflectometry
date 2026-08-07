@@ -12,7 +12,9 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@carbon/react": "^1.113.0",
@@ -28,6 +30,8 @@
     "@vitejs/plugin-react": "6.0.5",
     "sass": "^1.102.0",
     "typescript": "6.0.2",
-    "vite": "8.2.0"
+    "vite": "8.2.0",
+    "storybook": "^10.5.7",
+    "@storybook/react-vite": "^10.5.7"
   }
 }
