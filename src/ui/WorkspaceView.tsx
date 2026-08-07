@@ -46,6 +46,7 @@ export default function WorkspaceView() {
   const [configurationTab, setConfigurationTab] = useState(0);
   const [sampleName, setSampleName] = useState("");
   const [wavelengthRange, setWavelengthRange] = useState({ min: "300", max: "1100" });
+  const [measurementProcessing, setMeasurementProcessing] = useState({ threshold: "5", bin: "2", snr: "5", subtractBackground: true });
   return (
     <>
       <>
@@ -90,11 +91,11 @@ export default function WorkspaceView() {
                 <div className="field-pair">
                   <label>Minimum λ <span>nm</span><input id="wavelength-min" type="number" value={wavelengthRange.min} onChange={(event) => setWavelengthRange((current) => ({ ...current, min: event.target.value }))} min="195" max="2500" step="10" /></label>
                   <label>Maximum λ <span>nm</span><input id="wavelength-max" type="number" value={wavelengthRange.max} onChange={(event) => setWavelengthRange((current) => ({ ...current, max: event.target.value }))} min="200" max="3000" step="10" /></label>
-                  <label>Reference threshold <span>%</span><input id="reference-threshold" type="number" defaultValue="5" min="0" max="99" step="1" /></label>
-                  <label>Median bin <span>nm</span><input id="bin-width" type="number" defaultValue="2" min="0.1" max="100" step="0.5" /></label>
+                  <label>Reference threshold <span>%</span><input id="reference-threshold" type="number" value={measurementProcessing.threshold} onChange={(event) => setMeasurementProcessing((current) => ({ ...current, threshold: event.target.value }))} min="0" max="99" step="1" /></label>
+                  <label>Median bin <span>nm</span><input id="bin-width" type="number" value={measurementProcessing.bin} onChange={(event) => setMeasurementProcessing((current) => ({ ...current, bin: event.target.value }))} min="0.1" max="100" step="0.5" /></label>
                 </div>
-                <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" defaultValue="5" min="0" max="100" step="0.5" /></label>
-                <label className="check"><input id="subtract-background" type="checkbox" defaultChecked /><span>Subtract 195–250 nm background</span></label>
+                <label>Minimum sample SNR <span>σ</span><input id="sample-snr" type="number" value={measurementProcessing.snr} onChange={(event) => setMeasurementProcessing((current) => ({ ...current, snr: event.target.value }))} min="0" max="100" step="0.5" /></label>
+                <label className="check"><input id="subtract-background" type="checkbox" checked={measurementProcessing.subtractBackground} onChange={(event) => setMeasurementProcessing((current) => ({ ...current, subtractBackground: event.target.checked }))} /><span>Subtract 195–250 nm background</span></label>
               </details>
                   </TabPanel>
 
