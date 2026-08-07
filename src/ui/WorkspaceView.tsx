@@ -1,4 +1,4 @@
-import { Button, Column, Content, ContentSwitcher, Grid, OverflowMenu, OverflowMenuItem, Switch, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
+import { Button, Column, ContentSwitcher, Grid, OverflowMenu, OverflowMenuItem, Switch, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
 import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 
 type PlotCardProps = {
@@ -39,7 +39,7 @@ function runExport(id: string) { document.getElementById(id)?.click(); }
 export default function App() {
   return (
     <>
-      <Content className="app-main" aria-label="Reflectometry workspace">
+      <>
         <h1 className="visually-hidden">Reflectometry</h1>
         <ContentSwitcher className="mobile-view-switcher" selectedIndex={0} size="sm" onChange={({ index }) => {
           const workspace = document.getElementById("reflectometry-workspace");
@@ -229,7 +229,7 @@ export default function App() {
             </div>
           </Column>
         </Grid>
-      </Content>
+      </>
     </>
   );
 }
