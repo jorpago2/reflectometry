@@ -6,6 +6,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   const files = await Promise.all(["index.html", "src/App.tsx", "src/multilayer-app.ts", "src/model-help.ts", "src/scientific-core.ts", "src/dielectric-models.ts"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
   files[1] += await readFile(new URL("../src/ui/WorkspaceView.tsx", import.meta.url), "utf8");
   files[1] += await readFile(new URL("../src/ui/AppHeader.tsx", import.meta.url), "utf8");
+  files[1] += await readFile(new URL("../src/ui/ResultsStatusBar.tsx", import.meta.url), "utf8");
   const main = await readFile(new URL("../src/main.tsx", import.meta.url), "utf8");
   const vite = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
   const styles = await readFile(new URL("../src/styles.scss", import.meta.url), "utf8");

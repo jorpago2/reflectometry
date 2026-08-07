@@ -2,6 +2,7 @@ import { Button, Column, ContentSwitcher, Grid, OverflowMenu, OverflowMenuItem, 
 import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import PlotCard from "./PlotCard.tsx";
 import ResultsEmpty from "./ResultsEmpty.tsx";
+import ResultsStatusBar from "./ResultsStatusBar.tsx";
 
 type LegacyPlotCardProps = {
   eyebrow?: string;
@@ -158,16 +159,17 @@ export default function App() {
           <Column id="results-panel" className="results" sm={4} md={8} lg={16} xlg={8} max={10} as="section" aria-label="Fit results">
             <ResultsEmpty />
             <div id="results-content" hidden>
-            <div className="status-row">
-              <span id="status-indicator" className="status-indicator" aria-hidden="true" />
-              <p id="status" role="status" aria-live="polite">Waiting for measurement data.</p>
-              <progress id="fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
-              <Button id="cancel-operation" className="cancel-action" kind="ghost" size="sm" type="button" hidden aria-controls="fit-progress">Cancel</Button>
+            <ResultsStatusBar />
+            <div className="status-row" hidden>
+              <span id="legacy-status-indicator" className="status-indicator" aria-hidden="true" />
+              <p id="legacy-status" role="status" aria-live="polite">Waiting for measurement data.</p>
+              <progress id="legacy-fit-progress" max="100" defaultValue="0" hidden aria-label="Fit progress" />
+              <Button id="legacy-cancel-operation" className="cancel-action" kind="ghost" size="sm" type="button" hidden aria-controls="legacy-fit-progress">Cancel</Button>
               <div hidden>
-                <button id="print-report" disabled type="button" />
-                <button id="download-json" disabled type="button" />
-                <button id="download-csv" disabled type="button" />
-                <button id="download-nk" disabled type="button" />
+                <button id="legacy-print-report" disabled type="button" />
+                <button id="legacy-download-json" disabled type="button" />
+                <button id="legacy-download-csv" disabled type="button" />
+                <button id="legacy-download-nk" disabled type="button" />
               </div>
               <OverflowMenu className="export-menu" renderIcon={Download} iconDescription="Export results" size="sm" direction="bottom" onOpen={syncExportMenu}>
                 <OverflowMenuItem data-export-target="print-report" disabled itemText="Print report" onClick={() => runExport("print-report")} />
