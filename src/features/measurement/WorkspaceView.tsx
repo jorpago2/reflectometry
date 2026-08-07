@@ -1,7 +1,7 @@
 import { Button, Column, Grid, OverflowMenu, OverflowMenuItem, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
 import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import PlotCard from "../../shared/plots/PlotCard.tsx";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation from "../../shared/carbon/WorkspaceNavigation.tsx";
@@ -48,6 +48,9 @@ export default function WorkspaceView() {
   const [wavelengthRange, setWavelengthRange] = useState({ min: "300", max: "1100" });
   const [measurementProcessing, setMeasurementProcessing] = useState({ threshold: "5", bin: "2", snr: "5", subtractBackground: true });
   const [fitChannels, setFitChannels] = useState({ reflectance: true, transmittance: true, shape: true });
+  useEffect(() => {
+    if (mobileView === "results") window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  }, [mobileView]);
   return (
     <>
       <>
@@ -55,7 +58,7 @@ export default function WorkspaceView() {
         <WorkspaceNavigation view={mobileView} onViewChange={setMobileView} />
 
         <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view={mobileView} fullWidth condensed tabIndex={-1}>
-          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={16} xlg={8} max={6} as="aside" aria-label="Data, stack, and fit controls">
+          <Column id="configuration-panel" className="controls" sm={4} md={8} lg={8} xlg={8} max={6} as="aside" aria-label="Data, stack, and fit controls">
             <div className="configuration-tabs">
               <TabsVertical selectedIndex={configurationTab} onChange={({ selectedIndex }) => setConfigurationTab(selectedIndex ?? 0)}>
                 <TabListVertical className="configuration-rail" aria-label="Configuration sections">
@@ -151,7 +154,7 @@ export default function WorkspaceView() {
             </div>
           </Column>
 
-          <Column id="results-panel" className="results" sm={4} md={8} lg={16} xlg={8} max={10} as="section" aria-label="Fit results">
+          <Column id="results-panel" className="results" sm={4} md={8} lg={8} xlg={8} max={10} as="section" aria-label="Fit results">
             <ResultsEmpty />
             <div id="results-content" hidden>
             <ResultsStatusBar />

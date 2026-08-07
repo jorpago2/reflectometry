@@ -78,6 +78,12 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(styles, /\.parameter-help-popover\b/);
   assert.match(styles, /\.chart-tooltip\b/);
   assert.match(styles, /@use "@carbon\/react"/);
+  assert.match(styles, /@use "@carbon\/react\/scss\/config" with \([\s\S]*\$font-path: "@ibm\/plex"/);
+  assert.match(styles, /@use "@carbon\/react\/scss\/spacing" as spacing/);
+  assert.doesNotMatch(styles, /var\(--cds-spacing-/);
+  assert.match(styles, /\[hidden\]\s*\{\s*display:\s*none;/);
+  assert.equal([...files[1].matchAll(/ lg=\{8\}/g)].length, 2);
+  assert.match(files[1], /mobileView === "results"[\s\S]*dispatchEvent\(new Event\("resize"\)\)/);
   assert.match(styles, /--color-paper: var\(--cds-background\)/);
   assert.match(packageJson, /"@carbon\/react"/);
   assert.match(packageJson, /"sass"/);
@@ -100,7 +106,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
   assert.doesNotMatch(styles, /\.tool-heading\b/);
-  assert.match(styles, /overflow-x: clip/);
+  assert.doesNotMatch(styles, /(?:html|body)\s*\{[^}]*overflow-x:\s*(?:clip|hidden)/);
   assert.match(styles, /data-mobile-view="configuration"/);
   assert.match(styles, /data-mobile-view="results"/);
   assert.match(styles, /mobile-view-switcher/);

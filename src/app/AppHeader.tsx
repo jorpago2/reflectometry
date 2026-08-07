@@ -7,7 +7,7 @@ export default function AppHeader() {
       <SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>
       <HeaderName href="./" prefix="">Reflectometry</HeaderName>
       <HeaderGlobalBar>
-        <Toggletip align="bottom-end" className="app-help">
+        <Toggletip align="bottom-end" autoAlign className="app-help">
           <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
             <Help size={20} aria-hidden="true" />
           </ToggletipButton>
