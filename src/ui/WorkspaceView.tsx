@@ -1,6 +1,7 @@
 import { Button, Column, ContentSwitcher, Grid, OverflowMenu, OverflowMenuItem, Switch, Tab, TabList, TabListVertical, TabPanel, TabPanels, Tabs, TabsVertical } from "@carbon/react";
 import { Add, ArrowRight, Download, Layers, Redo, Renew, SettingsAdjust, Undo, Upload } from "@carbon/react/icons";
 import PlotCard from "./PlotCard.tsx";
+import ResultsEmpty from "./ResultsEmpty.tsx";
 
 type LegacyPlotCardProps = {
   eyebrow?: string;
@@ -155,7 +156,7 @@ export default function App() {
           </Column>
 
           <Column id="results-panel" className="results" sm={4} md={8} lg={16} xlg={8} max={10} as="section" aria-label="Fit results">
-            <div id="results-empty" className="results-empty"><strong>Start with measurement data</strong><p>Load spectra or use the built-in example to inspect the optical response.</p><Button kind="tertiary" type="button" onClick={() => document.getElementById("reset-example")?.click()}>Use example</Button></div>
+            <ResultsEmpty />
             <div id="results-content" hidden>
             <div className="status-row">
               <span id="status-indicator" className="status-indicator" aria-hidden="true" />
