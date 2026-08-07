@@ -43,6 +43,7 @@ function runExport(id: string) { document.getElementById(id)?.click(); }
 
 export default function WorkspaceView() {
   const [mobileView, setMobileView] = useState<"configuration" | "results">("configuration");
+  const [configurationTab, setConfigurationTab] = useState(0);
   return (
     <>
       <>
@@ -52,7 +53,7 @@ export default function WorkspaceView() {
         <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" data-mobile-view={mobileView} fullWidth condensed tabIndex={-1}>
           <Column id="configuration-panel" className="controls" sm={4} md={8} lg={16} xlg={8} max={6} as="aside" aria-label="Data, stack, and fit controls">
             <div className="configuration-tabs">
-              <TabsVertical>
+              <TabsVertical selectedIndex={configurationTab} onChange={({ selectedIndex }) => setConfigurationTab(selectedIndex ?? 0)}>
                 <TabListVertical className="configuration-rail" aria-label="Configuration sections">
                   <Tab renderIcon={Upload}>Measurement</Tab>
                   <Tab renderIcon={Layers}>Layer stack</Tab>
