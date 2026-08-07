@@ -50,7 +50,13 @@ function appendLayerActionIcon(button: HTMLButtonElement, action: keyof typeof L
 }
 const PLOT_BLUE = "#0f62fe";
 const PLOT_TEAL = "#009d9a";
-const elements: Record<string, any> = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
+const elements: Record<string, any> = new Proxy({}, {
+  get(_target, property: string) {
+    const element = document.getElementById(property);
+    if (!element) throw new Error(`Scientific UI contract is missing #${property}.`);
+    return element;
+  },
+});
 const state: any = { spectrum: null, fitData: null, evaluation: null, fitResult: null, resultStale: false, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
 const chartStates = new Map<any, any>();
 
