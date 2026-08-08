@@ -9,7 +9,7 @@ import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/W
 type PanelHeadingProps = { id: string; title: string; description: string; onClose: () => void };
 type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
 
-const OVERLAY_LAYOUT_QUERY = "(max-width: 61.99rem)";
+const OVERLAY_LAYOUT_QUERY = "(max-width: 65.98rem)";
 
 function PanelHeading({ id, title, description, onClose }: PanelHeadingProps) {
   return <header className="configuration-panel-heading"><div><h2 id={id} tabIndex={-1}>{title}</h2><p>{description}</p></div><Button kind="ghost" size="sm" type="button" onClick={onClose}>Close</Button></header>;
@@ -220,8 +220,8 @@ export default function WorkspaceView() {
                     </div>
                     <p id="diagnostic-note">Preview the stack before fitting. Multilayer inverse problems can have several nearly equivalent solutions.</p>
                     <Accordion className="result-details" size="sm">
-                      <AccordionItem title="Parameter uncertainty and correlation"><div id="uncertainty-panel"><div id="uncertainty-content" className="result-detail-content"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></div></AccordionItem>
-                      <AccordionItem title="Alternative fitted solutions"><div id="solutions-panel"><div id="solutions-content" className="result-detail-content"><p>No fitted alternatives yet.</p></div></div></AccordionItem>
+                      <AccordionItem title="Parameter uncertainty and correlation"><div id="uncertainty-panel"><div id="uncertainty-content" className="result-panel-content" tabIndex={0} aria-label="Parameter uncertainty and correlation tables"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></div></AccordionItem>
+                      <AccordionItem title="Alternative fitted solutions"><div id="solutions-panel"><div id="solutions-content" className="result-panel-content"><p>No fitted alternatives yet.</p></div></div></AccordionItem>
                     </Accordion>
                   </section>
                   <PlotCard title="Spectral residuals" canvasId="residual-chart" label="Interactive spectral residuals" legend={[{ className: "r-model", text: "R residual" }, { className: "t-model", text: "T residual" }]} />

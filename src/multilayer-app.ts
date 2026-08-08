@@ -48,8 +48,26 @@ function appendLayerActionIcon(button: HTMLButtonElement, action: keyof typeof L
   }
   button.append(icon);
 }
-const PLOT_BLUE = "#0f62fe";
-const PLOT_TEAL = "#009d9a";
+function themeValue(name: string) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!value) throw new Error(`Missing Carbon theme token ${name}.`);
+  return value;
+}
+
+const PLOT_BLUE = themeValue("--color-plot-r");
+const PLOT_TEAL = themeValue("--color-plot-t");
+const PLOT_BLUE_BAND = themeValue("--color-plot-r-band");
+const PLOT_TEAL_BAND = themeValue("--color-plot-t-band");
+
+function plotTheme() {
+  return {
+    background: themeValue("--plot-background"),
+    grid: themeValue("--plot-grid"),
+    axis: themeValue("--plot-axis"),
+    text: themeValue("--plot-text"),
+    textPrimary: themeValue("--plot-text-primary"),
+  };
+}
 const elements: Record<string, any> = new Proxy({}, {
   get(_target, property: string) {
     const element = document.getElementById(property);
@@ -405,7 +423,7 @@ function renderMaterialCard(material, index, substrate = false) {
   const components = document.createElement("fieldset"); components.className = "component-selector"; components.hidden = material.model !== "composite";
   const legend = document.createElement("legend"); legend.textContent = "Additive dielectric components"; components.append(legend);
   for (const [field, key, label] of [["tl-count", "taucLorentz", "Tauc–Lorentz oscillators"], ["lorentz-count", "lorentz", "Lorentz oscillators"]]) {
-    const control = document.createElement("label"); control.className = "oscillator-count"; control.textContent = label;
+    const control = document.createElement("label"); control.className = "component-count"; control.textContent = label;
     const select = document.createElement("select"); select.dataset.field = field;
     for (let count = 0; count <= 5; count += 1) { const option = document.createElement("option"); option.value = String(count); option.textContent = String(count); option.selected = count === material.components[key]; select.append(option); }
     control.append(select); components.append(control);
@@ -482,7 +500,7 @@ function checkControl(text, field, checked, disabled, type = "checkbox") {
 
 function parameterRow(layer, parameter, specification) {
   const row = document.createElement("div"); row.className = "parameter-row"; row.dataset.parameter = parameter;
-  const linkedSource = layer.links?.[parameter]; row.classList.toggle("linked-parameter", Boolean(linkedSource));
+  const linkedSource = layer.links?.[parameter]; row.classList.toggle("parameter-linked", Boolean(linkedSource));
   const fit = document.createElement("input"); fit.type = "checkbox"; fit.dataset.kind = "fit"; fit.checked = specification.fit; fit.disabled = Boolean(linkedSource); fit.setAttribute("aria-label", `Fit ${layer.name} ${specification.label}`);
   const description = parameterDescription(parameter);
   const label = document.createElement("span"); label.className = "parameter-name"; label.append(document.createTextNode(specification.label));
@@ -534,7 +552,7 @@ function renderModelHelp(layer) {
   const details = document.createElement("details"); details.className = "model-help";
   const summary = document.createElement("summary"); summary.textContent = `Model guide · ${modelLabel(layer.model)}`;
   const body = document.createElement("div"); body.className = "model-help-body";
-  const description = document.createElement("p"); description.className = "model-help-summary"; description.textContent = guide.summary;
+  const description = document.createElement("p"); description.className = "model-summary"; description.textContent = guide.summary;
   body.append(description, equationBlock(guide.equation), helpFact("Typically represents", guide.represents), helpFact("Scope / limitation", guide.limitation));
 
   const activeGuides = [];
@@ -547,7 +565,7 @@ function renderModelHelp(layer) {
   if (activeGuides.length) {
     const heading = document.createElement("h4"); heading.textContent = "Active contributions"; body.append(heading);
     for (const [title, activeGuide] of activeGuides) {
-      const section = document.createElement("section"); section.className = "component-help";
+      const section = document.createElement("section"); section.className = "model-component";
       const componentTitle = document.createElement("h5"); componentTitle.textContent = title;
       const componentSummary = document.createElement("p"); componentSummary.textContent = activeGuide.summary ?? activeGuide.represents;
       section.append(componentTitle, componentSummary, equationBlock(activeGuide.equation));
@@ -580,13 +598,13 @@ function renderModelHelp(layer) {
 }
 
 function equationBlock(equation) {
-  const block = document.createElement("div"); block.className = "model-equation";
+  const block = document.createElement("div"); block.className = "scientific-equation";
   block.innerHTML = `<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" aria-label="${equation.label}">${equation.mathml}</math>`;
   return block;
 }
 
 function helpFact(label, text) {
-  const paragraph = document.createElement("p"); paragraph.className = "model-help-fact";
+  const paragraph = document.createElement("p"); paragraph.className = "model-fact";
   const strong = document.createElement("strong"); strong.textContent = `${label}: `; paragraph.append(strong, document.createTextNode(text)); return paragraph;
 }
 
@@ -842,15 +860,32 @@ function renderUncertainty(diagnostics) {
   const content = document.createDocumentFragment();
   const note = document.createElement("p"); note.textContent = bootstrap ? `${bootstrap.method}; ${bootstrap.successfulSamples}/${bootstrap.requestedSamples} successful refits, deterministic seed ${bootstrap.seed}.` : "Approximate 95% intervals and correlations from the local Jacobian. Run the bootstrap before reporting uncertainty."; content.append(note);
   if (Object.keys(intervals).length) {
-    const table = document.createElement("table"); table.className = "uncertainty-table"; const head = document.createElement("tr"); for (const label of ["Parameter", "Lower 95%", "Estimate", "Upper 95%"]) { const cell = document.createElement("th"); cell.textContent = label; head.append(cell); } table.append(head);
-    for (const [name, interval] of Object.entries(intervals) as [string, any][]) if (interval) { const row = document.createElement("tr"); for (const value of [parameterLabel(name), format(interval.lower95, 5), format(state.fitResult.parameters[name] ?? interval.median, 5), format(interval.upper95, 5)]) { const cell = document.createElement("td"); cell.textContent = value; row.append(cell); } table.append(row); }
+    const table = document.createElement("table"); table.className = "scientific-data-table uncertainty-data-table";
+    const caption = document.createElement("caption"); caption.className = "visually-hidden"; caption.textContent = "Approximate 95% parameter intervals";
+    const tableHead = document.createElement("thead"); const head = document.createElement("tr");
+    for (const label of ["Parameter", "Lower 95%", "Estimate", "Upper 95%"]) { const cell = document.createElement("th"); cell.scope = "col"; cell.textContent = label; head.append(cell); }
+    tableHead.append(head); const tableBody = document.createElement("tbody");
+    for (const [name, interval] of Object.entries(intervals) as [string, any][]) if (interval) {
+      const row = document.createElement("tr");
+      const parameter = document.createElement("th"); parameter.scope = "row"; parameter.textContent = parameterLabel(name); row.append(parameter);
+      for (const value of [format(interval.lower95, 5), format(state.fitResult.parameters[name] ?? interval.median, 5), format(interval.upper95, 5)]) { const cell = document.createElement("td"); cell.textContent = value; row.append(cell); }
+      tableBody.append(row);
+    }
+    table.append(caption, tableHead, tableBody);
     content.append(table);
   }
   if (correlation?.matrix?.length) {
     const heading = document.createElement("h3"); heading.textContent = "Parameter correlation"; content.append(heading);
-    const table = document.createElement("table"); table.className = "correlation-table"; const head = document.createElement("tr"); head.append(document.createElement("th"));
-    for (const name of correlation.names) { const cell = document.createElement("th"); cell.textContent = parameterLabel(name); head.append(cell); } table.append(head);
-    correlation.matrix.forEach((values, rowIndex) => { const row = document.createElement("tr"); const label = document.createElement("th"); label.textContent = parameterLabel(correlation.names[rowIndex]); row.append(label); values.forEach((value) => { const cell = document.createElement("td"); cell.textContent = format(value, 2); cell.style.backgroundColor = value >= 0 ? `rgba(255,90,31,${0.08 + 0.52 * Math.abs(value)})` : `rgba(38,108,166,${0.08 + 0.52 * Math.abs(value)})`; row.append(cell); }); table.append(row); }); content.append(table);
+    const table = document.createElement("table"); table.className = "scientific-data-table correlation-data-table";
+    const caption = document.createElement("caption"); caption.className = "visually-hidden"; caption.textContent = "Parameter correlation matrix";
+    const tableHead = document.createElement("thead"); const head = document.createElement("tr"); const corner = document.createElement("th"); corner.scope = "col"; head.append(corner);
+    for (const name of correlation.names) { const cell = document.createElement("th"); cell.scope = "col"; cell.textContent = parameterLabel(name); head.append(cell); }
+    tableHead.append(head); const tableBody = document.createElement("tbody");
+    correlation.matrix.forEach((values, rowIndex) => {
+      const row = document.createElement("tr"); const label = document.createElement("th"); label.scope = "row"; label.textContent = parameterLabel(correlation.names[rowIndex]); row.append(label);
+      values.forEach((value) => { const cell = document.createElement("td"); cell.textContent = format(value, 2); cell.dataset.correlation = value >= 0 ? "positive" : "negative"; cell.style.setProperty("--correlation-strength", `${8 + 52 * Math.abs(value)}%`); row.append(cell); }); tableBody.append(row);
+    });
+    table.append(caption, tableHead, tableBody); content.append(table);
   }
   elements["uncertainty-content"].replaceChildren(content);
 }
@@ -858,11 +893,11 @@ function renderUncertainty(diagnostics) {
 function renderAlternativeSolutions(solutions) {
   if (!solutions.length) { const note = document.createElement("p"); note.textContent = "No distinct local alternatives were retained."; elements["solutions-content"].replaceChildren(note); return; }
   const cards = solutions.map((solution, index) => {
-    const card = document.createElement("article"); card.className = "solution-card";
+    const card = document.createElement("article"); card.className = "fit-solution";
     const title = document.createElement("strong"); title.textContent = `Solution ${solution.rank}`;
     const channelMetrics = (Object.entries(solution.channelMetrics ?? {}) as [string, any][]).map(([channel, values]) => `${channel} RMSE ${format(values.rmse, 5)}`).join(" · ");
     const metrics = document.createElement("span"); metrics.textContent = `Δcost ${format(100 * solution.relativeCostIncrease, 2)}% · distance ${format(solution.normalizedParameterDistanceFromBest, 3)}${channelMetrics ? ` · ${channelMetrics}` : ""}${solution.fittedParametersAtBounds?.length ? ` · bounds: ${solution.fittedParametersAtBounds.length}` : ""}`;
-    const button = document.createElement("button"); button.type = "button"; button.className = "text-button"; button.dataset.solution = String(index); button.textContent = "Use as new start";
+    const button = document.createElement("button"); button.type = "button"; button.className = "solution-action"; button.dataset.solution = String(index); button.textContent = "Use as new start";
     card.append(title, metrics, button); return card;
   }); elements["solutions-content"].replaceChildren(...cards);
 }
@@ -881,7 +916,7 @@ function drawAll() {
   const x = state.fitData.wavelengthNm;
   const bootstrapBands = state.fitResult?.diagnostics.bootstrap?.bands;
   drawChart(elements["rt-chart"], x, [
-    ...(bootstrapBands ? [{ lower: bootstrapBands.reflectance.map((entry) => entry.lower95), upper: bootstrapBands.reflectance.map((entry) => entry.upper95), color: "rgba(15,98,254,.12)", band: true }, { lower: bootstrapBands.transmittance.map((entry) => entry.lower95), upper: bootstrapBands.transmittance.map((entry) => entry.upper95), color: "rgba(0,157,154,.12)", band: true }] : []),
+    ...(bootstrapBands ? [{ lower: bootstrapBands.reflectance.map((entry) => entry.lower95), upper: bootstrapBands.reflectance.map((entry) => entry.upper95), color: PLOT_BLUE_BAND, band: true }, { lower: bootstrapBands.transmittance.map((entry) => entry.lower95), upper: bootstrapBands.transmittance.map((entry) => entry.upper95), color: PLOT_TEAL_BAND, band: true }] : []),
     { label: "R data", values: state.fitData.reflectance.map((value, index) => state.fitData.reflectanceValid[index] ? value : NaN), color: PLOT_BLUE, points: true, marker: "circle", line: false },
     { label: "R model", values: state.evaluation.reflectanceScaled, color: PLOT_BLUE },
     { label: "T data", values: state.fitData.transmittance.map((value, index) => state.fitData.transmittanceValid[index] ? value : NaN), color: PLOT_TEAL, points: true, marker: "square", line: false },
@@ -894,7 +929,7 @@ function drawAll() {
   const active = state.evaluation.layerIndices.find((layer) => layer.id === state.activeLayerId) ?? state.evaluation.layerIndices[0];
   elements["nk-layer-label"].textContent = `${active.name} · ${modelLabel(active.model)}`;
   const activeBands = bootstrapBands?.layers?.[active.id] ?? (bootstrapBands?.layerId === active.id ? bootstrapBands : null);
-  const indexBands = activeBands ? [{ lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: "rgba(15,98,254,.12)", band: true }, { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: "rgba(0,157,154,.12)", band: true }] : [];
+  const indexBands = activeBands ? [{ lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: PLOT_BLUE_BAND, band: true }, { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: PLOT_TEAL_BAND, band: true }] : [];
   drawChart(elements["nk-chart"], x, [...indexBands, { label: "n", values: active.n, color: PLOT_BLUE }, { label: "k", values: active.k, color: PLOT_TEAL, dash: [7, 4] }], { minimumY: 0, yLabel: "Optical constants, n and k", xLabel: "Wavelength (nm)" });
 }
 
@@ -915,6 +950,7 @@ function niceTicks(minimum, maximum, target = 5) {
 
 function renderChart(canvas) {
   const chart = chartStates.get(canvas); if (!chart) return;
+  const theme = plotTheme();
   const ratio = Math.max(1, window.devicePixelRatio || 1); const bounds = canvas.getBoundingClientRect(); const width = Math.max(260, bounds.width); const height = Math.max(240, bounds.height);
   const pixelWidth = Math.round(width * ratio); const pixelHeight = Math.round(height * ratio); canvas.width = pixelWidth; canvas.height = pixelHeight;
   const context = canvas.getContext("2d"); context.setTransform(pixelWidth / width, 0, 0, pixelHeight / height, 0, 0);
@@ -927,14 +963,14 @@ function renderChart(canvas) {
   if (yMaximum <= yMinimum) yMaximum = yMinimum + 1;
   const xPixel = (value) => margin.left + (value - chart.minimumX) / (chart.maximumX - chart.minimumX || 1) * plotWidth; const yPixel = (value) => margin.top + (yMaximum - value) / (yMaximum - yMinimum) * plotHeight;
   Object.assign(chart, { geometry: { margin, plotWidth, plotHeight, width, height, xPixel, yPixel }, yMinimum, yMaximum });
-  context.fillStyle = "#f4f4f4"; context.fillRect(0, 0, width, height); context.font = '11px "IBM Plex Mono", monospace'; context.lineWidth = 1;
+  context.fillStyle = theme.background; context.fillRect(0, 0, width, height); context.font = '11px "IBM Plex Mono", monospace'; context.lineWidth = 1;
   const xTicks = niceTicks(chart.minimumX, chart.maximumX, width < 480 ? 4 : 6); const yTicks = niceTicks(yMinimum, yMaximum, 5);
-  context.strokeStyle = "#d9dde0"; context.fillStyle = "#38413d";
+  context.strokeStyle = theme.grid; context.fillStyle = theme.text;
   for (const value of yTicks) { const y = yPixel(value); context.beginPath(); context.moveTo(margin.left, y); context.lineTo(width - margin.right, y); context.stroke(); context.textAlign = "right"; context.fillText(formatTick(value), margin.left - 8, y + 4); }
   for (const value of xTicks) { const px = xPixel(value); context.beginPath(); context.moveTo(px, margin.top); context.lineTo(px, height - margin.bottom); context.stroke(); context.textAlign = "center"; context.fillText(formatTick(value), px, height - margin.bottom + 18); }
-  if (chart.options.zeroLine && yMinimum < 0 && yMaximum > 0) { context.save(); context.strokeStyle = "#747b78"; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(margin.left, yPixel(0)); context.lineTo(width - margin.right, yPixel(0)); context.stroke(); context.restore(); }
-  context.strokeStyle = "#111713"; context.lineWidth = 1.2; context.beginPath(); context.moveTo(margin.left, margin.top); context.lineTo(margin.left, height - margin.bottom); context.lineTo(width - margin.right, height - margin.bottom); context.stroke();
-  context.fillStyle = "#161616"; context.font = '12px "IBM Plex Mono", monospace'; context.textAlign = "center"; context.fillText(chart.options.xLabel, margin.left + plotWidth / 2, height - 7);
+  if (chart.options.zeroLine && yMinimum < 0 && yMaximum > 0) { context.save(); context.strokeStyle = theme.axis; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(margin.left, yPixel(0)); context.lineTo(width - margin.right, yPixel(0)); context.stroke(); context.restore(); }
+  context.strokeStyle = theme.textPrimary; context.lineWidth = 1.2; context.beginPath(); context.moveTo(margin.left, margin.top); context.lineTo(margin.left, height - margin.bottom); context.lineTo(width - margin.right, height - margin.bottom); context.stroke();
+  context.fillStyle = theme.textPrimary; context.font = '12px "IBM Plex Mono", monospace'; context.textAlign = "center"; context.fillText(chart.options.xLabel, margin.left + plotWidth / 2, height - 7);
   context.save(); context.translate(16, margin.top + plotHeight / 2); context.rotate(-Math.PI / 2); context.fillText(chart.options.yLabel, 0, 0); context.restore();
   context.save(); context.beginPath(); context.rect(margin.left, margin.top, plotWidth, plotHeight); context.clip();
   for (const entry of chart.series.filter((candidate) => candidate.band)) { context.fillStyle = entry.color; context.beginPath(); visible.forEach((index, order) => order ? context.lineTo(xPixel(chart.x[index]), yPixel(entry.lower[index])) : context.moveTo(xPixel(chart.x[index]), yPixel(entry.lower[index]))); [...visible].reverse().forEach((index) => context.lineTo(xPixel(chart.x[index]), yPixel(entry.upper[index]))); context.closePath(); context.fill(); }
@@ -943,7 +979,7 @@ function renderChart(canvas) {
     if (entry.line !== false) { context.beginPath(); let drawing = false; for (const index of visible) { const value = entry.values[index]; if (!Number.isFinite(value)) { drawing = false; continue; } if (drawing) context.lineTo(xPixel(chart.x[index]), yPixel(value)); else context.moveTo(xPixel(chart.x[index]), yPixel(value)); drawing = true; } context.stroke(); }
     if (entry.points) { context.setLineDash([]); const stride = Math.max(1, Math.floor(visible.length / 100)); visible.forEach((index, order) => { if (order % stride || !Number.isFinite(entry.values[index])) return; const px = xPixel(chart.x[index]); const py = yPixel(entry.values[index]); context.beginPath(); if (entry.marker === "circle") context.arc(px, py, 2.3, 0, Math.PI * 2); else context.rect(px - 2.2, py - 2.2, 4.4, 4.4); context.fill(); }); }
   }
-  if (chart.hoverIndex != null) { const px = xPixel(chart.x[chart.hoverIndex]); context.save(); context.strokeStyle = "#707875"; context.lineWidth = 1; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(px, margin.top); context.lineTo(px, height - margin.bottom); if (Number.isFinite(chart.hoverY)) { context.moveTo(margin.left, chart.hoverY); context.lineTo(width - margin.right, chart.hoverY); } context.stroke(); context.restore(); for (const entry of chart.series.filter((candidate) => !candidate.band)) { const value = entry.values[chart.hoverIndex]; if (!Number.isFinite(value)) continue; context.fillStyle = entry.color; context.beginPath(); context.arc(px, yPixel(value), 3.5, 0, Math.PI * 2); context.fill(); } }
+  if (chart.hoverIndex != null) { const px = xPixel(chart.x[chart.hoverIndex]); context.save(); context.strokeStyle = theme.axis; context.lineWidth = 1; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(px, margin.top); context.lineTo(px, height - margin.bottom); if (Number.isFinite(chart.hoverY)) { context.moveTo(margin.left, chart.hoverY); context.lineTo(width - margin.right, chart.hoverY); } context.stroke(); context.restore(); for (const entry of chart.series.filter((candidate) => !candidate.band)) { const value = entry.values[chart.hoverIndex]; if (!Number.isFinite(value)) continue; context.fillStyle = entry.color; context.beginPath(); context.arc(px, yPixel(value), 3.5, 0, Math.PI * 2); context.fill(); } }
   context.restore();
 }
 
@@ -993,6 +1029,7 @@ function panChart(canvas, shift, initialMinimum = null, initialMaximum = null) {
 function resetCanvasChart(canvas) { const chart = chartStates.get(canvas); if (!chart) return; chart.minimumX = chart.fullMinimumX; chart.maximumX = chart.fullMaximumX; chart.hoverIndex = null; canvas.parentElement.querySelector(".chart-tooltip").hidden = true; renderChart(canvas); }
 
 function drawChart(chart, x, series, options) {
+  const theme = plotTheme();
   const traces = series.flatMap((entry) => entry.band ? [
     { type: "scatter", mode: "lines", x, y: entry.lower, line: { width: 0 }, hoverinfo: "skip", showlegend: false },
     { type: "scatter", mode: "lines", x, y: entry.upper, line: { width: 0 }, fill: "tonexty", fillcolor: entry.color, hoverinfo: "skip", showlegend: false },
@@ -1013,19 +1050,19 @@ function drawChart(chart, x, series, options) {
     height: 330,
     margin: { l: 68, r: 20, t: 32, b: 56 },
     paper_bgcolor: "rgba(0,0,0,0)",
-    plot_bgcolor: "#f4f4f4",
-    font: { family: "IBM Plex Mono, monospace", size: 11, color: "#525252" },
+    plot_bgcolor: theme.background,
+    font: { family: "IBM Plex Mono, monospace", size: 11, color: theme.text },
     hovermode: "x unified",
     dragmode: "pan",
     uirevision: chart.id,
     showlegend: false,
-    xaxis: { title: { text: options.xLabel }, gridcolor: "#e0e0e0", showline: true, linecolor: "#8d8d8d" },
+    xaxis: { title: { text: options.xLabel }, gridcolor: theme.grid, showline: true, linecolor: theme.axis },
     yaxis: {
       title: { text: options.yLabel },
-      gridcolor: "#e0e0e0",
-      zerolinecolor: "#8d8d8d",
+      gridcolor: theme.grid,
+      zerolinecolor: theme.axis,
       showline: true,
-      linecolor: "#8d8d8d",
+      linecolor: theme.axis,
       ...(options.symmetricY ? { range: [-maximumAbsolute * 1.08, maximumAbsolute * 1.08] } : {}),
       ...(!options.symmetricY && options.minimumY != null ? { rangemode: "tozero" } : {}),
     },
@@ -1093,7 +1130,7 @@ function downloadLayersNkCsv() {
 }
 
 function selectedFitCount() { captureLayerInputs(); return [...state.layers, state.substrate].reduce((sum, layer) => sum + (Object.entries(layer.specs) as [string, any][]).filter(([name, specification]) => specification.fit && !layer.links?.[name]).length, Number(elements["fit-r-gain"].checked) + Number(elements["fit-t-gain"].checked)); }
-function updateFitCount() { const count = selectedFitCount(); elements["fit-count"].textContent = `${count} / 11 fitted parameters selected.${count > 11 ? " Reduce the selection before fitting." : ""}`; elements["fit-count"].classList.toggle("warning", count > 11); }
+function updateFitCount() { const count = selectedFitCount(); elements["fit-count"].textContent = `${count} / 11 fitted parameters selected.${count > 11 ? " Reduce the selection before fitting." : ""}`; elements["fit-count"].classList.toggle("fit-limit-warning", count > 11); }
 function numberValue(id, minimum, maximum) { const value = Number(elements[id].value); if (!Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`${id.replaceAll("-", " ")} must be from ${minimum} to ${maximum}.`); return value; }
 function integerValue(id, minimum, maximum) { const value = numberValue(id, minimum, maximum); if (!Number.isInteger(value)) throw new Error(`${id.replaceAll("-", " ")} must be an integer.`); return value; }
 function format(value, digits = 3) { return Number.isFinite(value) ? Number(value).toFixed(digits).replace(/\.?0+$/, "") : "—"; }
