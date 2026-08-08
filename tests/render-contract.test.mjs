@@ -9,7 +9,7 @@ test("renders every control required by the scientific workspace", async () => {
   try {
     const { default: App } = await server.ssrLoadModule("/src/app/App.tsx");
     const html = renderToStaticMarkup(React.createElement(App));
-    for (const id of ["bootstrap-button", "undo-button", "redo-button", "print-report", "download-json", "download-csv", "download-nk"]) {
+    for (const id of ["fit-panel-button", "bootstrap-button", "bootstrap-prerequisite", "undo-button", "redo-button", "print-report", "download-json", "download-csv", "download-nk"]) {
       assert.match(html, new RegExp(`id="${id}"`), `${id} must stay mounted at startup`);
     }
   } finally {

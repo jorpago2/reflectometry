@@ -1,4 +1,4 @@
-import { Accordion, AccordionItem, Button, Checkbox, CheckboxGroup, Column, FileUploaderButton, Grid, NumberInput, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs, TextInput } from "@carbon/react";
+import { Accordion, AccordionItem, Button, Checkbox, CheckboxGroup, Column, ContentSwitcher, FileUploaderButton, Grid, NumberInput, Select, SelectItem, Switch, Tab, TabList, TabPanel, TabPanels, Tabs, TextInput } from "@carbon/react";
 import { Add, ArrowRight, Redo, Renew, Undo } from "@carbon/react/icons";
 import PlotCard from "../../shared/plots/PlotCard.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +8,8 @@ import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/W
 
 type PanelHeadingProps = { id: string; title: string; description: string; onClose: () => void };
 type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
+type ConfigurationMode = "basic" | "advanced";
+type ConfigurationModeControlProps = { mode: ConfigurationMode; onChange: (mode: ConfigurationMode) => void };
 
 const OVERLAY_LAYOUT_QUERY = "(max-width: 65.98rem)";
 
@@ -19,8 +21,13 @@ function FileControl({ id, fieldLabel, label, accept }: FileControlProps) {
   return <div className="file-control"><span className="file-control-label">{fieldLabel}</span><FileUploaderButton id={id} labelText={label} accept={accept} buttonKind="tertiary" size="sm" data-file-input={id} /></div>;
 }
 
+function ConfigurationModeControl({ mode, onChange }: ConfigurationModeControlProps) {
+  return <div className="configuration-mode"><span>Configuration detail</span><ContentSwitcher aria-label="Configuration detail" selectedIndex={mode === "basic" ? 0 : 1} size="sm" onChange={({ name }) => onChange(name === "advanced" ? "advanced" : "basic")}><Switch name="basic" text="Basic" /><Switch name="advanced" text="Advanced" /></ContentSwitcher><p>{mode === "basic" ? "Core workflow and parameter values." : "Bounds, model guidance, optimizer and uncertainty controls."}</p></div>;
+}
+
 export default function WorkspaceView() {
   const [activeSection, setActiveSection] = useState<WorkflowSection | null>(null);
+  const [configurationMode, setConfigurationMode] = useState<ConfigurationMode>("basic");
   const [isOverlayLayout, setIsOverlayLayout] = useState(() => typeof window !== "undefined" && window.matchMedia(OVERLAY_LAYOUT_QUERY).matches);
   const panelRef = useRef<HTMLElement>(null);
   const overlayPanelOpen = Boolean(activeSection && isOverlayLayout);
@@ -39,6 +46,10 @@ export default function WorkspaceView() {
       }
       window.dispatchEvent(new Event("resize"));
     });
+  };
+  const runFitFromPanel = () => {
+    document.getElementById("fit-button")?.click();
+    if (isOverlayLayout) closePanel();
   };
   useEffect(() => {
     const query = window.matchMedia(OVERLAY_LAYOUT_QUERY);
@@ -70,10 +81,11 @@ export default function WorkspaceView() {
         <Column className="workbench-column" sm={4} md={8} lg={16} xlg={16} max={16}>
           <div className="workbench-shell" data-panel-open={Boolean(activeSection)}>
             <WorkspaceNavigation activeSection={activeSection} onToggle={togglePanel} />
-            <aside ref={panelRef} id="configuration-panel" className="controls" aria-labelledby={activeSection ? `configuration-panel-title-${activeSection}` : undefined} hidden={!activeSection}>
+            <aside ref={panelRef} id="configuration-panel" className="controls" data-configuration-mode={configurationMode} aria-labelledby={activeSection ? `configuration-panel-title-${activeSection}` : undefined} hidden={!activeSection}>
               <div className="configuration-tabs">
                 <section className="configuration-panel" hidden={activeSection !== "measurement"}>
               <PanelHeading id="configuration-panel-title-measurement" title="Measurement" description="Choose the data source and processing." onClose={closePanel} />
+              <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
               <h3 className="section-label">Data source</h3>
               <p id="source-name" className="source-name">No measurement loaded</p>
               <Button id="reset-example" className="full" kind="tertiary" type="button">Use synthetic example</Button>
@@ -98,7 +110,7 @@ export default function WorkspaceView() {
                     <p className="model-note">Signal files use wavelength (nm) and counts. The reference R and layer n,k tables accept wavelength in nm or µm.</p>
                   </div>
                 </AccordionItem>
-                <AccordionItem title="Measurement processing">
+                <AccordionItem className="advanced-only" title="Measurement processing">
                   <div className="accordion-content">
                     <div className="field-pair">
                       <NumberInput id="wavelength-min" label="Minimum λ" helperText="nm" defaultValue={300} min={195} max={2500} step={10} />
@@ -115,7 +127,8 @@ export default function WorkspaceView() {
 
                 <section className="configuration-panel" hidden={activeSection !== "layers"}>
               <PanelHeading id="configuration-panel-title-layers" title="Layer stack" description="Geometry, optical models and substrate." onClose={closePanel} />
-              <Accordion className="configuration-accordion stack-scope" size="sm" isFlush>
+              <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
+              <Accordion className="configuration-accordion stack-scope advanced-only" size="sm" isFlush>
                 <AccordionItem title="Model assumptions"><p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p></AccordionItem>
               </Accordion>
               <div className="field-pair compact-pair">
@@ -134,6 +147,7 @@ export default function WorkspaceView() {
 
                 <section className="configuration-panel" hidden={activeSection !== "fit"}>
               <PanelHeading id="configuration-panel-title-fit" title="Fit" description="Channels, optimizer and uncertainty." onClose={closePanel} />
+              <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
               <CheckboxGroup className="channel-row" legendText="Fit channels" orientation="vertical">
                 <Checkbox id="use-r" labelText="Fit R" defaultChecked />
                 <Checkbox id="use-t" labelText="Fit T" defaultChecked />
@@ -163,11 +177,13 @@ export default function WorkspaceView() {
                         {[20, 50, 100].map((value) => <SelectItem key={value} value={String(value)} text={String(value)} />)}
                       </Select>
                     </div>
-                    <Button id="bootstrap-button" className="full" kind="tertiary" type="button" disabled>Estimate bootstrap uncertainty</Button>
+                    <Button id="bootstrap-button" className="full" kind="tertiary" type="button" aria-describedby="bootstrap-prerequisite" disabled>Estimate bootstrap uncertainty</Button>
+                    <p id="bootstrap-prerequisite" className="model-note" aria-live="polite">Run fit to enable bootstrap uncertainty.</p>
                   </div>
                 </AccordionItem>
               </Accordion>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
+              <Button id="fit-panel-button" className="full fit-panel-action" kind="primary" renderIcon={ArrowRight} type="button" onClick={runFitFromPanel}>Run fit</Button>
                 </section>
               </div>
             </aside>
@@ -175,7 +191,7 @@ export default function WorkspaceView() {
             <section id="results-panel" className="results" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
             <ResultsEmpty />
             <div id="results-content" hidden>
-            <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Update</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Fit parameters</Button></div>
+            <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Preview model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Run fit</Button></div>
             <div className="results-tabs">
             <Tabs onChange={() => window.requestAnimationFrame(() => {
               document.getElementById("results-content")?.scrollTo({ top: 0 });

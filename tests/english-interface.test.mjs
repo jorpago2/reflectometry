@@ -32,10 +32,13 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(ui, /id="results-panel"/);
   assert.match(ui, /from "@carbon\/react"/);
   assert.match(ui, /from "@carbon\/react\/icons"/);
-  for (const component of ["Accordion", "Checkbox", "CheckboxGroup", "FileUploaderButton", "NumberInput", "Select", "TextInput"]) assert.match(workspaceView, new RegExp(`<${component}\\b`));
+  for (const component of ["Accordion", "Checkbox", "CheckboxGroup", "ContentSwitcher", "FileUploaderButton", "NumberInput", "Select", "Switch", "TextInput"]) assert.match(workspaceView, new RegExp(`<${component}\\b`));
   assert.doesNotMatch(workspaceView, /<(?:input|select|details)\b/);
   assert.doesNotMatch(ui, /TabsVertical|TabListVertical/);
-  assert.doesNotMatch(ui, /ContentSwitcher|mobileView/);
+  assert.doesNotMatch(ui, /mobileView/);
+  assert.match(workspaceView, /data-configuration-mode=\{configurationMode\}/);
+  assert.match(workspaceView, /name="basic" text="Basic"/);
+  assert.match(workspaceView, /name="advanced" text="Advanced"/);
   for (const label of ["Data", "Layer stack", "Fit"]) assert.match(ui, new RegExp(`label: "${label}"`));
   assert.equal([...ui.matchAll(/<section className="configuration-panel" hidden=/g)].length, 3);
   assert.match(ui, /aria-expanded=\{expanded\}/);
@@ -62,7 +65,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[1], /micrometres \(µm\)/);
   assert.match(files[1], /id="stack-diagram"/);
   assert.match(files[1], /Layers n,k/);
-  for (const id of ["undo-button", "redo-button", "bootstrap-button", "cancel-operation", "print-report", "download-json", "download-csv", "download-nk", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
+  for (const id of ["fit-panel-button", "undo-button", "redo-button", "bootstrap-button", "bootstrap-prerequisite", "cancel-operation", "print-report", "download-json", "download-csv", "download-nk", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
+  assert.match(files[1], />Preview model</);
+  assert.match(files[1], />Run fit</);
   for (const id of ["rt-chart", "residual-chart", "nk-chart"]) {
     assert.match(files[1], new RegExp(`canvasId="${id}"`));
   }
@@ -115,7 +120,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(files[2], /deterministic browser-generated example/);
   for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
   for (const selector of ["scientific-data-table", "correlation-data-table", "fit-solution", "solution-action"]) assert.match(`${files[2]}\n${styles}`, new RegExp(`\\b${selector}\\b`));
-  assert.match(files[2], /className = "parameter-field"/);
+  assert.match(files[2], /className = `parameter-field parameter-field-\$\{kind\}`/);
+  assert.match(files[2], /className = "parameter-fit-control"/);
+  assert.match(files[2], /className = "parameter-owner"/);
   assert.doesNotMatch(files[1], /LegacyPlotCard/);
   assert.doesNotMatch(files[1], /legacy-/);
   assert.doesNotMatch(styles, /\.parameter-grid\b/);

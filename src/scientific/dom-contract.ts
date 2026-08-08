@@ -7,7 +7,7 @@
  */
 export const SCIENTIFIC_ELEMENT_IDS = [
   "status", "status-indicator", "fit-progress", "cancel-operation",
-  "fit-button", "preview-button", "bootstrap-button", "reset-example",
+  "fit-button", "fit-panel-button", "preview-button", "bootstrap-button", "bootstrap-prerequisite", "reset-example",
   "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button",
   "layers", "substrate-editor", "fit-count", "results-content", "results-empty",
   "report-meta", "rt-chart", "nk-chart", "residual-chart", "stack-layers",

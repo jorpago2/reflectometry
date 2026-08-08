@@ -41,6 +41,10 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .configuration-panel-heading h2, .plot-heading h2 { margin: 0; @include type.type-style("heading-03"); }
 .configuration-panel-heading p { margin-block: spacing.$spacing-02 spacing.$spacing-04; }
 .configuration-panel-heading p, .model-note, .chart-toolbar span { color: var(--cds-text-secondary); }
+.configuration-mode { display: grid; gap: spacing.$spacing-02; margin-block-end: spacing.$spacing-05; padding-block-end: spacing.$spacing-04; border-block-end: 1px solid var(--cds-border-subtle); }
+.configuration-mode > span { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
+.configuration-mode p { margin: 0; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
+.controls[data-configuration-mode="basic"] :where(.advanced-only, .advanced-controls, .model-help, .layer-flags, .parameter-link, .parameter-header, .parameter-field-minimum, .parameter-field-maximum, .parameter-uncertainty-field) { display: none; }
 .section-label { margin-block: 0 spacing.$spacing-02; @include type.type-style("heading-02"); }
 .source-name { margin-block: 0 spacing.$spacing-04; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
 .field-pair, .file-grid, .channel-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: spacing.$spacing-04; }
@@ -89,7 +93,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .layer-order { align-self: center; color: var(--cds-text-secondary); @include type.type-style("code-01"); }
 .layer-name { block-size: 2rem; padding-inline: spacing.$spacing-03; }
 .layer-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: spacing.$spacing-02; }
-.layer-actions button { display: inline-grid; place-items: center; inline-size: 2rem; block-size: 2rem; padding: 0; border: 0; background: transparent; color: var(--cds-icon-primary); cursor: pointer; }
+.layer-actions button { display: inline-grid; place-items: center; inline-size: 2.75rem; block-size: 2.75rem; padding: 0; border: 0; background: transparent; color: var(--cds-icon-primary); cursor: pointer; }
 .layer-actions svg { inline-size: 1rem; block-size: 1rem; }
 .layer-actions button:hover:not(:disabled) { background: var(--cds-layer-hover); }
 .layer-actions button:focus-visible, .parameter-help-button:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
@@ -118,18 +122,26 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .model-parameter-help dd { margin: 0 0 spacing.$spacing-02; color: var(--cds-text-secondary); }
 .model-references { margin: 0; padding-inline-start: spacing.$spacing-05; }
 .model-notation { color: var(--cds-text-secondary); }
-.parameter-header, .parameter-row { display: grid; grid-template-columns: 1.5rem minmax(7rem, 1.25fr) repeat(4, minmax(3.5rem, .75fr)); gap: spacing.$spacing-02; align-items: center; }
+.parameter-header, .parameter-row { display: grid; grid-template-columns: 4rem minmax(7rem, 1.25fr) repeat(4, minmax(3.5rem, .75fr)); gap: spacing.$spacing-02; align-items: center; }
 .parameter-header { padding: spacing.$spacing-02 spacing.$spacing-03; color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .parameter-row { position: relative; padding: spacing.$spacing-03; border-top: 1px solid var(--cds-border-subtle); }
 .parameter-linked { background: var(--cds-layer-selected); }
-.parameter-row > input[type="checkbox"] { inline-size: 1.5rem; block-size: 1.5rem; margin: 0; accent-color: var(--cds-icon-primary); }
+.layer-list .parameter-fit-control, .substrate-editor .parameter-fit-control { display: flex; align-items: center; gap: spacing.$spacing-02; min-block-size: 2.75rem; }
+.parameter-fit-control input { flex: 0 0 auto; inline-size: 1rem; block-size: 1rem; margin: 0; accent-color: var(--cds-icon-primary); }
+.parameter-fit-control span { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .parameter-name { display: flex; align-items: center; gap: spacing.$spacing-02; min-width: 0; flex-wrap: wrap; }
+.parameter-owner { display: none; }
 .parameter-unit { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .parameter-field { display: grid; gap: spacing.$spacing-01; min-width: 0; }
 .parameter-field > span:first-child { display: none; }
 .parameter-field input { block-size: 2rem; padding-inline: spacing.$spacing-03; @include type.type-style("code-01"); }
 .parameter-uncertainty { min-block-size: 2rem; display: flex; align-items: center; @include type.type-style("code-01"); }
 .parameter-help-button { display: inline-grid; place-items: center; inline-size: 1.5rem; block-size: 1.5rem; padding: 0; border: 0; border-radius: 50%; background: var(--cds-layer-02); color: var(--cds-link-primary); cursor: pointer; }
+.controls[data-configuration-mode="basic"] .parameter-row { grid-template-columns: minmax(0, 1fr) minmax(6rem, .75fr); }
+.controls[data-configuration-mode="basic"] .parameter-name { grid-column: 1 / -1; grid-row: 1; }
+.controls[data-configuration-mode="basic"] .parameter-fit-control { grid-column: 1; grid-row: 2; }
+.controls[data-configuration-mode="basic"] .parameter-field-value { grid-column: 2; grid-row: 2; }
+.fit-panel-action { margin-block-start: spacing.$spacing-05; }
 .fit-limit-warning { color: var(--cds-text-error); }
 .results-context { flex: 0 0 auto; border-block-start: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .status-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: spacing.$spacing-03; align-items: center; min-block-size: 3rem; padding: spacing.$spacing-03 spacing.$spacing-04; border-block: 0; }
@@ -159,6 +171,11 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .legend .t-model::before, .legend .k-line::before { block-size: 0; border-block-start: .125rem dashed currentColor; background: transparent; }
 .chart-shell { min-width: 0; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .plotly-chart { width: 100%; min-width: 0; height: 330px; }
+.plotly-chart .modebar { display: flex; flex-wrap: wrap; }
+.plotly-chart.js-plotly-plot .plotly .modebar-group { display: contents; }
+.plotly-chart .modebar-group .modebar-btn { display: inline-grid; place-items: center; inline-size: 2.75rem; min-block-size: 2.75rem; block-size: 2.75rem; padding: 0; }
+.plotly-chart .modebar-btn svg { position: static; }
+.plotly-chart .modebar-btn:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
 .chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: spacing.$spacing-03; padding-block: spacing.$spacing-03; }
 .stack-figure { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: spacing.$spacing-04; }
 .stack-figure figcaption { grid-column: 1 / -1; }
@@ -206,14 +223,14 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
   .stack-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stack-toolbar #add-layer { grid-column: 1 / -1; }
   .parameter-header { display: none; }
-  .parameter-row { grid-template-columns: 1.5rem repeat(4, minmax(0, 1fr)); gap: spacing.$spacing-02; padding-block: spacing.$spacing-04; }
-  .parameter-row > input[type="checkbox"] { grid-column: 1; grid-row: 1; }
-  .parameter-name { grid-column: 2 / -1; grid-row: 1; }
-  .parameter-row > .parameter-field { grid-row: 2; }
-  .parameter-row > .parameter-field:nth-child(3) { grid-column: 2; }
-  .parameter-row > .parameter-field:nth-child(4) { grid-column: 3; }
-  .parameter-row > .parameter-field:nth-child(5) { grid-column: 4; }
-  .parameter-row > .parameter-field:nth-child(6) { grid-column: 5; }
+  .parameter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: spacing.$spacing-03; padding-block: spacing.$spacing-04; }
+  .parameter-name { grid-column: 1 / -1; grid-row: 1; }
+  .parameter-owner { display: block; flex-basis: 100%; color: var(--cds-text-secondary); @include type.type-style("label-01"); }
+  .parameter-fit-control { grid-column: 1; grid-row: 2; }
+  .parameter-field-value { grid-column: 2; grid-row: 2; }
+  .parameter-field-minimum { grid-column: 1; grid-row: 3; }
+  .parameter-field-maximum { grid-column: 2; grid-row: 3; }
+  .parameter-uncertainty-field { grid-column: 1 / -1; grid-row: 4; }
   .parameter-field > span:first-child { display: block; color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 }
 

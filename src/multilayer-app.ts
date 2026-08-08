@@ -89,7 +89,7 @@ elements["add-layer"].addEventListener("click", () => {
   state.layers.push(layer);
   state.activeLayerId = layer.id;
   renderLayers();
-  previewModel();
+  previewModel(`Layer ${state.layers.length} added. Model preview updated; undo is available.`);
 });
 for (const container of [elements.layers, elements["substrate-editor"]]) {
   container.addEventListener("change", handleLayerChange);
@@ -343,6 +343,7 @@ function clearResult() {
   for (const id of ["metric-thickness", "metric-rmse-r", "metric-rmse-t", "metric-parameters", "diagnostic-condition", "diagnostic-bounds", "diagnostic-power"]) elements[id].textContent = "—";
   elements["diagnostic-convergence"].textContent = "Not evaluated"; elements["diagnostic-evaluations"].textContent = "Missing optical data";
   for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = true;
+  updateBootstrapGuidance();
   const uncertainty = document.createElement("p"); uncertainty.textContent = "Run a fit to estimate uncertainty."; elements["uncertainty-content"].replaceChildren(uncertainty);
   const solutions = document.createElement("p"); solutions.textContent = "No fitted alternatives yet."; elements["solutions-content"].replaceChildren(solutions);
   for (const chart of [elements["rt-chart"], elements["residual-chart"], elements["nk-chart"]]) Plotly.purge(chart);
@@ -502,8 +503,12 @@ function parameterRow(layer, parameter, specification) {
   const row = document.createElement("div"); row.className = "parameter-row"; row.dataset.parameter = parameter;
   const linkedSource = layer.links?.[parameter]; row.classList.toggle("parameter-linked", Boolean(linkedSource));
   const fit = document.createElement("input"); fit.type = "checkbox"; fit.dataset.kind = "fit"; fit.checked = specification.fit; fit.disabled = Boolean(linkedSource); fit.setAttribute("aria-label", `Fit ${layer.name} ${specification.label}`);
+  const fitControl = document.createElement("label"); fitControl.className = "parameter-fit-control";
+  const fitLabel = document.createElement("span"); fitLabel.textContent = "Fit"; fitControl.append(fit, fitLabel);
   const description = parameterDescription(parameter);
-  const label = document.createElement("span"); label.className = "parameter-name"; label.append(document.createTextNode(specification.label));
+  const label = document.createElement("span"); label.className = "parameter-name";
+  const owner = document.createElement("span"); owner.className = "parameter-owner"; owner.textContent = layer.name;
+  label.append(owner, document.createTextNode(specification.label));
   const helpId = `${layer.id}-${parameter}-help`;
   const helpButton = document.createElement("button"); helpButton.type = "button"; helpButton.className = "parameter-help-button"; helpButton.textContent = "i"; helpButton.setAttribute("aria-label", `Information for ${specification.label}`); helpButton.setAttribute("aria-controls", helpId); helpButton.setAttribute("aria-expanded", "false"); label.append(helpButton);
   const help = document.createElement("span"); help.id = helpId; help.className = "parameter-help-popover"; help.setAttribute("role", "tooltip"); help.hidden = true; help.textContent = description; label.append(help);
@@ -517,9 +522,9 @@ function parameterRow(layer, parameter, specification) {
       label.append(link);
     }
   }
-  row.append(fit, label);
+  row.append(fitControl, label);
   for (const [kind, value] of [["value", specification.value], ["minimum", specification.minimum], ["maximum", specification.maximum]]) {
-    const field = document.createElement("label"); field.className = "parameter-field";
+    const field = document.createElement("label"); field.className = `parameter-field parameter-field-${kind}`;
     const fieldLabel = document.createElement("span"); fieldLabel.textContent = kind === "value" ? "Value" : kind === "minimum" ? "Min" : "Max";
     const input = document.createElement("input"); input.type = "number"; input.step = "any"; input.dataset.kind = kind; input.value = String(value); input.disabled = Boolean(linkedSource); input.setAttribute("aria-label", `${kind} ${layer.name} ${specification.label}`);
     field.append(fieldLabel, input); row.append(field);
@@ -659,11 +664,11 @@ function handleLayerClick(event) {
   const card = button.closest(".layer-card"); const index = state.layers.findIndex((layer) => layer.id === card?.dataset.layerId); if (index < 0) return;
   pushHistory();
   captureLayerInputs();
-  if (button.dataset.action === "remove") { const [removed] = state.layers.splice(index, 1); if (state.activeLayerId === removed.id) state.activeLayerId = state.layers[Math.max(0, index - 1)].id; renderLayers(); previewModel(); }
-  if (button.dataset.action === "up" || button.dataset.action === "down") { const target = index + (button.dataset.action === "up" ? -1 : 1); [state.layers[index], state.layers[target]] = [state.layers[target], state.layers[index]]; renderLayers(); previewModel(); }
+  if (button.dataset.action === "remove") { const [removed] = state.layers.splice(index, 1); if (state.activeLayerId === removed.id) state.activeLayerId = state.layers[Math.max(0, index - 1)].id; renderLayers(); previewModel(`${removed.name} removed. Model preview updated; undo is available.`); }
+  if (button.dataset.action === "up" || button.dataset.action === "down") { const moved = state.layers[index]; const target = index + (button.dataset.action === "up" ? -1 : 1); [state.layers[index], state.layers[target]] = [state.layers[target], state.layers[index]]; renderLayers(); previewModel(`${moved.name} moved to position ${target + 1}. Model preview updated; undo is available.`); }
   if (button.dataset.action === "duplicate") {
     const original = state.layers[index]; const copy = structuredClone(original); copy.nk = original.nk; copy.ema.hostNk = original.ema.hostNk; copy.ema.inclusionNk = original.ema.inclusionNk; copy.id = `layer${state.nextLayer++}`; copy.name = `${copy.name} copy`; copy.links = {};
-    state.layers.splice(index + 1, 0, copy); state.activeLayerId = copy.id; renderLayers(); previewModel();
+    state.layers.splice(index + 1, 0, copy); state.activeLayerId = copy.id; renderLayers(); previewModel(`${original.name} duplicated as ${copy.name}. Model preview updated; undo is available.`);
   }
 }
 
@@ -751,13 +756,13 @@ function validateChannels(data, settings) {
   if (settings.useTransmittance && data.transmittanceValid.filter(Boolean).length < 10) throw new Error("Fewer than 10 transmittance bins pass the masks; disable T or revise the SNR threshold.");
 }
 
-function previewModel() {
-  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before updating the model.");
+function previewModel(message = "Model preview updated; parameters have not been optimized.") {
+  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before previewing the model.");
   try {
     const config = configuration(); const fitData = prepareCurrentData(); validateChannels(fitData, config.settings);
     state.evaluation = evaluateOpticalModel(fitData, null, config.initial, config.settings);
     state.fitResult = { parameters: config.initial, evaluation: state.evaluation, diagnostics: diagnosticsOf(fitData, state.evaluation, config.settings), preview: true, configuration: config };
-    renderResult("Model updated; parameters have not been optimized yet.");
+    renderResult(message);
     commitHistorySnapshot();
   } catch (error) { showError(error); }
 }
@@ -818,7 +823,8 @@ function markResultStale() {
   if (!state.fitResult) return;
   state.resultStale = true;
   for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = true;
-  setStatus("Configuration changed; update the model or refit before exporting these results.");
+  updateBootstrapGuidance();
+  setStatus("Configuration changed. Preview the model or run a new fit; displayed results are stale.");
 }
 
 function stopFitWorker() { if (state.worker) state.worker.terminate(); state.worker = null; elements["fit-progress"].hidden = true; elements["cancel-operation"].hidden = true; setBusy(false); }
@@ -842,6 +848,7 @@ function renderResult(message) {
   elements["diagnostic-note"].textContent = diagnostics.nearEqualAlternativeMinima > 0 ? `${diagnostics.nearEqualAlternativeMinima} near-equal alternative minima were found; report parameter ambiguity.` : "Check residual structure, bound hits, and Jacobian conditioning before interpreting fitted optical constants.";
   elements["report-meta"].textContent = `Reflectometry fit report · ${state.source?.sampleName ?? "sample"} · generated ${new Date().toLocaleString("en-GB")}`;
   for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = Boolean(result.preview);
+  updateBootstrapGuidance();
   renderUncertainty(diagnostics); renderAlternativeSolutions(diagnostics.alternativeSolutions ?? []);
   setStatus(message); drawAll();
 }
@@ -1028,8 +1035,23 @@ function panChart(canvas, shift, initialMinimum = null, initialMaximum = null) {
 
 function resetCanvasChart(canvas) { const chart = chartStates.get(canvas); if (!chart) return; chart.minimumX = chart.fullMinimumX; chart.maximumX = chart.fullMaximumX; chart.hoverIndex = null; canvas.parentElement.querySelector(".chart-tooltip").hidden = true; renderChart(canvas); }
 
+function configurePlotlyControls(chart) {
+  for (const button of chart.querySelectorAll(".modebar-btn") as NodeListOf<HTMLElement>) {
+    button.tabIndex = 0;
+    button.setAttribute("role", "button");
+    if (button.dataset.keyboardReady) continue;
+    button.dataset.keyboardReady = "true";
+    button.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      button.click();
+    });
+  }
+}
+
 function drawChart(chart, x, series, options) {
   const theme = plotTheme();
+  const compactModebar = chart.getBoundingClientRect().width < 308;
   const traces = series.flatMap((entry) => entry.band ? [
     { type: "scatter", mode: "lines", x, y: entry.lower, line: { width: 0 }, hoverinfo: "skip", showlegend: false },
     { type: "scatter", mode: "lines", x, y: entry.upper, line: { width: 0 }, fill: "tonexty", fillcolor: entry.color, hoverinfo: "skip", showlegend: false },
@@ -1048,7 +1070,7 @@ function drawChart(chart, x, series, options) {
   void Plotly.react(chart, traces, {
     autosize: true,
     height: 330,
-    margin: { l: 68, r: 20, t: 32, b: 56 },
+    margin: { l: 68, r: 20, t: compactModebar ? 112 : 56, b: 56 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: theme.background,
     font: { family: "IBM Plex Mono, monospace", size: 11, color: theme.text },
@@ -1072,7 +1094,7 @@ function drawChart(chart, x, series, options) {
     scrollZoom: true,
     modeBarButtonsToRemove: ["lasso2d", "select2d"],
     toImageButtonOptions: { format: "svg", filename: chart.id, width: 1200, height: 650, scale: 1 },
-  });
+  }).then(() => configurePlotlyControls(chart));
 }
 
 function resetChart(chart) { void Plotly.relayout(chart, { "xaxis.autorange": true, "yaxis.autorange": true }); }
@@ -1138,7 +1160,17 @@ function formatNullable(value, digits) { return value == null ? "—" : format(v
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
 function setSourceName(value) { elements["source-name"].textContent = value; const context = document.getElementById("header-source-name"); if (context) { context.textContent = value; context.title = value; } }
 function setControlDisabled(id, disabled) { elements[id].disabled = disabled; const fileButton = document.querySelector<HTMLButtonElement>(`button[data-file-input="${id}"]`); if (fileButton) fileButton.disabled = disabled; }
-function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) setControlDisabled(id, busy); if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } if (message) setStatus(message); }
+function updateBootstrapGuidance() {
+  const guidance = elements["bootstrap-prerequisite"];
+  guidance.textContent = state.worker
+    ? "Complete or cancel the current calculation first."
+    : !state.fitResult || state.fitResult.preview
+      ? "Run fit to enable bootstrap uncertainty."
+      : state.resultStale
+        ? "Run fit again after the configuration change to enable bootstrap uncertainty."
+        : "Bootstrap uncertainty is available for the current fit.";
+}
+function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "fit-panel-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) setControlDisabled(id, busy); if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } updateBootstrapGuidance(); if (message) setStatus(message); }
 function setStatus(message) {
   elements.status.textContent = message;
   const row = elements.status.closest(".status-row");
