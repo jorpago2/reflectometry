@@ -41,7 +41,9 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(workspaceView, /name="advanced" text="Advanced"/);
   for (const label of ["Data", "Layer stack", "Fit"]) assert.match(ui, new RegExp(`label: "${label}"`));
   assert.equal([...ui.matchAll(/<section className="configuration-panel" hidden=/g)].length, 3);
-  assert.match(ui, /aria-expanded=\{expanded\}/);
+  assert.match(ui, /<ScientificToolRail/);
+  assert.match(ui, /activeId=\{activeSection\}/);
+  assert.match(ui, /controlsId: "configuration-panel"/);
   assert.match(ui, /useState<WorkflowSection \| null>\(null\)/);
   assert.match(ui, /hidden=\{!activeSection\}/);
   assert.doesNotMatch(ui, /DisclosurePanel/);

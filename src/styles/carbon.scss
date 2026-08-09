@@ -26,11 +26,9 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .header-context span { display: block; max-inline-size: 100%; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; @include type.type-style("body-compact-01"); }
 .workspace, .workbench-column { min-width: 0; min-block-size: 0; block-size: 100%; }
 .workbench-column { padding-inline: 0; }
-.workbench-shell { position: relative; display: grid; grid-template-columns: 5rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); block-size: 100%; min-block-size: 0; background: var(--cds-background); }
-.workbench-shell[data-panel-open="true"] { grid-template-columns: 5rem minmax(22rem, 24rem) minmax(0, 1fr); }
-.workflow-navigation { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; border-inline-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
-.workflow-nav-item { inline-size: 5rem; max-inline-size: none; min-block-size: 4.5rem; padding: spacing.$spacing-03; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: spacing.$spacing-02; text-align: center; }
-.workflow-nav-item span { overflow-wrap: anywhere; @include type.type-style("label-01"); }
+.workbench-shell { position: relative; display: grid; grid-template-columns: var(--scientific-ui-rail-inline-size) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); block-size: 100%; min-block-size: 0; background: var(--cds-background); }
+.workbench-shell[data-panel-open="true"] { grid-template-columns: var(--scientific-ui-rail-inline-size) var(--scientific-ui-panel-inline-size) minmax(0, 1fr); }
+.workflow-navigation { grid-column: 1; grid-row: 1; }
 .controls { container-type: inline-size; grid-column: 2; grid-row: 1; min-width: 0; min-block-size: 0; block-size: 100%; overflow: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .results { container-type: inline-size; grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; block-size: 100%; background: var(--cds-background); }
 .workbench-shell[data-panel-open="true"] .results { grid-column: 3; }
@@ -237,8 +235,12 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 @include breakpoint.breakpoint-down("lg") {
   .header-context { padding-inline: spacing.$spacing-03; }
   .workbench-shell, .workbench-shell[data-panel-open="true"] { display: block; block-size: calc(100dvh - 7rem); min-block-size: 0; }
-  .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); block-size: 4rem; border-block-start: 1px solid var(--cds-border-subtle); border-inline-end: 0; }
-  .workflow-nav-item { inline-size: 100%; min-block-size: 4rem; flex-direction: row; }
+  .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; inline-size: 100%; block-size: 4rem; }
+  .workflow-navigation ul { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .workflow-navigation .scientific-tool-rail__item { block-size: 100%; flex-direction: column; border-inline-start: 0; border-block-start: var(--scientific-ui-active-indicator-size) solid transparent; }
+  .workflow-navigation .scientific-tool-rail__item.is-active,
+  .workflow-navigation .scientific-tool-rail__item[aria-expanded="true"] { border-block-start-color: var(--scientific-ui-link); }
+  .workflow-navigation .scientific-tool-rail__label { position: static; inline-size: auto; block-size: auto; clip: auto; clip-path: none; }
   .controls { position: fixed; z-index: 2; inset: 3rem 0 4rem; block-size: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
   .configuration-tabs { max-inline-size: 42rem; margin-inline: auto; }
   .results, .workbench-shell[data-panel-open="true"] .results { block-size: 100%; min-block-size: 0; }
