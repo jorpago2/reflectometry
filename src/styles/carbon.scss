@@ -21,7 +21,7 @@
 
 body { margin: 0; background: var(--cds-background); color: var(--cds-text-primary); @include type.type-style("body-01"); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.app-main.app-main { block-size: calc(100dvh - var(--scientific-ui-header-block-size)); min-block-size: 0; margin-block-start: var(--scientific-ui-header-block-size); padding: 0; }
+.app-main.app-main { block-size: calc(100dvh - var(--scientific-ui-header-block-size)); min-block-size: 0; margin-block-start: 0; padding: 0; }
 .header-source-status { flex: 0 0 auto; }
 .header-source-status::before { content: ""; display: inline-block; inline-size: .5rem; block-size: .5rem; margin-inline-end: spacing.$spacing-02; border-radius: 50%; background: currentColor; }
 .header-source-status[data-state="ready"] { color: var(--cds-support-success); }
@@ -31,16 +31,14 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .workbench-shell { position: relative; display: grid; grid-template-columns: var(--scientific-ui-rail-inline-size) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); block-size: 100%; min-block-size: 0; background: var(--cds-background); }
 .workbench-shell[data-panel-open="true"] { grid-template-columns: var(--scientific-ui-rail-inline-size) var(--scientific-ui-panel-inline-size) minmax(0, 1fr); }
 .workflow-navigation { grid-column: 1; grid-row: 1; }
-.controls { container-type: inline-size; grid-column: 2; grid-row: 1; min-width: 0; min-block-size: 0; block-size: 100%; overflow: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
+.controls { grid-column: 2; grid-row: 1; min-width: 0; min-block-size: 0; block-size: 100%; }
 .results { container-type: inline-size; grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; block-size: 100%; background: var(--cds-background); }
 .workbench-shell[data-panel-open="true"] .results { grid-column: 3; }
 #results-content, .results-empty { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .configuration-tabs { display: block; }
 .configuration-panel { min-width: 0; }
-.configuration-panel-heading { position: sticky; z-index: 2; inset-block-start: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: spacing.$spacing-03; margin-bottom: spacing.$spacing-05; padding-block-start: spacing.$spacing-05; border-bottom: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
-.configuration-panel-heading h2, .plot-heading h2 { margin: 0; @include type.type-style("heading-03"); }
-.configuration-panel-heading p { margin-block: spacing.$spacing-02 spacing.$spacing-04; }
-.configuration-panel-heading p, .model-note, .chart-toolbar span { color: var(--cds-text-secondary); }
+.plot-heading h2 { margin: 0; @include type.type-style("heading-03"); }
+.model-note, .chart-toolbar span { color: var(--cds-text-secondary); }
 .configuration-mode { display: grid; gap: spacing.$spacing-02; margin-block-end: spacing.$spacing-05; padding-block-end: spacing.$spacing-04; border-block-end: 1px solid var(--cds-border-subtle); }
 .configuration-mode > span { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .configuration-mode p { margin: 0; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
@@ -237,7 +235,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 @include breakpoint.breakpoint-down("lg") {
   .workbench-shell, .workbench-shell[data-panel-open="true"] { display: block; block-size: calc(100dvh - var(--scientific-ui-header-block-size) - var(--scientific-ui-mobile-nav-block-size)); min-block-size: 0; }
   .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; inline-size: 100%; block-size: var(--scientific-ui-mobile-nav-block-size); }
-  .controls { position: fixed; z-index: 2; inset: var(--scientific-ui-header-block-size) 0 var(--scientific-ui-mobile-nav-block-size); block-size: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
+  .controls { position: fixed; z-index: 2; inset: var(--scientific-ui-header-block-size) 0 var(--scientific-ui-mobile-nav-block-size); block-size: auto; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
   .configuration-tabs { max-inline-size: 42rem; margin-inline: auto; }
   .results, .workbench-shell[data-panel-open="true"] .results { block-size: 100%; min-block-size: 0; }
   .stack-figure { grid-template-columns: 1fr; }

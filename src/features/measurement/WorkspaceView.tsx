@@ -5,17 +5,19 @@ import { useEffect, useRef, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
+import { ScientificTaskPanel } from "@jorpago2/scientific-ui";
 
-type PanelHeadingProps = { id: string; title: string; description: string; onClose: () => void };
 type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
 type ConfigurationMode = "basic" | "advanced";
 type ConfigurationModeControlProps = { mode: ConfigurationMode; onChange: (mode: ConfigurationMode) => void };
 
 const OVERLAY_LAYOUT_QUERY = "(max-width: 65.98rem)";
 
-function PanelHeading({ id, title, description, onClose }: PanelHeadingProps) {
-  return <header className="configuration-panel-heading"><div><h2 id={id} tabIndex={-1}>{title}</h2><p>{description}</p></div><Button kind="ghost" size="sm" type="button" onClick={onClose}>Close</Button></header>;
-}
+const PANEL_COPY: Record<WorkflowSection, { title: string; description: string }> = {
+  measurement: { title: "Measurement", description: "Choose the data source and processing." },
+  layers: { title: "Layer stack", description: "Geometry, optical models and substrate." },
+  fit: { title: "Fit", description: "Channels, optimizer and uncertainty." },
+};
 
 function FileControl({ id, fieldLabel, label, accept }: FileControlProps) {
   return <div className="file-control"><span className="file-control-label">{fieldLabel}</span><FileUploaderButton id={id} labelText={label} accept={accept} buttonKind="tertiary" size="sm" data-file-input={id} /></div>;
@@ -31,6 +33,7 @@ export default function WorkspaceView() {
   const [isOverlayLayout, setIsOverlayLayout] = useState(() => typeof window !== "undefined" && window.matchMedia(OVERLAY_LAYOUT_QUERY).matches);
   const panelRef = useRef<HTMLElement>(null);
   const overlayPanelOpen = Boolean(activeSection && isOverlayLayout);
+  const panelCopy = activeSection ? PANEL_COPY[activeSection] : PANEL_COPY.measurement;
   const closePanel = () => {
     const trigger = activeSection;
     setActiveSection(null);
@@ -81,10 +84,20 @@ export default function WorkspaceView() {
         <Column className="workbench-column" sm={4} md={8} lg={16} xlg={16} max={16}>
           <div className="workbench-shell" data-panel-open={Boolean(activeSection)}>
             <WorkspaceNavigation activeSection={activeSection} onToggle={togglePanel} />
-            <aside ref={panelRef} id="configuration-panel" className="controls" data-configuration-mode={configurationMode} aria-labelledby={activeSection ? `configuration-panel-title-${activeSection}` : undefined} hidden={!activeSection}>
-              <div className="configuration-tabs">
+            <ScientificTaskPanel
+              ref={panelRef}
+              id="configuration-panel"
+              className="controls"
+              title={panelCopy.title}
+              titleId={activeSection ? `configuration-panel-title-${activeSection}` : undefined}
+              eyebrow={panelCopy.description}
+              onClose={closePanel}
+              closeLabel="Close"
+              bodyClassName="configuration-tabs"
+              data-configuration-mode={configurationMode}
+              hidden={!activeSection}
+            >
                 <section className="configuration-panel" hidden={activeSection !== "measurement"}>
-              <PanelHeading id="configuration-panel-title-measurement" title="Measurement" description="Choose the data source and processing." onClose={closePanel} />
               <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
               <h3 className="section-label">Data source</h3>
               <p id="source-name" className="source-name">No measurement loaded</p>
@@ -126,7 +139,6 @@ export default function WorkspaceView() {
                 </section>
 
                 <section className="configuration-panel" hidden={activeSection !== "layers"}>
-              <PanelHeading id="configuration-panel-title-layers" title="Layer stack" description="Geometry, optical models and substrate." onClose={closePanel} />
               <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
               <Accordion className="configuration-accordion stack-scope advanced-only" size="sm" isFlush>
                 <AccordionItem title="Model assumptions"><p className="model-note">Order: incident medium at the top, substrate at the bottom. Layers are coherent; substrate propagation is phase-incoherent and includes absorption. Enter substrate thickness in µm; it must be at least 10× the maximum fitted wavelength.</p></AccordionItem>
@@ -146,7 +158,6 @@ export default function WorkspaceView() {
                 </section>
 
                 <section className="configuration-panel" hidden={activeSection !== "fit"}>
-              <PanelHeading id="configuration-panel-title-fit" title="Fit" description="Channels, optimizer and uncertainty." onClose={closePanel} />
               <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
               <CheckboxGroup className="channel-row" legendText="Fit channels" orientation="vertical">
                 <Checkbox id="use-r" labelText="Fit R" defaultChecked />
@@ -185,10 +196,9 @@ export default function WorkspaceView() {
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
               <Button id="fit-panel-button" className="full fit-panel-action" kind="primary" renderIcon={ArrowRight} type="button" onClick={runFitFromPanel}>Run fit</Button>
                 </section>
-              </div>
-            </aside>
+            </ScientificTaskPanel>
 
-            <section id="results-panel" className="results" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
+            <section id="results-panel" className="results scientific-stage" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
             <ResultsEmpty />
             <div id="results-content" hidden>
             <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Preview model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Run fit</Button></div>
