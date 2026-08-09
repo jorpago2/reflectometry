@@ -22,20 +22,9 @@
 body { margin: 0; background: var(--cds-background); color: var(--cds-text-primary); @include type.type-style("body-01"); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .app-main.app-main { block-size: calc(100dvh - var(--scientific-ui-header-block-size)); min-block-size: 0; margin-block-start: var(--scientific-ui-header-block-size); padding: 0; }
-.app-header { block-size: var(--scientific-ui-header-block-size); min-block-size: var(--scientific-ui-header-block-size); display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 36rem) minmax(0, 1fr); border-block-end: 1px solid var(--cds-border-subtle); background: var(--cds-background); }
-.reflectometry-brand { min-width: 0; min-block-size: var(--scientific-ui-header-block-size); gap: spacing.$spacing-04; padding-inline: spacing.$spacing-04; color: var(--cds-text-primary); }
-.reflectometry-brand-mark { display: grid; place-items: center; flex: 0 0 2rem; inline-size: 2rem; block-size: 2rem; color: var(--cds-text-on-color); background: var(--cds-text-primary); font-family: "IBM Plex Mono", monospace; @include type.type-style("code-01"); }
-.reflectometry-brand-copy { min-width: 0; display: grid; gap: spacing.$spacing-01; }
-.reflectometry-brand-copy strong, .reflectometry-brand-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reflectometry-brand-copy strong { @include type.type-style("heading-compact-01"); }
-.reflectometry-brand-copy small { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
-.header-context { min-width: 0; display: flex; align-items: center; justify-content: center; gap: spacing.$spacing-03; padding-inline: spacing.$spacing-05; color: var(--cds-text-secondary); }
-.header-context span { display: block; max-inline-size: 100%; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; @include type.type-style("body-compact-01"); }
-.header-context .header-context-label { font-family: "IBM Plex Mono", monospace; text-transform: uppercase; @include type.type-style("label-01"); }
 .header-source-status { flex: 0 0 auto; }
 .header-source-status::before { content: ""; display: inline-block; inline-size: .5rem; block-size: .5rem; margin-inline-end: spacing.$spacing-02; border-radius: 50%; background: currentColor; }
 .header-source-status[data-state="ready"] { color: var(--cds-support-success); }
-.app-header-actions { justify-self: end; block-size: var(--scientific-ui-header-block-size); }
 .workspace, .workbench-column { min-width: 0; min-block-size: 0; block-size: 100%; }
 .workspace { max-inline-size: none; margin-inline: 0; padding-inline: 0; }
 .workbench-column { padding-inline: 0; }
@@ -246,7 +235,6 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 }
 
 @include breakpoint.breakpoint-down("lg") {
-  .header-context { padding-inline: spacing.$spacing-03; }
   .workbench-shell, .workbench-shell[data-panel-open="true"] { display: block; block-size: calc(100dvh - var(--scientific-ui-header-block-size) - var(--scientific-ui-mobile-nav-block-size)); min-block-size: 0; }
   .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; inline-size: 100%; block-size: var(--scientific-ui-mobile-nav-block-size); }
   .controls { position: fixed; z-index: 2; inset: var(--scientific-ui-header-block-size) 0 var(--scientific-ui-mobile-nav-block-size); block-size: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
@@ -261,13 +249,6 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
   .stack-layer > :last-child { grid-column: 2; }
   .actions { justify-content: stretch; }
   .actions > button { flex: 1 1 0; max-inline-size: none; }
-}
-
-@media (max-width: 48rem) {
-  .app-header { grid-template-columns: 3rem minmax(0, 1fr) 3rem; }
-  .reflectometry-brand { min-inline-size: 3rem; padding-inline: spacing.$spacing-03; }
-  .reflectometry-brand-copy, .header-context .header-context-label, #header-source-name { display: none; }
-  .header-context { padding-inline: spacing.$spacing-02; }
 }
 
 @container (min-width: 60rem) {
