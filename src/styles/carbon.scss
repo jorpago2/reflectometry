@@ -21,7 +21,7 @@
 
 body { margin: 0; background: var(--cds-background); color: var(--cds-text-primary); @include type.type-style("body-01"); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.app-main { block-size: calc(100dvh - 4rem); min-block-size: 0; padding: 0; }
+.app-main.app-main { block-size: calc(100dvh - 4rem); min-block-size: 0; margin-block-start: 4rem; padding: 0; }
 .app-header { block-size: 4rem; min-block-size: 4rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 36rem) minmax(0, 1fr); border-block-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .reflectometry-brand { min-width: 0; min-block-size: 4rem; gap: spacing.$spacing-04; padding-inline: spacing.$spacing-04; color: var(--cds-text-primary); }
 .reflectometry-brand-mark { display: grid; place-items: center; flex: 0 0 2rem; inline-size: 2rem; block-size: 2rem; color: var(--cds-text-on-color); background: var(--cds-text-primary); font-family: "IBM Plex Mono", monospace; @include type.type-style("code-01"); }
@@ -37,6 +37,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .header-source-status[data-state="ready"] { color: var(--cds-support-success); }
 .app-header-actions { justify-self: end; block-size: 4rem; }
 .workspace, .workbench-column { min-width: 0; min-block-size: 0; block-size: 100%; }
+.workspace { max-inline-size: none; margin-inline: 0; padding-inline: 0; }
 .workbench-column { padding-inline: 0; }
 .workbench-shell { position: relative; display: grid; grid-template-columns: var(--scientific-ui-rail-inline-size) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); block-size: 100%; min-block-size: 0; background: var(--cds-background); }
 .workbench-shell[data-panel-open="true"] { grid-template-columns: var(--scientific-ui-rail-inline-size) var(--scientific-ui-panel-inline-size) minmax(0, 1fr); }
@@ -267,7 +268,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
   .actions > button { flex: 1 1 0; max-inline-size: none; }
 }
 
-@media (max-width: 47.99rem) {
+@media (max-width: 48rem) {
   .app-header { grid-template-columns: 3rem minmax(0, 1fr) 3rem; }
   .reflectometry-brand { min-inline-size: 3rem; padding-inline: spacing.$spacing-03; }
   .reflectometry-brand-copy, .header-context .header-context-label, #header-source-name { display: none; }
