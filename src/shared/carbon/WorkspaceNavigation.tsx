@@ -19,7 +19,8 @@ export default function WorkspaceNavigation({ activeSection, onToggle }: Props) 
     <ScientificToolRail
       className="workflow-navigation"
       label="Configuration tools"
-      activeId={activeSection}
+      activeId={activeSection ?? "measurement"}
+      expandedId={activeSection}
       onChange={(id) => {
         if (id === null) {
           if (activeSection) onToggle(activeSection);

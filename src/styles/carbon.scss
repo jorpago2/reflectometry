@@ -249,11 +249,6 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
   .header-context { padding-inline: spacing.$spacing-03; }
   .workbench-shell, .workbench-shell[data-panel-open="true"] { display: block; block-size: calc(100dvh - 4rem - var(--scientific-ui-mobile-nav-block-size)); min-block-size: 0; }
   .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; inline-size: 100%; block-size: var(--scientific-ui-mobile-nav-block-size); }
-  .workflow-navigation ul { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-  .workflow-navigation .scientific-tool-rail__item { block-size: 100%; flex-direction: column; border-inline-start: 0; border-block-start: var(--scientific-ui-active-indicator-size) solid transparent; }
-  .workflow-navigation .scientific-tool-rail__item.is-active,
-  .workflow-navigation .scientific-tool-rail__item[aria-expanded="true"] { border-block-start-color: var(--scientific-ui-link); }
-  .workflow-navigation .scientific-tool-rail__label { position: static; inline-size: auto; block-size: auto; clip: auto; clip-path: none; }
   .controls { position: fixed; z-index: 2; inset: 4rem 0 var(--scientific-ui-mobile-nav-block-size); block-size: auto; padding: 0 spacing.$spacing-05 spacing.$spacing-05; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
   .configuration-tabs { max-inline-size: 42rem; margin-inline: auto; }
   .results, .workbench-shell[data-panel-open="true"] .results { block-size: 100%; min-block-size: 0; }
