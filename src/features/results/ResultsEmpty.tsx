@@ -1,5 +1,27 @@
 import { Button } from "@carbon/react";
+import { ScientificEmptyState } from "@jorpago2/scientific-ui";
+import { useEffect, useState } from "react";
 
 export default function ResultsEmpty() {
-  return <div id="results-empty" className="results-empty"><strong>Start with measurement data</strong><p>Load spectra or use the built-in example to inspect the optical response.</p><Button kind="tertiary" type="button" onClick={() => document.getElementById("reset-example")?.click()}>Use example</Button></div>;
+  const [hasMeasurement, setHasMeasurement] = useState(false);
+
+  useEffect(() => {
+    const sourceName = document.getElementById("source-name");
+    if (!sourceName) return;
+    const update = () => setHasMeasurement(sourceName.textContent?.trim() !== "No measurement loaded");
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(sourceName, { childList: true, characterData: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  return <ScientificEmptyState
+    id="results-empty"
+    className="results-empty"
+    title={hasMeasurement ? "Measurement ready" : "Start with measurement data"}
+    description={hasMeasurement ? "Preview the optical model before starting an optimization." : "Load spectra or use the built-in example to inspect the optical response."}
+    action={hasMeasurement
+      ? <Button kind="tertiary" type="button" onClick={() => document.getElementById("preview-button")?.click()}>Preview model</Button>
+      : <Button kind="tertiary" type="button" onClick={() => document.getElementById("reset-example")?.click()}>Use example</Button>}
+  />;
 }

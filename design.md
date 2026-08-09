@@ -1,5 +1,9 @@
 # Design — Reflectometry
 
+## Shared contract (normative)
+
+This application consumes `@jorpago2/scientific-ui` and follows the [shared interface contract](https://github.com/jorpago2/jorpago2.github.io/blob/main/docs/interface-contract.md). Hidden controls and their IDs remain mounted because the optical engine depends on that DOM contract.
+
 Carbon Design System v11 is the visual and interaction contract for this application.
 
 ## Stack
