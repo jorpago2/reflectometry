@@ -21,9 +21,11 @@ test("keeps responsive panels and floating actions inside their owning viewport"
   assert.match(workspace, /\(max-width: 65\.98rem\)/);
   assert.match(styles, /grid-template-rows: minmax\(0, 1fr\)/);
   assert.match(styles, /@include breakpoint\.breakpoint-down\("lg"\)/);
-  assert.match(styles, /\.controls \{[^}]*min-block-size: 0;[^}]*block-size: 100%;[^}]*overflow: auto;/s);
-  assert.match(styles, /\.configuration-panel-heading \{[^}]*z-index: 2;/s);
-  assert.equal(styles.match(/padding: 0 spacing\.\$spacing-05 spacing\.\$spacing-05;/g)?.length, 2);
+  assert.match(workspace, /<ScientificTaskPanel[\s\S]*bodyClassName="configuration-tabs"/);
+  assert.match(workspace, /hidden=\{!activeSection\}/);
+  assert.match(styles, /\.controls \{[^}]*min-block-size: 0;[^}]*block-size: 100%;/s);
+  assert.doesNotMatch(styles, /\.controls \{[^}]*overflow:/s);
+  assert.match(workspace, /className="results scientific-stage"/);
   assert.match(styles, /\.parameter-help-popover \{[^\n]*inset-block-end:/);
   assert.match(styles, /\.parameter-help-popover \{[^\n]*inset-inline-end: 0;/);
   assert.match(styles, /\.parameter-help-popover \{[^\n]*inline-size: min\(18rem, 100%\);/);
