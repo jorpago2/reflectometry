@@ -233,9 +233,9 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 }
 
 @include breakpoint.breakpoint-down("lg") {
-  .workbench-shell, .workbench-shell[data-panel-open="true"] { display: block; block-size: calc(100dvh - var(--scientific-ui-header-block-size) - var(--scientific-ui-mobile-nav-block-size)); min-block-size: 0; }
-  .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; inline-size: 100%; block-size: var(--scientific-ui-mobile-nav-block-size); }
-  .controls { position: fixed; z-index: 2; inset: var(--scientific-ui-header-block-size) 0 var(--scientific-ui-mobile-nav-block-size); block-size: auto; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
+  .workbench-shell, .workbench-shell[data-panel-open="true"] { display: block; block-size: calc(100dvh - var(--scientific-ui-header-block-size) - var(--scientific-ui-mobile-nav-total-block-size)); min-block-size: 0; }
+  .workflow-navigation { position: fixed; z-index: 3; inset-inline: 0; inset-block-end: 0; inline-size: 100%; block-size: var(--scientific-ui-mobile-nav-total-block-size); }
+  .controls { position: fixed; z-index: 2; inset: var(--scientific-ui-header-block-size) 0 var(--scientific-ui-mobile-nav-total-block-size); block-size: auto; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); isolation: isolate; }
   .configuration-tabs { max-inline-size: 42rem; margin-inline: auto; }
   .results, .workbench-shell[data-panel-open="true"] .results { block-size: 100%; min-block-size: 0; }
   .stack-figure { grid-template-columns: 1fr; }
