@@ -3,13 +3,18 @@ import { Help } from "@carbon/react/icons";
 
 export default function AppHeader() {
   return (
-    <Header aria-label="Reflectometry">
+    <Header className="app-header" aria-label="Reflectometry">
       <SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>
-      <HeaderName href="./" prefix="">Reflectometry</HeaderName>
+      <HeaderName className="reflectometry-brand" href="./" prefix="">
+        <span className="reflectometry-brand-mark" aria-hidden="true">R</span>
+        <span className="reflectometry-brand-copy"><strong>Reflectometry</strong><small>Optical fitting</small></span>
+      </HeaderName>
       <div className="header-context" aria-label="Current measurement">
+        <span className="header-context-label">Current measurement</span>
         <span id="header-source-name">No measurement loaded</span>
+        <span id="header-source-status" className="header-source-status" role="status" aria-live="polite">Needs input</span>
       </div>
-      <HeaderGlobalBar>
+      <HeaderGlobalBar className="app-header-actions">
         <Toggletip align="bottom-end" autoAlign className="app-help">
           <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
             <Help size={20} aria-hidden="true" />
