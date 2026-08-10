@@ -203,7 +203,14 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .solution-action:hover { background: var(--cds-button-tertiary-hover); color: var(--cds-text-on-color); }
 .solution-action:active { background: var(--cds-button-tertiary-active); color: var(--cds-text-on-color); }
 .solution-action:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
-.results-empty { display: grid; grid-auto-rows: max-content; align-content: start; gap: spacing.$spacing-03; padding: spacing.$spacing-06; }
+.results-empty {
+  flex: 0 1 auto;
+  min-block-size: auto;
+  align-self: center;
+  inline-size: min(40rem, calc(100% - 2 * spacing.$spacing-05));
+  margin: auto;
+  overflow: visible;
+}
 .provenance { margin-block: spacing.$spacing-05; }
 .r-data, .r-model { color: var(--color-plot-r); }
 .t-data, .t-model { color: var(--color-plot-t); }
