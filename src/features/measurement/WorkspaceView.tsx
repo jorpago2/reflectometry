@@ -195,14 +195,14 @@ export default function WorkspaceView() {
                 </AccordionItem>
               </Accordion>
               <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
-              <Button id="fit-panel-button" className="full fit-panel-action" kind="primary" renderIcon={ArrowRight} type="button" onClick={runFitFromPanel}>Run fit</Button>
+              <Button id="fit-panel-button" className="full fit-panel-action" kind="primary" renderIcon={ArrowRight} type="button" aria-label="Run fit from configuration panel" onClick={runFitFromPanel}>Run fit</Button>
                 </section>
             </ScientificTaskPanel>
 
             <section id="results-panel" className="results scientific-stage" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
             <ResultsEmpty />
             <div id="results-content" hidden>
-            <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Preview model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button">Run fit</Button></div>
+            <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Preview model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button" aria-label="Run fit from results toolbar">Run fit</Button></div>
             <div className="results-tabs">
             <Tabs onChange={() => window.requestAnimationFrame(() => {
               document.getElementById("results-content")?.scrollTo({ top: 0 });
