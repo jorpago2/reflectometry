@@ -44,7 +44,7 @@ export default function WorkspaceView() {
     setActiveSection(opening ? section : null);
     window.requestAnimationFrame(() => {
       if (opening) {
-        panelRef.current?.scrollTo({ top: 0 });
+        panelRef.current?.querySelector<HTMLElement>(".configuration-tabs")?.scrollTo({ top: 0 });
         if (isOverlayLayout) document.getElementById(`configuration-panel-title-${section}`)?.focus();
       }
       window.dispatchEvent(new Event("resize"));
@@ -90,13 +90,14 @@ export default function WorkspaceView() {
               className="controls"
               title={panelCopy.title}
               titleId={activeSection ? `configuration-panel-title-${activeSection}` : undefined}
-              eyebrow={panelCopy.description}
+              eyebrow="Configuration"
               onClose={closePanel}
               closeLabel="Close"
               bodyClassName="configuration-tabs"
               data-configuration-mode={configurationMode}
               hidden={!activeSection}
             >
+                <p className="configuration-panel-description">{panelCopy.description}</p>
                 <section className="configuration-panel" hidden={activeSection !== "measurement"}>
               <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
               <h3 className="section-label">Data source</h3>

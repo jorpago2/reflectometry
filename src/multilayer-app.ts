@@ -1158,7 +1158,7 @@ function integerValue(id, minimum, maximum) { const value = numberValue(id, mini
 function format(value, digits = 3) { return Number.isFinite(value) ? Number(value).toFixed(digits).replace(/\.?0+$/, "") : "—"; }
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
-function setSourceName(value) { elements["source-name"].textContent = value; const context = document.getElementById("header-source-name"); if (context) { context.textContent = value; context.title = value; } const status = document.getElementById("header-source-status"); if (status) { const ready = value !== "No measurement loaded"; status.textContent = ready ? "Ready" : "Needs input"; status.dataset.state = ready ? "ready" : "needs-input"; } }
+function setSourceName(value) { elements["source-name"].textContent = value; const context = document.getElementById("header-source-name"); if (context) { context.textContent = value; context.title = value; } const ready = value !== "No measurement loaded"; const status = document.getElementById("header-source-status"); if (status) { status.textContent = ready ? "Ready" : "Needs input"; status.dataset.state = ready ? "ready" : "needs-input"; } window.dispatchEvent(new CustomEvent("reflectometry:source-status", { detail: { ready } })); }
 function setControlDisabled(id, disabled) { elements[id].disabled = disabled; const fileButton = document.querySelector<HTMLButtonElement>(`button[data-file-input="${id}"]`); if (fileButton) fileButton.disabled = disabled; }
 function updateBootstrapGuidance() {
   const guidance = elements["bootstrap-prerequisite"];
