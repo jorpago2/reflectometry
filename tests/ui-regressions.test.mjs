@@ -29,8 +29,9 @@ test("keeps responsive panels and floating actions inside their owning viewport"
   assert.match(styles, /\.parameter-help-popover \{[^\n]*inset-block-end:/);
   assert.match(styles, /\.parameter-help-popover \{[^\n]*inset-inline-end: 0;/);
   assert.match(styles, /\.parameter-help-popover \{[^\n]*inline-size: min\(18rem, 100%\);/);
-  assert.match(styles, /\.status-row #fit-progress \{[^\n]*grid-column: 2;/);
-  assert.match(styles, /\.status-row:has\(#fit-progress:not\(\[hidden\]\)\) \.export-menu \{ display: none; \}/);
+  assert.match(statusBar, /<ScientificStatusBar/);
+  assert.match(statusBar, /id="fit-progress" className="visually-hidden"/);
+  assert.doesNotMatch(styles, /\.status-row/);
   assert.match(styles, /\.result-panel-content \{[^\n]*overflow-x: auto;/);
   assert.match(styles, /\.controls\[data-configuration-mode="basic"\]/);
   assert.match(styles, /\.parameter-row \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);

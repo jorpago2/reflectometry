@@ -135,16 +135,6 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .fit-panel-action { margin-block-start: spacing.$spacing-05; }
 .fit-limit-warning { color: var(--cds-text-error); }
 .results-context { flex: 0 0 auto; border-block-start: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
-.status-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: spacing.$spacing-03; align-items: center; min-block-size: 3rem; padding: spacing.$spacing-03 spacing.$spacing-04; border-block: 0; }
-.status-indicator { inline-size: .5rem; block-size: .5rem; border-radius: 50%; background: var(--cds-icon-secondary); }
-.status-row[data-kind="running"] .status-indicator { background: var(--cds-interactive); }
-.status-row[data-kind="success"] .status-indicator { background: var(--cds-support-success); }
-.status-row[data-kind="error"] .status-indicator { background: var(--cds-support-error); }
-.status-row p { min-width: 0; margin: 0; }
-.status-row #fit-progress { grid-column: 2; inline-size: 100%; accent-color: var(--cds-interactive); }
-.status-row .cancel-action, .status-row .export-menu { grid-column: 3; grid-row: 1; }
-.status-row .export-menu { justify-self: end; }
-.status-row:has(#fit-progress:not([hidden])) .export-menu { display: none; }
 .report-meta { margin: 0; padding: spacing.$spacing-03 spacing.$spacing-04; border-block-start: 1px solid var(--cds-border-subtle); color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
 .report-meta:empty { display: none; }
 .results-tab-list { overflow-x: auto; }

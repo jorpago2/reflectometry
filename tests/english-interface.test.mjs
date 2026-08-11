@@ -50,7 +50,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(ui, /hidden=\{!activeSection\}/);
   assert.doesNotMatch(ui, /DisclosurePanel/);
   assert.match(ui, /help=\{\{/);
-  assert.match(ui, /<OverflowMenu className="export-menu"/);
+  assert.match(ui, /<ScientificStatusBar/);
+  assert.match(ui, /<OverflowMenu hidden=\{operation\.busy\}/);
   assert.doesNotMatch(ui, /results-heading|Local computation/);
   assert.match(ui, /<Tabs onChange=/);
   for (const tab of ["Overview", "Fit quality", "Optical n,k"]) assert.match(ui, new RegExp(`<Tab className="results-tab">${tab}<`));
