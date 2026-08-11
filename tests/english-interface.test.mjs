@@ -103,7 +103,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.doesNotMatch(styles, /var\(--cds-spacing-/);
   assert.doesNotMatch(styles, /!important/);
   assert.match(styles, /\[hidden\]\s*\{\s*display:\s*none;/);
-  assert.equal([...files[1].matchAll(/ lg=\{16\}/g)].length, 1);
+  assert.match(workspaceView, /panelOpen=\{Boolean\(activeSection\)\}/);
+  assert.doesNotMatch(workspaceView, /<(?:Grid|Column)\b/);
   assert.match(files[1], /setActiveSection[\s\S]*dispatchEvent\(new Event\("resize"\)\)/);
   assert.match(packageJson, /"@carbon\/react"/);
   assert.match(packageJson, /"sass"/);
@@ -133,8 +134,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.doesNotMatch(styles, /\.parameter-grid\b/);
   assert.doesNotMatch(styles, /\.tool-heading\b/);
   assert.doesNotMatch(styles, /(?:html|body)\s*\{[^}]*overflow-x:\s*(?:clip|hidden)/);
-  assert.match(styles, /workbench-shell\[data-panel-open="true"\]/);
-  assert.match(styles, /workflow-navigation/);
+  assert.match(files[1], /<ScientificAppShell\b/);
+  assert.doesNotMatch(styles, /workbench-shell\[data-panel-open="true"\]/);
   assert.match(styles, /@container \(max-width: 30rem\)/);
   assert.doesNotMatch(styles, /data-mobile-view|mobile-view-switcher/);
   assert.match(files[1], /id="header-source-name"/);

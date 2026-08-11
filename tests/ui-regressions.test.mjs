@@ -19,9 +19,10 @@ test("keeps responsive panels and floating actions inside their owning viewport"
   assert.match(workspace, /size="sm" isFlush/);
   assert.match(statusBar, /direction="top" flipped/);
   assert.match(workspace, /\(max-width: 65\.98rem\)/);
-  assert.match(styles, /grid-template-rows: minmax\(0, 1fr\)/);
   assert.match(styles, /@include breakpoint\.breakpoint-down\("lg"\)/);
+  assert.match(workspace, /<ScientificAppShell\b/);
   assert.match(workspace, /<ScientificTaskPanel[\s\S]*bodyClassName="configuration-tabs"/);
+  assert.match(workspace, /panel=\{\(/);
   assert.match(workspace, /hidden=\{!activeSection\}/);
   assert.match(styles, /\.controls \{[^}]*min-block-size: 0;[^}]*block-size: 100%;/s);
   assert.doesNotMatch(styles, /\.controls \{[^}]*overflow:/s);

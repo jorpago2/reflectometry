@@ -51,7 +51,6 @@ export default function ResultsStatusBar() {
   return (
     <ScientificStatusBar
       className="status-row"
-      embedded
       aria-label="Fit status"
       status={{
         state: scientificState,

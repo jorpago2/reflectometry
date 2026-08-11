@@ -1,6 +1,4 @@
-import { Content } from "@carbon/react";
 import WorkspaceView from "../features/measurement/WorkspaceView.tsx";
-import AppHeader from "./AppHeader.tsx";
 import { useEffect } from "react";
 
 /** Presentation shell. Scientific behaviour lives outside this component. */
@@ -12,5 +10,5 @@ export default function App() {
     });
   }, []);
 
-  return <><AppHeader /><Content className="app-main" aria-label="Reflectometry workspace"><WorkspaceView /></Content></>;
+  return <WorkspaceView />;
 }

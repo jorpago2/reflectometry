@@ -1,11 +1,12 @@
-import { Accordion, AccordionItem, Button, Checkbox, CheckboxGroup, Column, ContentSwitcher, FileUploaderButton, Grid, NumberInput, Select, SelectItem, Switch, Tab, TabList, TabPanel, TabPanels, Tabs, TextInput } from "@carbon/react";
+import { Accordion, AccordionItem, Button, Checkbox, CheckboxGroup, ContentSwitcher, FileUploaderButton, NumberInput, Select, SelectItem, Switch, Tab, TabList, TabPanel, TabPanels, Tabs, TextInput } from "@carbon/react";
 import { Add, ArrowRight, Redo, Renew, Undo } from "@carbon/react/icons";
 import PlotCard from "../../shared/plots/PlotCard.tsx";
 import { useEffect, useRef, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
-import { ScientificMetricGrid, ScientificTaskPanel } from "@jorpago2/scientific-ui";
+import { ScientificAppShell, ScientificMetricGrid, ScientificTaskPanel } from "@jorpago2/scientific-ui";
+import AppHeader from "../../app/AppHeader.tsx";
 
 type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
 type ConfigurationMode = "basic" | "advanced";
@@ -78,16 +79,17 @@ export default function WorkspaceView() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [activeSection]);
   return (
-    <>
-      <h1 className="visually-hidden">Reflectometry</h1>
-      <Grid id="reflectometry-workspace" className="workspace multilayer-workspace" fullWidth condensed tabIndex={-1}>
-        <Column className="workbench-column" sm={4} md={8} lg={16} xlg={16} max={16}>
-          <div className="workbench-shell" data-panel-open={Boolean(activeSection)}>
-            <WorkspaceNavigation activeSection={activeSection} onToggle={togglePanel} />
+    <ScientificAppShell
+      className="reflectometry-shell"
+      panelOpen={Boolean(activeSection)}
+      header={<><h1 className="visually-hidden">Reflectometry</h1><AppHeader /></>}
+      navigation={<WorkspaceNavigation activeSection={activeSection} onToggle={togglePanel} />}
+      panel={(
             <ScientificTaskPanel
               ref={panelRef}
               id="configuration-panel"
               className="controls"
+              hidden={!activeSection}
               title={panelCopy.title}
               titleId={activeSection ? `configuration-panel-title-${activeSection}` : undefined}
               eyebrow="Configuration"
@@ -95,7 +97,6 @@ export default function WorkspaceView() {
               closeLabel="Close"
               bodyClassName="configuration-tabs"
               data-configuration-mode={configurationMode}
-              hidden={!activeSection}
             >
                 <p className="configuration-panel-description">{panelCopy.description}</p>
                 <section className="configuration-panel" hidden={activeSection !== "measurement"}>
@@ -198,7 +199,10 @@ export default function WorkspaceView() {
               <Button id="fit-panel-button" className="full fit-panel-action" kind="primary" renderIcon={ArrowRight} type="button" aria-label="Run fit from configuration panel" onClick={runFitFromPanel}>Run fit</Button>
                 </section>
             </ScientificTaskPanel>
-
+      )}
+      statusBar={<ResultsStatusBar />}
+    >
+      <div id="reflectometry-workspace" className="reflectometry-workspace" tabIndex={-1}>
             <section id="results-panel" className="results scientific-stage" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
             <ResultsEmpty />
             <div id="results-content" hidden>
@@ -261,13 +265,8 @@ export default function WorkspaceView() {
             </Tabs>
             </div>
             </div>
-            <div className="results-context">
-              <ResultsStatusBar />
-            </div>
             </section>
-          </div>
-        </Column>
-      </Grid>
-    </>
+      </div>
+    </ScientificAppShell>
   );
 }
