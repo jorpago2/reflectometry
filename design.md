@@ -11,7 +11,7 @@ Carbon Design System v11 is the visual and interaction contract for this applica
 - Components: `@carbon/react`.
 - Icons: `@carbon/react/icons`.
 - Styling: Carbon Sass and `--cds-*` tokens.
-- Typography: IBM Plex Sans and IBM Plex Mono.
+- Typography: IBM Plex Sans throughout, including scientific values and charts.
 - Shell and layout: Carbon `Header`, `Content`, `Grid`, and `Column`.
 
 ## Interface rules

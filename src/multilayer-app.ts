@@ -961,14 +961,14 @@ function renderChart(canvas) {
   if (yMaximum <= yMinimum) yMaximum = yMinimum + 1;
   const xPixel = (value) => margin.left + (value - chart.minimumX) / (chart.maximumX - chart.minimumX || 1) * plotWidth; const yPixel = (value) => margin.top + (yMaximum - value) / (yMaximum - yMinimum) * plotHeight;
   Object.assign(chart, { geometry: { margin, plotWidth, plotHeight, width, height, xPixel, yPixel }, yMinimum, yMaximum });
-  context.fillStyle = theme.background; context.fillRect(0, 0, width, height); context.font = '11px "IBM Plex Mono", monospace'; context.lineWidth = 1;
+  context.fillStyle = theme.background; context.fillRect(0, 0, width, height); context.font = '11px "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif'; context.lineWidth = 1;
   const xTicks = niceTicks(chart.minimumX, chart.maximumX, width < 480 ? 4 : 6); const yTicks = niceTicks(yMinimum, yMaximum, 5);
   context.strokeStyle = theme.grid; context.fillStyle = theme.text;
   for (const value of yTicks) { const y = yPixel(value); context.beginPath(); context.moveTo(margin.left, y); context.lineTo(width - margin.right, y); context.stroke(); context.textAlign = "right"; context.fillText(formatTick(value), margin.left - 8, y + 4); }
   for (const value of xTicks) { const px = xPixel(value); context.beginPath(); context.moveTo(px, margin.top); context.lineTo(px, height - margin.bottom); context.stroke(); context.textAlign = "center"; context.fillText(formatTick(value), px, height - margin.bottom + 18); }
   if (chart.options.zeroLine && yMinimum < 0 && yMaximum > 0) { context.save(); context.strokeStyle = theme.axis; context.setLineDash([3, 3]); context.beginPath(); context.moveTo(margin.left, yPixel(0)); context.lineTo(width - margin.right, yPixel(0)); context.stroke(); context.restore(); }
   context.strokeStyle = theme.textPrimary; context.lineWidth = 1.2; context.beginPath(); context.moveTo(margin.left, margin.top); context.lineTo(margin.left, height - margin.bottom); context.lineTo(width - margin.right, height - margin.bottom); context.stroke();
-  context.fillStyle = theme.textPrimary; context.font = '12px "IBM Plex Mono", monospace'; context.textAlign = "center"; context.fillText(chart.options.xLabel, margin.left + plotWidth / 2, height - 7);
+  context.fillStyle = theme.textPrimary; context.font = '12px "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif'; context.textAlign = "center"; context.fillText(chart.options.xLabel, margin.left + plotWidth / 2, height - 7);
   context.save(); context.translate(16, margin.top + plotHeight / 2); context.rotate(-Math.PI / 2); context.fillText(chart.options.yLabel, 0, 0); context.restore();
   context.save(); context.beginPath(); context.rect(margin.left, margin.top, plotWidth, plotHeight); context.clip();
   for (const entry of chart.series.filter((candidate) => candidate.band)) { context.fillStyle = entry.color; context.beginPath(); visible.forEach((index, order) => order ? context.lineTo(xPixel(chart.x[index]), yPixel(entry.lower[index])) : context.moveTo(xPixel(chart.x[index]), yPixel(entry.lower[index]))); [...visible].reverse().forEach((index) => context.lineTo(xPixel(chart.x[index]), yPixel(entry.upper[index]))); context.closePath(); context.fill(); }
@@ -1064,7 +1064,7 @@ function drawChart(chart, x, series, options) {
     margin: { l: 68, r: 20, t: compactModebar ? 112 : 56, b: 56 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: theme.background,
-    font: { family: "IBM Plex Mono, monospace", size: 11, color: theme.text },
+    font: { family: "IBM Plex Sans, Helvetica Neue, Arial, sans-serif", size: 11, color: theme.text },
     hovermode: "x unified",
     dragmode: "pan",
     uirevision: chart.id,
