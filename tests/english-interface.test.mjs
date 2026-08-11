@@ -21,7 +21,8 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   }
   assert.match(files[0], /src="\/src\/main\.tsx"/);
   assert.match(main, /createRoot/);
-  assert.match(main, /document\.documentElement\.classList\.add\("cds--g10"\)/);
+  assert.match(main, /ScientificUiProvider/);
+  assert.doesNotMatch(main, /document\.documentElement\.classList\.add/);
   assert.match(files[1], /useEffect/);
   assert.match(vite, /base: "\/reflectometry\/"/);
   assert.doesNotMatch(files[1], /tool-heading|Capabilities and model scope/);
