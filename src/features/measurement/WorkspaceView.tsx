@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
-import { ScientificTaskPanel } from "@jorpago2/scientific-ui";
+import { ScientificMetricGrid, ScientificTaskPanel } from "@jorpago2/scientific-ui";
 
 type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
 type ConfigurationMode = "basic" | "advanced";
@@ -230,21 +230,21 @@ export default function WorkspaceView() {
                   </section>
                 </TabPanel>
                 <TabPanel className="results-tab-panel">
-                  <div className="metrics">
-                    <article><span>TOTAL THICKNESS</span><strong id="metric-thickness">—</strong><small>nm</small></article>
-                    <article><span>RMSE(R)</span><strong id="metric-rmse-r">—</strong><small>fraction</small></article>
-                    <article><span>RMSE(T)</span><strong id="metric-rmse-t">—</strong><small>fraction</small></article>
-                    <article><span>FIT PARAMETERS</span><strong id="metric-parameters">—</strong><small>selected</small></article>
-                  </div>
+                  <ScientificMetricGrid columns={4} metrics={[
+                    { id: "thickness", label: "Total thickness", value: <span id="metric-thickness">—</span>, unit: "nm" },
+                    { id: "rmse-r", label: "RMSE(R)", value: <span id="metric-rmse-r">—</span>, unit: "fraction" },
+                    { id: "rmse-t", label: "RMSE(T)", value: <span id="metric-rmse-t">—</span>, unit: "fraction" },
+                    { id: "fit-parameters", label: "Fit parameters", value: <span id="metric-parameters">—</span>, unit: "selected" },
+                  ]} />
                   <Accordion className="result-details report-details" size="sm"><AccordionItem title="Report information"><p id="report-meta" className="report-meta" /></AccordionItem></Accordion>
                   <section className="diagnostics">
                     <div className="plot-heading"><div><p>FIT HEALTH</p><h2>Diagnostics</h2></div></div>
-                    <div className="diagnostic-grid">
-                      <article><span>CONVERGENCE</span><strong id="diagnostic-convergence">Preview</strong><small id="diagnostic-evaluations">No optimizer run</small></article>
-                      <article><span>JACOBIAN CONDITION</span><strong id="diagnostic-condition">—</strong><small>large means non-identifiable</small></article>
-                      <article><span>BOUND HITS</span><strong id="diagnostic-bounds">—</strong><small>fitted parameters</small></article>
-                      <article><span>MAX R + T</span><strong id="diagnostic-power">—</strong><small>physical model</small></article>
-                    </div>
+                    <ScientificMetricGrid columns={4} metrics={[
+                      { id: "convergence", label: "Convergence", value: <span id="diagnostic-convergence">Preview</span>, detail: <span id="diagnostic-evaluations">No optimizer run</span> },
+                      { id: "condition", label: "Jacobian condition", value: <span id="diagnostic-condition">—</span>, detail: "Large means non-identifiable" },
+                      { id: "bounds", label: "Bound hits", value: <span id="diagnostic-bounds">—</span>, detail: "Fitted parameters" },
+                      { id: "power", label: "Max R + T", value: <span id="diagnostic-power">—</span>, detail: "Physical model" },
+                    ]} />
                     <p id="diagnostic-note">Preview the stack before fitting. Multilayer inverse problems can have several nearly equivalent solutions.</p>
                     <Accordion className="result-details" size="sm">
                       <AccordionItem title="Parameter uncertainty and correlation"><div id="uncertainty-panel"><div id="uncertainty-content" className="result-panel-content" tabIndex={0} aria-label="Parameter uncertainty and correlation tables"><p>Run a fit to estimate local uncertainty, then optionally run the residual bootstrap.</p></div></div></AccordionItem>
