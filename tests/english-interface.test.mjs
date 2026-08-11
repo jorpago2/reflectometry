@@ -48,7 +48,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.match(ui, /useState<WorkflowSection \| null>\(null\)/);
   assert.match(ui, /hidden=\{!activeSection\}/);
   assert.doesNotMatch(ui, /DisclosurePanel/);
-  assert.match(ui, /<ToggletipContent/);
+  assert.match(ui, /help=\{\{/);
   assert.match(ui, /<OverflowMenu className="export-menu"/);
   assert.doesNotMatch(ui, /results-heading|Local computation/);
   assert.match(ui, /<Tabs onChange=/);

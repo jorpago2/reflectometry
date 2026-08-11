@@ -74,11 +74,6 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .layer-list details[open] > summary::after, .substrate-editor details[open] > summary::after { transform: rotate(225deg); }
 .full { inline-size: 100%; max-inline-size: none; }
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: spacing.$spacing-03; padding: spacing.$spacing-04 spacing.$spacing-05; border-block-end: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
-.app-help-button { inline-size: 3rem; block-size: 3rem; display: inline-grid; place-items: center; }
-.app-help-panel p { margin-block: spacing.$spacing-03; }
-.app-help-panel dl { display: grid; gap: spacing.$spacing-02; margin-block: spacing.$spacing-04; }
-.app-help-panel dl > div { display: grid; grid-template-columns: minmax(6rem, auto) minmax(0, 1fr); gap: spacing.$spacing-03; }
-.app-help-panel dt, .app-help-panel dd { margin: 0; }
 .layer-list, .stack-toolbar, .results-tabs, .plot-card, .stack-card, .diagnostics { min-width: 0; }
 .stack-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: spacing.$spacing-03; }
 .layer-card { margin-block: spacing.$spacing-04; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }

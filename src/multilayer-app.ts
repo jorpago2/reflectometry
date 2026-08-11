@@ -121,20 +121,11 @@ function handleGlobalShortcut(event: KeyboardEvent) {
     if (!state.worker && !elements["fit-button"].disabled) elements["fit-button"].click();
   } else if (event.key === "Escape") {
     const parameterHelpOpen = Boolean(document.querySelector('.parameter-help-button[aria-expanded="true"]'));
-    const appHelpOpen = elements["app-help"].getAttribute("aria-expanded") === "true";
     const operationRunning = Boolean(state.worker);
     closeParameterHelp();
-    if (appHelpOpen) elements["app-help"].click();
     if (state.worker) cancelOperation();
-    if (parameterHelpOpen || appHelpOpen || operationRunning) event.preventDefault();
-  } else if (event.key === "?" && !isEditableTarget(event.target)) {
-    event.preventDefault();
-    elements["app-help"].click();
+    if (parameterHelpOpen || operationRunning) event.preventDefault();
   }
-}
-
-function isEditableTarget(target: EventTarget | null) {
-  return target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
 }
 
 function makeLayer(model, thicknessNm, nk) {

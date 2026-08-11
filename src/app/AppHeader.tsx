@@ -1,5 +1,4 @@
-import { SkipToContent, Toggletip, ToggletipButton, ToggletipContent } from "@carbon/react";
-import { Help } from "@carbon/react/icons";
+import { SkipToContent } from "@carbon/react";
 import { ScientificHeader } from "@jorpago2/scientific-ui";
 import { useEffect, useState } from "react";
 
@@ -26,14 +25,15 @@ export default function AppHeader() {
       context={<span id="header-source-name">No measurement loaded</span>}
       contextDetail={<span id="header-source-status" className="visually-hidden" aria-hidden="true">Needs input</span>}
       status={{ state: sourceReady ? "ready" : "needs-input", label: sourceReady ? "Ready" : "Needs input" }}
-      primaryAction={
-        <Toggletip align="bottom-end" autoAlign className="app-help">
-          <ToggletipButton id="app-help" className="app-help-button" label="Help" aria-keyshortcuts="?">
-            <Help size={20} aria-hidden="true" />
-          </ToggletipButton>
-          <ToggletipContent className="app-help-panel"><strong>Quick workflow</strong><p>Load spectra, define the stack, preview the model, then run a fit and inspect residuals and uncertainty.</p><dl><div><dt><kbd>Ctrl/⌘</kbd> + <kbd>Enter</kbd></dt><dd>Run fit</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Cancel fitting</dd></div><div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div></dl><small>Reflectometry v4.0.0</small></ToggletipContent>
-        </Toggletip>
-      }
+      help={{
+        id: "app-help",
+        summary: "Load spectra, define the stack, preview the model, then run a fit and inspect residuals and uncertainty.",
+        shortcuts: [
+          { keys: ["Ctrl/⌘", "Enter"], description: "Run fit" },
+          { keys: ["Esc"], description: "Cancel fitting" },
+        ],
+        footer: "Reflectometry v4.0.0",
+      }}
     />
   );
 }
