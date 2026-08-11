@@ -78,10 +78,10 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .stack-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: spacing.$spacing-03; }
 .layer-card { margin-block: spacing.$spacing-04; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .section-heading { display: flex; align-items: baseline; gap: spacing.$spacing-03; margin-block-start: spacing.$spacing-05; }
-.section-heading > span { display: inline-grid; place-items: center; inline-size: 2rem; block-size: 2rem; background: var(--cds-layer-accent); color: var(--cds-text-secondary); @include type.type-style("code-01"); }
+.section-heading > span { display: inline-grid; place-items: center; inline-size: 2rem; block-size: 2rem; background: var(--cds-layer-accent); color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
 .section-heading h3 { margin: 0; @include type.type-style("heading-03"); }
 .layer-card-header { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: spacing.$spacing-03; padding: spacing.$spacing-04; }
-.layer-order { align-self: center; color: var(--cds-text-secondary); @include type.type-style("code-01"); }
+.layer-order { align-self: center; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
 .layer-name { block-size: 2rem; padding-inline: spacing.$spacing-03; }
 .layer-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: spacing.$spacing-02; }
 .layer-actions button { display: inline-grid; place-items: center; inline-size: 2.75rem; block-size: 2.75rem; padding: 0; border: 0; background: transparent; color: var(--cds-icon-primary); cursor: pointer; }
@@ -125,8 +125,8 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .parameter-unit { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .parameter-field { display: grid; gap: spacing.$spacing-01; min-width: 0; }
 .parameter-field > span:first-child { display: none; }
-.parameter-field input { block-size: 2rem; padding-inline: spacing.$spacing-03; @include type.type-style("code-01"); }
-.parameter-uncertainty { min-block-size: 2rem; display: flex; align-items: center; @include type.type-style("code-01"); }
+.parameter-field input { block-size: 2rem; padding-inline: spacing.$spacing-03; @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
+.parameter-uncertainty { min-block-size: 2rem; display: flex; align-items: center; @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
 .parameter-help-button { display: inline-grid; place-items: center; inline-size: 1.5rem; block-size: 1.5rem; padding: 0; border: 0; border-radius: 50%; background: var(--cds-layer-02); color: var(--cds-link-primary); cursor: pointer; }
 .controls[data-configuration-mode="basic"] .parameter-row { grid-template-columns: minmax(0, 1fr) minmax(6rem, .75fr); }
 .controls[data-configuration-mode="basic"] .parameter-name { grid-column: 1 / -1; grid-row: 1; }
@@ -144,7 +144,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .plot-card, .stack-card, .diagnostics { padding: spacing.$spacing-05; background: var(--cds-layer-01); }
 .plot-card { margin-block: spacing.$spacing-04 0; }
 .plot-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: spacing.$spacing-04; margin-bottom: spacing.$spacing-04; }
-.legend { display: flex; flex-wrap: wrap; gap: spacing.$spacing-03; margin: 0; padding: 0; list-style: none; @include type.type-style("code-01"); }
+.legend { display: flex; flex-wrap: wrap; gap: spacing.$spacing-03; margin: 0; padding: 0; list-style: none; @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
 .legend li { display: inline-flex; align-items: center; gap: spacing.$spacing-02; white-space: nowrap; }
 .legend li::before { content: ""; inline-size: 1.25rem; block-size: .125rem; background: currentColor; }
 .legend .r-data::before, .legend .t-data::before { inline-size: .375rem; block-size: .375rem; border-radius: 50%; box-shadow: .5rem 0 0 currentColor; }
@@ -171,7 +171,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .result-panel-content:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
 .result-panel-content > p { margin-block: 0 spacing.$spacing-04; color: var(--cds-text-secondary); }
 .result-panel-content > h3 { margin-block: spacing.$spacing-05 spacing.$spacing-03; @include type.type-style("heading-02"); }
-.scientific-data-table { inline-size: 100%; min-inline-size: max-content; border-collapse: collapse; @include type.type-style("code-01"); }
+.scientific-data-table { inline-size: 100%; min-inline-size: max-content; border-collapse: collapse; @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
 .scientific-data-table th, .scientific-data-table td { min-block-size: 2.5rem; padding: spacing.$spacing-03 spacing.$spacing-04; border-block-end: 1px solid var(--cds-border-subtle); text-align: end; vertical-align: middle; }
 .scientific-data-table th:first-child, .scientific-data-table td:first-child { position: sticky; inset-inline-start: 0; text-align: start; }
 .scientific-data-table thead th { background: var(--cds-layer-02); color: var(--cds-text-primary); }
@@ -180,7 +180,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .correlation-data-table td[data-correlation="positive"] { background: color-mix(in srgb, var(--cds-support-error) var(--correlation-strength), var(--cds-layer-01)); }
 .correlation-data-table td[data-correlation="negative"] { background: color-mix(in srgb, var(--cds-support-info) var(--correlation-strength), var(--cds-layer-01)); }
 .fit-solution { display: grid; grid-template-columns: minmax(8rem, .5fr) minmax(12rem, 1fr) auto; align-items: center; gap: spacing.$spacing-04; padding: spacing.$spacing-04; border-block-start: 1px solid var(--cds-border-subtle); }
-.fit-solution span { color: var(--cds-text-secondary); @include type.type-style("code-01"); }
+.fit-solution span { color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
 .solution-action { min-block-size: 2.5rem; padding: spacing.$spacing-03 spacing.$spacing-05; border: 1px solid var(--cds-button-tertiary); background: transparent; color: var(--cds-button-tertiary); cursor: pointer; @include type.type-style("body-compact-01"); }
 .solution-action:hover { background: var(--cds-button-tertiary-hover); color: var(--cds-text-on-color); }
 .solution-action:active { background: var(--cds-button-tertiary-active); color: var(--cds-text-on-color); }
