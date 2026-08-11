@@ -26,11 +26,10 @@ export default function ResultsEmpty() {
     return () => observer.disconnect();
   }, []);
 
-  if (hasResults) return null;
-
   return <ScientificEmptyState
     id="results-empty"
     className="results-empty"
+    hidden={hasResults}
     title={hasMeasurement ? "Measurement ready" : "Start with measurement data"}
     description={hasMeasurement ? "Preview the optical model before starting an optimization." : "Load spectra or use the built-in example to inspect the optical response."}
     action={hasMeasurement

@@ -115,7 +115,7 @@ for (const id of ["fit-r-gain", "fit-t-gain"]) elements[id].addEventListener("ch
 for (const id of SAVED_CONTROL_IDS) elements[id].addEventListener("change", () => { pushHistory(); commitHistorySnapshot(); if (!OPTIMIZER_CONTROL_IDS.has(id)) markResultStale(); });
 
 function handleGlobalShortcut(event: KeyboardEvent) {
-  if (event.repeat) return;
+  if (event.defaultPrevented || event.repeat) return;
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
     if (!state.worker && !elements["fit-button"].disabled) elements["fit-button"].click();
@@ -1161,11 +1161,19 @@ function updateBootstrapGuidance() {
         ? "Run fit again after the configuration change to enable bootstrap uncertainty."
         : "Bootstrap uncertainty is available for the current fit.";
 }
-function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "fit-panel-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) setControlDisabled(id, busy); if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } updateBootstrapGuidance(); if (message) setStatus(message); }
+function publishOperationStatus(message, kind) {
+  const progress = state.worker ? Number(elements["fit-progress"].value) : undefined;
+  window.dispatchEvent(new CustomEvent("reflectometry:operation-status", {
+    detail: { busy: Boolean(state.worker), kind, message, progress },
+  }));
+}
+function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "fit-panel-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) setControlDisabled(id, busy); if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } updateBootstrapGuidance(); if (message) setStatus(message); else { const currentMessage = elements.status.textContent ?? ""; const kind = elements.status.closest(".status-row")?.dataset.kind ?? "neutral"; publishOperationStatus(currentMessage, kind); } }
 function setStatus(message) {
   elements.status.textContent = message;
   const row = elements.status.closest(".status-row");
-  if (row) row.dataset.kind = /^Error:/i.test(message) ? "error" : /fitting|bootstrap/i.test(message) ? "running" : /optimized|complete|exported/i.test(message) ? "success" : "neutral";
+  const kind = /^Error:/i.test(message) ? "error" : /fitting|screening|bootstrap/i.test(message) ? "running" : /optimized|complete|exported/i.test(message) ? "success" : "neutral";
+  if (row) row.dataset.kind = kind;
+  publishOperationStatus(message, kind);
 }
 function showError(error) { setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`); }
 function safeName(value) { return String(value ?? "sample").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sample"; }
