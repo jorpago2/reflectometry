@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
-import { ScientificAppShell, ScientificMetricGrid, ScientificTaskPanel } from "@jorpago2/scientific-ui";
+import { ScientificAppShell, ScientificMetricGrid, ScientificPreflightSummary, ScientificTaskPanel } from "@jorpago2/scientific-ui";
 import AppHeader from "../../app/AppHeader.tsx";
 
 type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
@@ -32,6 +32,7 @@ export default function WorkspaceView() {
   const [activeSection, setActiveSection] = useState<WorkflowSection | null>(null);
   const [configurationMode, setConfigurationMode] = useState<ConfigurationMode>("basic");
   const [isOverlayLayout, setIsOverlayLayout] = useState(() => typeof window !== "undefined" && window.matchMedia(OVERLAY_LAYOUT_QUERY).matches);
+  const [sourceQuality, setSourceQuality] = useState({ ready: false, pointCount: 0, wavelengthMinimumNm: 0, wavelengthMaximumNm: 0, reflectanceCount: 0, transmittanceCount: 0 });
   const panelRef = useRef<HTMLElement>(null);
   const overlayPanelOpen = Boolean(activeSection && isOverlayLayout);
   const panelCopy = activeSection ? PANEL_COPY[activeSection] : PANEL_COPY.measurement;
@@ -55,6 +56,21 @@ export default function WorkspaceView() {
     document.getElementById("fit-button")?.click();
     if (isOverlayLayout) closePanel();
   };
+  useEffect(() => {
+    const updateSourceQuality = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<typeof sourceQuality>>).detail;
+      setSourceQuality({
+        ready: Boolean(detail.ready),
+        pointCount: Number(detail.pointCount) || 0,
+        wavelengthMinimumNm: Number(detail.wavelengthMinimumNm) || 0,
+        wavelengthMaximumNm: Number(detail.wavelengthMaximumNm) || 0,
+        reflectanceCount: Number(detail.reflectanceCount) || 0,
+        transmittanceCount: Number(detail.transmittanceCount) || 0,
+      });
+    };
+    window.addEventListener("reflectometry:source-status", updateSourceQuality);
+    return () => window.removeEventListener("reflectometry:source-status", updateSourceQuality);
+  }, []);
   useEffect(() => {
     const query = window.matchMedia(OVERLAY_LAYOUT_QUERY);
     const updateLayout = () => setIsOverlayLayout(query.matches);
@@ -103,6 +119,17 @@ export default function WorkspaceView() {
               <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
               <h3 className="section-label">Data source</h3>
               <p id="source-name" className="source-name">No measurement loaded</p>
+              <ScientificPreflightSummary
+                title="Data quality"
+                description="Coverage and usable channels are checked before previewing or fitting the optical model."
+                status={{ state: sourceQuality.ready ? "ready" : "needs-input", label: sourceQuality.ready ? "Data ready for model preview" : "Load measurement data" }}
+                checks={[
+                  { id: "samples", label: "Spectral samples", state: sourceQuality.ready ? sourceQuality.pointCount >= 10 ? "passed" : "warning" : "not-run", value: sourceQuality.ready ? sourceQuality.pointCount : "—" },
+                  { id: "coverage", label: "Wavelength coverage", state: sourceQuality.ready && sourceQuality.wavelengthMaximumNm > sourceQuality.wavelengthMinimumNm ? "passed" : sourceQuality.ready ? "warning" : "not-run", value: sourceQuality.ready && sourceQuality.wavelengthMaximumNm > sourceQuality.wavelengthMinimumNm ? `${sourceQuality.wavelengthMinimumNm.toFixed(0)}–${sourceQuality.wavelengthMaximumNm.toFixed(0)} nm` : "Not available" },
+                  { id: "reflectance", label: "Reflectance channel", state: sourceQuality.ready ? sourceQuality.reflectanceCount >= 10 ? "passed" : "warning" : "not-run", value: sourceQuality.ready ? `${sourceQuality.reflectanceCount} valid bins` : "—" },
+                  { id: "transmittance", label: "Transmittance channel", state: sourceQuality.ready ? sourceQuality.transmittanceCount >= 10 ? "passed" : "warning" : "not-run", value: sourceQuality.ready ? `${sourceQuality.transmittanceCount} valid bins` : "—" },
+                ]}
+              />
               <Button id="reset-example" className="full" kind="tertiary" type="button">Use synthetic example</Button>
               <Accordion className="configuration-accordion" size="sm" isFlush>
                 <AccordionItem title="Open a saved fitting result">

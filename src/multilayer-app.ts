@@ -739,7 +739,7 @@ function prepareCurrentData() {
   }
   if (TABLE_MODELS.has(state.substrate.model)) data = restrictToNkRange(data, state.substrate.nk);
   if (state.substrate.model === "ema") { data = restrictToNkRange(data, state.substrate.ema.hostNk); data = restrictToNkRange(data, state.substrate.ema.inclusionNk); }
-  state.fitData = data; return data;
+  state.fitData = data; publishSourceQuality(true); return data;
 }
 
 function validateChannels(data, settings) {
@@ -1149,7 +1149,8 @@ function integerValue(id, minimum, maximum) { const value = numberValue(id, mini
 function format(value, digits = 3) { return Number.isFinite(value) ? Number(value).toFixed(digits).replace(/\.?0+$/, "") : "—"; }
 function formatNullable(value, digits) { return value == null ? "—" : format(value, digits); }
 function formatUncertainty(value) { return Number.isFinite(value) ? `±${Number(value).toPrecision(3)}` : "—"; }
-function setSourceName(value) { elements["source-name"].textContent = value; const context = document.getElementById("header-source-name"); if (context) { context.textContent = value; context.title = value; } const ready = value !== "No measurement loaded"; const status = document.getElementById("header-source-status"); if (status) { status.textContent = ready ? "Ready" : "Needs input"; status.dataset.state = ready ? "ready" : "needs-input"; } window.dispatchEvent(new CustomEvent("reflectometry:source-status", { detail: { ready } })); }
+function publishSourceQuality(ready = Boolean(state.spectrum)) { const wavelengths = state.fitData?.wavelengthNm ?? []; window.dispatchEvent(new CustomEvent("reflectometry:source-status", { detail: { ready, pointCount: wavelengths.length, wavelengthMinimumNm: wavelengths[0], wavelengthMaximumNm: wavelengths.at(-1), reflectanceCount: state.fitData?.reflectanceValid?.filter(Boolean).length ?? 0, transmittanceCount: state.fitData?.transmittanceValid?.filter(Boolean).length ?? 0 } })); }
+function setSourceName(value) { elements["source-name"].textContent = value; const context = document.getElementById("header-source-name"); if (context) { context.textContent = value; context.title = value; } const ready = value !== "No measurement loaded"; const status = document.getElementById("header-source-status"); if (status) { status.textContent = ready ? "Ready" : "Needs input"; status.dataset.state = ready ? "ready" : "needs-input"; } publishSourceQuality(ready); }
 function setControlDisabled(id, disabled) { elements[id].disabled = disabled; const fileButton = document.querySelector<HTMLButtonElement>(`button[data-file-input="${id}"]`); if (fileButton) fileButton.disabled = disabled; }
 function updateBootstrapGuidance() {
   const guidance = elements["bootstrap-prerequisite"];

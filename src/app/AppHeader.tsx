@@ -63,7 +63,7 @@ export default function AppHeader() {
     : state === "failed"
       ? "Error"
       : state === "up-to-date"
-        ? "Up to date"
+        ? /fit|converg|optim/i.test(operation.message) ? "Fit converged · review validation" : "Preview current · not fitted"
         : state === "modified"
           ? "Modified"
           : sourceReady
