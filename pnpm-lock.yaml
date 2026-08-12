@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@carbon/react':
-        specifier: ^1.113.0
+        specifier: 1.113.0
         version: 1.113.0(react-dom@19.2.8(react@19.2.8))(react-is@18.3.1)(react@19.2.8)(sass@1.102.0)
       '@ibm/plex':
         specifier: ^6.4.1
