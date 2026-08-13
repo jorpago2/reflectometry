@@ -29,7 +29,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .configuration-panel-description { margin: 0 0 spacing.$spacing-05; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
 .configuration-panel { min-width: 0; }
 .plot-heading h2 { margin: 0; @include type.type-style("heading-03"); }
-.model-note, .chart-toolbar span { color: var(--cds-text-secondary); }
+.model-note { color: var(--cds-text-secondary); }
 .configuration-mode { display: grid; gap: spacing.$spacing-04; margin-block-end: spacing.$spacing-05; padding-block-end: spacing.$spacing-04; border-block-end: 1px solid var(--cds-border-subtle); }
 .configuration-mode > span { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .configuration-mode p { margin: 0; padding-block-start: spacing.$spacing-03; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
@@ -136,20 +136,7 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
 .plot-card, .stack-card, .diagnostics { padding: spacing.$spacing-05; background: var(--cds-layer-01); }
 .plot-card { margin-block: spacing.$spacing-04 0; }
 .plot-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: spacing.$spacing-04; margin-bottom: spacing.$spacing-04; }
-.legend { display: flex; flex-wrap: wrap; gap: spacing.$spacing-03; margin: 0; padding: 0; list-style: none; @include type.type-style("body-compact-01"); font-variant-numeric: tabular-nums; }
-.legend li { display: inline-flex; align-items: center; gap: spacing.$spacing-02; white-space: nowrap; }
-.legend li::before { content: ""; inline-size: 1.25rem; block-size: .125rem; background: currentColor; }
-.legend .r-data::before, .legend .t-data::before { inline-size: .375rem; block-size: .375rem; border-radius: 50%; box-shadow: .5rem 0 0 currentColor; }
-.legend .t-data::before { border-radius: 0; }
-.legend .t-model::before, .legend .k-line::before { block-size: 0; border-block-start: .125rem dashed currentColor; background: transparent; }
-.chart-shell { min-width: 0; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01); }
 .plotly-chart { width: 100%; min-width: 0; height: 330px; }
-.plotly-chart .modebar { display: flex; flex-wrap: wrap; }
-.plotly-chart.js-plotly-plot .plotly .modebar-group { display: contents; }
-.plotly-chart .modebar-group .modebar-btn { display: inline-grid; place-items: center; inline-size: 2.75rem; min-block-size: 2.75rem; block-size: 2.75rem; padding: 0; }
-.plotly-chart .modebar-btn svg { position: static; }
-.plotly-chart .modebar-btn:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
-.chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: spacing.$spacing-03; padding-block: spacing.$spacing-03; }
 .stack-figure { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: spacing.$spacing-04; }
 .stack-figure figcaption { grid-column: 1 / -1; }
 .stack-diagram { min-width: 0; border: 1px solid var(--cds-border-subtle); }
@@ -215,10 +202,9 @@ body { margin: 0; background: var(--cds-background); color: var(--cds-text-prima
   .configuration-tabs { max-inline-size: 42rem; margin-inline: auto; }
   .results { block-size: 100%; min-block-size: 0; }
   .stack-figure { grid-template-columns: 1fr; }
-  .plot-heading, .chart-toolbar { align-items: flex-start; flex-direction: column; }
+  .plot-heading { align-items: flex-start; flex-direction: column; }
   .plot-card, .stack-card, .diagnostics { padding: spacing.$spacing-04; }
   .results-tab-panel { padding-block: spacing.$spacing-04; }
-  .chart-toolbar .chart-reset { align-self: flex-end; }
   .stack-layer { grid-template-columns: 2rem minmax(0, 1fr); }
   .stack-layer > :last-child { grid-column: 2; }
   .actions { justify-content: stretch; }

@@ -1,4 +1,5 @@
 import { Button } from "@carbon/react";
+import { ScientificPlotFrame, type ScientificPlotLegendItem } from "@jorpago2/scientific-ui";
 
 export type PlotCardProps = {
   eyebrow?: string;
@@ -10,14 +11,22 @@ export type PlotCardProps = {
 };
 
 export default function PlotCard({ eyebrow, title, canvasId, label, legend, eyebrowId }: PlotCardProps) {
+  const scientificLegend: ScientificPlotLegendItem[] = legend.map((item) => ({
+    id: item.text,
+    label: item.text,
+    color: item.className.startsWith("r-") || item.className === "n-line" ? "var(--color-plot-r)" : "var(--color-plot-t)",
+    style: item.className.endsWith("data") ? "dot" : item.className === "t-model" || item.className === "k-line" ? "dash" : "line",
+  }));
   return (
-    <section className="plot-card">
-      <div className="plot-heading">
-        <div>{eyebrow ? <p id={eyebrowId}>{eyebrow}</p> : null}<h2>{title}</h2></div>
-        <ul className="legend" aria-label={`${title} legend`}>{legend.map((item) => <li className={item.className} key={item.text}>{item.text}</li>)}</ul>
-      </div>
-      <div className="chart-shell"><div id={canvasId} className="plotly-chart" tabIndex={0} role="img" aria-label={label} aria-describedby={`${canvasId}-help`} /></div>
-      <div className="chart-toolbar"><span id={`${canvasId}-help`}>Hover to inspect · Wheel or +/- to zoom · Drag or ←/→ to pan</span><Button className="chart-reset" kind="ghost" size="lg" type="button" data-reset-chart={canvasId}>Reset view</Button></div>
-    </section>
+    <ScientificPlotFrame
+      className="plot-card"
+      eyebrow={eyebrow ? <span id={eyebrowId}>{eyebrow}</span> : undefined}
+      title={title}
+      legend={scientificLegend}
+      instructions={<span id={`${canvasId}-help`}>Hover to inspect · Wheel or +/- to zoom · Drag or ←/→ to pan</span>}
+      actions={<Button className="chart-reset" kind="ghost" size="lg" type="button" data-reset-chart={canvasId}>Reset view</Button>}
+    >
+      <div id={canvasId} className="plotly-chart scientific-plot-surface" tabIndex={0} role="img" aria-label={label} aria-describedby={`${canvasId}-help`} />
+    </ScientificPlotFrame>
   );
 }

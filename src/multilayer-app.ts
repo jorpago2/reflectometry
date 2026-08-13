@@ -11,6 +11,11 @@ import { MODEL_LABELS, modelParameterSpecs } from "./scientific/models/dielectri
 import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./features/layer-stack/model-help.ts";
 import { parseSavedFit, SAVED_FIT_SCHEMA } from "./scientific/fitting/saved-fit.ts";
 import Plotly from "plotly.js-basic-dist-min";
+import {
+  createScientificPlotlyConfig,
+  createScientificPlotlyLayout,
+  prepareScientificPlotlyToolbar,
+} from "@jorpago2/scientific-ui";
 
 const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
@@ -1026,20 +1031,6 @@ function panChart(canvas, shift, initialMinimum = null, initialMaximum = null) {
 
 function resetCanvasChart(canvas) { const chart = chartStates.get(canvas); if (!chart) return; chart.minimumX = chart.fullMinimumX; chart.maximumX = chart.fullMaximumX; chart.hoverIndex = null; canvas.parentElement.querySelector(".chart-tooltip").hidden = true; renderChart(canvas); }
 
-function configurePlotlyControls(chart) {
-  for (const button of chart.querySelectorAll(".modebar-btn") as NodeListOf<HTMLElement>) {
-    button.tabIndex = 0;
-    button.setAttribute("role", "button");
-    if (button.dataset.keyboardReady) continue;
-    button.dataset.keyboardReady = "true";
-    button.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      button.click();
-    });
-  }
-}
-
 function drawChart(chart, x, series, options) {
   const theme = plotTheme();
   const compactModebar = chart.getBoundingClientRect().width < 308;
@@ -1058,34 +1049,25 @@ function drawChart(chart, x, series, options) {
   }]);
   const values = series.flatMap((entry) => [entry.values, entry.lower, entry.upper].filter(Boolean).flat()).filter(Number.isFinite);
   const maximumAbsolute = Math.max(1e-12, ...values.map(Math.abs));
-  void Plotly.react(chart, traces, {
-    autosize: true,
+  const layout = createScientificPlotlyLayout({
     height: 330,
     margin: { l: 68, r: 20, t: compactModebar ? 112 : 56, b: 56 },
-    paper_bgcolor: "rgba(0,0,0,0)",
-    plot_bgcolor: theme.background,
-    font: { family: "IBM Plex Sans, Helvetica Neue, Arial, sans-serif", size: 11, color: theme.text },
-    hovermode: "x unified",
-    dragmode: "pan",
     uirevision: chart.id,
     showlegend: false,
-    xaxis: { title: { text: options.xLabel }, gridcolor: theme.grid, showline: true, linecolor: theme.axis },
-    yaxis: {
+    theme: { background: theme.background, text: theme.text, textSecondary: theme.text, grid: theme.grid, axis: theme.axis },
+    xTitle: options.xLabel,
+    yTitle: options.yLabel,
+    overrides: { yaxis: {
       title: { text: options.yLabel },
-      gridcolor: theme.grid,
-      zerolinecolor: theme.axis,
-      showline: true,
-      linecolor: theme.axis,
       ...(options.symmetricY ? { range: [-maximumAbsolute * 1.08, maximumAbsolute * 1.08] } : {}),
       ...(!options.symmetricY && options.minimumY != null ? { rangemode: "tozero" } : {}),
-    },
-  }, {
-    displaylogo: false,
-    responsive: true,
+    } },
+  }) as Partial<Plotly.Layout>;
+  const config = createScientificPlotlyConfig({
+    filename: chart.id,
     scrollZoom: true,
-    modeBarButtonsToRemove: ["lasso2d", "select2d"],
-    toImageButtonOptions: { format: "svg", filename: chart.id, width: 1200, height: 650, scale: 1 },
-  }).then(() => configurePlotlyControls(chart));
+  }) as Partial<Plotly.Config>;
+  void Plotly.react(chart, traces, layout, config).then(prepareScientificPlotlyToolbar);
 }
 
 function resetChart(chart) { void Plotly.relayout(chart, { "xaxis.autorange": true, "yaxis.autorange": true }); }
