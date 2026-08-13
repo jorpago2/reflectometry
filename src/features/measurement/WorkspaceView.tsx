@@ -3,6 +3,7 @@ import { Add, ArrowRight, Redo, Renew, Undo } from "@carbon/react/icons";
 import PlotCard from "../../shared/plots/PlotCard.tsx";
 import { useEffect, useRef, useState } from "react";
 import ResultsEmpty from "../results/ResultsEmpty.tsx";
+import ResultsOutcome from "../results/ResultsOutcome.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
 import { ScientificAppShell, ScientificMetricGrid, ScientificPreflightSummary, ScientificTaskPanel } from "@jorpago2/scientific-ui";
@@ -233,7 +234,8 @@ export default function WorkspaceView() {
             <section id="results-panel" className="results scientific-stage" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
             <ResultsEmpty />
             <div id="results-content" hidden>
-            <div className="actions result-actions"><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Preview model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button" aria-label="Run fit from results toolbar">Run fit</Button></div>
+            <ResultsOutcome />
+            <div className="actions result-actions" hidden><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Preview model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button" aria-label="Run fit from results toolbar">Run fit</Button></div>
             <div className="results-tabs">
             <Tabs onChange={() => window.requestAnimationFrame(() => {
               document.getElementById("results-content")?.scrollTo({ top: 0 });
