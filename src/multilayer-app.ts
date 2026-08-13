@@ -104,6 +104,11 @@ for (const container of [elements.layers, elements["substrate-editor"]]) {
 }
 document.addEventListener("click", (event) => !(event.target as Element).closest(".parameter-help-button, .parameter-help-popover") && closeParameterHelp());
 document.addEventListener("keydown", handleGlobalShortcut);
+window.addEventListener("scientific-ui:theme-applied", () => {
+  chartStates.forEach((_chart, canvas) => renderChart(canvas));
+  if (state.fitData && state.evaluation) drawAll();
+  renderStackDiagram();
+});
 for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventListener("change", () => { pushHistory(); renderStackDiagram(); commitHistorySnapshot(); markResultStale(); });
 elements["preview-button"].addEventListener("click", previewModel);
 elements["fit-button"].addEventListener("click", fitModel);
