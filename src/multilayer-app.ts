@@ -12,6 +12,7 @@ import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription }
 import { parseSavedFit, SAVED_FIT_SCHEMA } from "./scientific/fitting/saved-fit.ts";
 import Plotly from "plotly.js-basic-dist-min";
 import {
+  SCIENTIFIC_PLOT_LINE_WIDTHS,
   createScientificPlotlyConfig,
   createScientificPlotlyLayout,
   prepareScientificPlotlyToolbar,
@@ -1043,7 +1044,7 @@ function drawChart(chart, x, series, options) {
     name: entry.label,
     x,
     y: entry.values,
-    line: { color: entry.color, width: 1.8, dash: entry.dash?.length ? "dash" : "solid" },
+    line: { color: entry.color, width: SCIENTIFIC_PLOT_LINE_WIDTHS.primary, dash: entry.dash?.length ? "dash" : "solid" },
     marker: { color: entry.color, size: entry.points ? 5 : 0, symbol: entry.marker === "square" ? "square" : "circle" },
     hovertemplate: `${entry.label}: %{y:.4g}<extra></extra>`,
   }]);
