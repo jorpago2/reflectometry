@@ -327,7 +327,7 @@ packages:
     resolution: {integrity: sha512-3ji1fcrT+FPAK86UqEhB/psHixYo6niWPJtt7+qRaYFynt/BaJG8GhAPimtWUpEiVSTq8ZM8L5psMxGquiB/Vg==}
 
   '@jorpago2/scientific-ui@file:vendor/jorpago2-scientific-ui-0.11.0.tgz':
-    resolution: {integrity: sha512-YL9+koiakcwm0bcHNW4/tY0ARZ5eM+PPTtrtAynHz49t7qTvq7uyPhiecMR6u9G5VVcRlBhmgt071ydf0FGsag==, tarball: file:vendor/jorpago2-scientific-ui-0.11.0.tgz}
+    resolution: {integrity: sha512-Zx3FBOiwaF3a6peDTrF2fgvAi3n5PhS0PRr6tz2qwMifBAN5RYTFzHSwfHVvxCpyogwaANloN99kJl8wY+WrDw==, tarball: file:vendor/jorpago2-scientific-ui-0.11.0.tgz}
     version: 0.11.0
     engines: {node: '>=24'}
     peerDependencies:
