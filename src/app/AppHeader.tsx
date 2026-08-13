@@ -74,7 +74,7 @@ export default function AppHeader() {
     <ScientificHeader
       aria-label="Reflectometry"
       product="Reflectometry"
-      productMark="R"
+      productIcon="reflectometry"
       descriptor="Optical fitting"
       href="./"
       skipLink={<SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>}
