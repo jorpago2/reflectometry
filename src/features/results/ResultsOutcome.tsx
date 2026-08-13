@@ -1,5 +1,5 @@
-import { ScientificOutcomeSummary, type ScientificState } from "@jorpago2/scientific-ui";
-import { useEffect, useState } from "react";
+import { ScientificOutcomeSummary, type ScientificState, useScientificResultTransition } from "@jorpago2/scientific-ui";
+import { useEffect, useRef, useState } from "react";
 
 interface OperationStatus {
   busy: boolean;
@@ -37,6 +37,7 @@ function runLegacyAction(id: string) {
 }
 
 export default function ResultsOutcome() {
+  const outcomeHeading = useRef<HTMLHeadingElement>(null);
   const [operation, setOperation] = useState(initialOperation);
   const [source, setSource] = useState(initialSource);
 
@@ -77,10 +78,17 @@ export default function ResultsOutcome() {
             ? "ready"
             : "needs-input";
 
+  useScientificResultTransition({
+    state,
+    resultRef: outcomeHeading,
+    completionKey: operation.kind === "success" || operation.kind === "error" ? operation.message : null,
+  });
+
   return (
     <ScientificOutcomeSummary
       className="reflectometry-outcome"
       title="Optical fit outcome"
+      headingRef={outcomeHeading}
       status={{ state, label: operation.busy ? "Fitting optical model" : operation.message, progress: operation.progress }}
       summary={state === "up-to-date"
         ? "The displayed model corresponds to the current stack and measurement. Inspect residuals, uncertainty and alternative solutions before accepting the fit."
@@ -92,7 +100,7 @@ export default function ResultsOutcome() {
               ? "The measurement is ready. Preview the model for a deterministic check or run the optimizer for fitted parameters."
               : "Load measurement data or the synthetic example before previewing or fitting the stack."}
       metrics={source.ready ? [
-        { id: "spectral-points", label: "Spectral samples", value: source.pointCount.toLocaleString("en-US") },
+        { id: "spectral-points", label: "Spectral samples", value: source.pointCount, format: { notation: "standard", significantDigits: 8 } },
         { id: "spectral-range", label: "Wavelength range", value: `${source.wavelengthMinimumNm.toFixed(0)}–${source.wavelengthMaximumNm.toFixed(0)}`, unit: "nm" },
         { id: "fit-channels", label: "Usable channels", value: `${source.reflectanceCount ? "R" : ""}${source.reflectanceCount && source.transmittanceCount ? " + " : ""}${source.transmittanceCount ? "T" : ""}` },
       ] : []}

@@ -1,5 +1,4 @@
-import { Button } from "@carbon/react";
-import { ScientificEmptyState } from "@jorpago2/scientific-ui";
+import { ScientificEmptyState, ScientificExampleWorkflow } from "@jorpago2/scientific-ui";
 import { useEffect, useState } from "react";
 
 export default function ResultsEmpty() {
@@ -32,8 +31,15 @@ export default function ResultsEmpty() {
     hidden={hasResults}
     title={hasMeasurement ? "Measurement ready" : "Start with measurement data"}
     description={hasMeasurement ? "Preview the optical model before starting an optimization." : "Load spectra or use the built-in example to inspect the optical response."}
-    action={hasMeasurement
-      ? <Button kind="tertiary" type="button" onClick={() => document.getElementById("preview-button")?.click()}>Preview model</Button>
-      : <Button kind="tertiary" type="button" onClick={() => document.getElementById("reset-example")?.click()}>Use example</Button>}
+    action={<ScientificExampleWorkflow
+      loaded={hasMeasurement}
+      loadLabel="Load example"
+      runLabel="Preview model"
+      description={hasMeasurement
+        ? "The example inputs are loaded. Inspect the layer stack, then preview the optical model explicitly."
+        : "Load the deterministic synthetic stack, inspect its inputs, then preview it explicitly."}
+      onLoad={() => document.getElementById("reset-example")?.click()}
+      onRun={() => document.getElementById("preview-button")?.click()}
+    />}
   />;
 }

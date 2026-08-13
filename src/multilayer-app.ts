@@ -110,7 +110,7 @@ window.addEventListener("scientific-ui:theme-applied", () => {
   renderStackDiagram();
 });
 for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventListener("change", () => { pushHistory(); renderStackDiagram(); commitHistorySnapshot(); markResultStale(); });
-elements["preview-button"].addEventListener("click", previewModel);
+elements["preview-button"].addEventListener("click", () => previewModel());
 elements["fit-button"].addEventListener("click", fitModel);
 elements["bootstrap-button"].addEventListener("click", bootstrapUncertainty);
 elements["cancel-operation"].addEventListener("click", cancelOperation);
@@ -192,7 +192,7 @@ function loadSyntheticExample() {
     setSourceName("Synthetic stack · generated locally");
     elements["use-t"].checked = true;
     renderLayers();
-    previewModel();
+    setStatus("Example loaded. Review the stack, then preview the model or run the fit.");
     resetHistory();
   } catch (error) { showError(error); }
   finally { setBusy(false); }
