@@ -6,7 +6,7 @@ import ResultsEmpty from "../results/ResultsEmpty.tsx";
 import ResultsOutcome from "../results/ResultsOutcome.tsx";
 import ResultsStatusBar from "../results/ResultsStatusBar.tsx";
 import WorkspaceNavigation, { type WorkflowSection } from "../../shared/carbon/WorkspaceNavigation.tsx";
-import { ScientificAppShell, ScientificMetricGrid, ScientificPreflightSummary, ScientificTaskPanel } from "@jorpago2/scientific-ui";
+import { ScientificAppShell, ScientificAutosaveStatus, ScientificMetricGrid, ScientificPreflightSummary, ScientificRecoveryNotice, ScientificTaskPanel, useScientificAutosave } from "@jorpago2/scientific-ui";
 import AppHeader from "../../app/AppHeader.tsx";
 
 type FileControlProps = { id: string; fieldLabel: string; label: string; accept: string[] };
@@ -14,6 +14,10 @@ type ConfigurationMode = "basic" | "advanced";
 type ConfigurationModeControlProps = { mode: ConfigurationMode; onChange: (mode: ConfigurationMode) => void };
 
 const OVERLAY_LAYOUT_QUERY = "(max-width: 65.98rem)";
+
+function isSessionSnapshot(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 const PANEL_COPY: Record<WorkflowSection, { title: string; description: string }> = {
   measurement: { title: "Measurement", description: "Choose the data source and processing." },
@@ -34,6 +38,7 @@ export default function WorkspaceView() {
   const [configurationMode, setConfigurationMode] = useState<ConfigurationMode>("basic");
   const [isOverlayLayout, setIsOverlayLayout] = useState(() => typeof window !== "undefined" && window.matchMedia(OVERLAY_LAYOUT_QUERY).matches);
   const [sourceQuality, setSourceQuality] = useState({ ready: false, pointCount: 0, wavelengthMinimumNm: 0, wavelengthMaximumNm: 0, reflectanceCount: 0, transmittanceCount: 0 });
+  const [sessionSnapshot, setSessionSnapshot] = useState<Record<string, unknown> | null>(null);
   const panelRef = useRef<HTMLElement>(null);
   const overlayPanelOpen = Boolean(activeSection && isOverlayLayout);
   const panelCopy = activeSection ? PANEL_COPY[activeSection] : PANEL_COPY.measurement;
@@ -57,6 +62,26 @@ export default function WorkspaceView() {
     document.getElementById("fit-button")?.click();
     if (isOverlayLayout) closePanel();
   };
+  useEffect(() => {
+    const updateSession = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (isSessionSnapshot(detail)) setSessionSnapshot(detail);
+    };
+    window.addEventListener("reflectometry:session-snapshot", updateSession);
+    return () => window.removeEventListener("reflectometry:session-snapshot", updateSession);
+  }, []);
+  const autosave = useScientificAutosave({
+    storageKey: "reflectometry:session",
+    value: sessionSnapshot,
+    schemaVersion: 1,
+    maxBytes: 3_000_000,
+    shouldSave: isSessionSnapshot,
+    validate: isSessionSnapshot,
+    onRestore: (saved) => {
+      window.dispatchEvent(new CustomEvent("reflectometry:restore-session", { detail: saved }));
+      setSessionSnapshot(saved);
+    },
+  });
   useEffect(() => {
     const updateSourceQuality = (event: Event) => {
       const detail = (event as CustomEvent<Partial<typeof sourceQuality>>).detail;
@@ -98,6 +123,7 @@ export default function WorkspaceView() {
   return (
     <ScientificAppShell
       className="reflectometry-shell"
+      recovery={autosave.recovery && <ScientificRecoveryNotice savedAt={autosave.recovery.savedAt} onRestore={autosave.restore} onDiscard={autosave.discard} />}
       panelOpen={Boolean(activeSection)}
       header={<><h1 className="visually-hidden">Reflectometry</h1><AppHeader /></>}
       navigation={<WorkspaceNavigation activeSection={activeSection} onToggle={togglePanel} />}
@@ -228,7 +254,7 @@ export default function WorkspaceView() {
                 </section>
             </ScientificTaskPanel>
       )}
-      statusBar={<ResultsStatusBar />}
+      statusBar={<ResultsStatusBar metadata={<ScientificAutosaveStatus status={autosave.status} savedAt={autosave.lastSavedAt} />} />}
     >
       <div id="reflectometry-workspace" className="reflectometry-workspace" tabIndex={-1}>
             <section id="results-panel" className="results scientific-stage" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>

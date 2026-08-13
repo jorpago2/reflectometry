@@ -109,6 +109,10 @@ window.addEventListener("scientific-ui:theme-applied", () => {
   if (state.fitData && state.evaluation) drawAll();
   renderStackDiagram();
 });
+window.addEventListener("reflectometry:restore-session", (event) => {
+  const snapshot = (event as CustomEvent<any>).detail;
+  if (snapshot && typeof snapshot === "object") restoreAutosaveSnapshot(snapshot);
+});
 for (const id of ["substrate-thickness", "incidence"]) elements[id].addEventListener("change", () => { pushHistory(); renderStackDiagram(); commitHistorySnapshot(); markResultStale(); });
 elements["preview-button"].addEventListener("click", () => previewModel());
 elements["fit-button"].addEventListener("click", fitModel);
@@ -390,8 +394,22 @@ function editorSnapshot() {
   return snapshot;
 }
 
-function commitHistorySnapshot() { if (!state.restoringHistory && state.substrate) state.lastSnapshot = editorSnapshot(); }
-function resetHistory() { state.history = []; state.future = []; state.lastSnapshot = editorSnapshot(); updateHistoryButtons(); }
+function publishAutosaveSnapshot() {
+  if (!state.substrate) return;
+  window.dispatchEvent(new CustomEvent("reflectometry:session-snapshot", { detail: editorSnapshot() }));
+}
+function commitHistorySnapshot() {
+  if (state.restoringHistory || !state.substrate) return;
+  state.lastSnapshot = editorSnapshot();
+  publishAutosaveSnapshot();
+}
+function resetHistory() {
+  state.history = [];
+  state.future = [];
+  state.lastSnapshot = editorSnapshot();
+  updateHistoryButtons();
+  publishAutosaveSnapshot();
+}
 function pushHistory() {
   if (state.restoringHistory || !state.lastSnapshot) return;
   state.history.push(state.lastSnapshot); if (state.history.length > 30) state.history.shift(); state.future = []; updateHistoryButtons();
@@ -481,6 +499,24 @@ function selectControl(labelText, field, choices: Record<string, string>, value)
   const select = document.createElement("select"); select.dataset.field = field;
   for (const [choice, text] of Object.entries(choices)) { const option = document.createElement("option"); option.value = choice; option.textContent = text; option.selected = choice === value; select.append(option); }
   label.append(select); return label;
+}
+function restoreAutosaveSnapshot(snapshot) {
+  state.restoringHistory = true;
+  state.spectrum = snapshot.spectrum ?? null;
+  state.source = snapshot.source ?? null;
+  state.layers = snapshot.layers;
+  state.substrate = snapshot.substrate;
+  state.activeLayerId = snapshot.activeLayerId;
+  state.nextLayer = snapshot.nextLayer;
+  applySavedControls(snapshot.controls ?? {});
+  if (snapshot.controls?.["substrate-thickness"] !== undefined) elements["substrate-thickness"].value = snapshot.controls["substrate-thickness"];
+  if (snapshot.controls?.incidence !== undefined) elements.incidence.value = snapshot.controls.incidence;
+  setSourceName(`${state.source?.sampleName ?? "Recovered session"} · restored locally`);
+  renderLayers();
+  clearResult();
+  state.restoringHistory = false;
+  resetHistory();
+  setStatus("Previous session restored. Preview the model or run a new fit.");
 }
 
 function fileControl(materialId, labelText, field, sourceText) {

@@ -1,7 +1,7 @@
 import { Button, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { Download } from "@carbon/react/icons";
 import { ScientificStatusBar, type ScientificState } from "@jorpago2/scientific-ui";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface OperationStatus {
   busy: boolean;
@@ -24,7 +24,7 @@ function syncExportMenu() {
 
 function runExport(id: string) { document.getElementById(id)?.click(); }
 
-export default function ResultsStatusBar() {
+export default function ResultsStatusBar({ metadata }: { metadata?: ReactNode }) {
   const [operation, setOperation] = useState<OperationStatus>(initialStatus);
 
   useEffect(() => {
@@ -57,6 +57,7 @@ export default function ResultsStatusBar() {
         label: operation.message,
         progress: operation.progress,
       }}
+      metadata={metadata}
       actions={<>
         <span id="status-indicator" hidden aria-hidden="true" data-status={scientificState} />
         <p id="status" className="visually-hidden" aria-hidden="true">{operation.message}</p>
