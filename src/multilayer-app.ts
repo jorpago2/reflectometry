@@ -904,7 +904,7 @@ function renderUncertainty(diagnostics) {
   const intervals = bootstrap?.parameterIntervals ?? local;
   const correlation = bootstrap?.parameterCorrelation ?? diagnostics.parameterCorrelation;
   const content = document.createDocumentFragment();
-  const note = document.createElement("p"); note.textContent = bootstrap ? `${bootstrap.method}; ${bootstrap.successfulSamples}/${bootstrap.requestedSamples} successful refits, deterministic seed ${bootstrap.seed}.` : "Approximate 95% intervals and correlations from the local Jacobian. Run the bootstrap before reporting uncertainty."; content.append(note);
+  const note = document.createElement("p"); note.textContent = bootstrap ? `${bootstrap.method}; ${bootstrap.successfulSamples}/${bootstrap.requestedSamples} successful refits, deterministic seed ${bootstrap.seed}, spectral blocks R=${bootstrap.blockLengths?.reflectance ?? 1} and T=${bootstrap.blockLengths?.transmittance ?? 1}. Evidence mode: ${bootstrap.evidenceMode === "reporting-support" ? "reporting support" : "exploratory"}.` : "Approximate 95% intervals and correlations from the local Jacobian. Run the bootstrap before reporting uncertainty."; content.append(note);
   if (Object.keys(intervals).length) {
     const table = document.createElement("table"); table.className = "scientific-data-table uncertainty-data-table";
     const caption = document.createElement("caption"); caption.className = "visually-hidden"; caption.textContent = "Approximate 95% parameter intervals";

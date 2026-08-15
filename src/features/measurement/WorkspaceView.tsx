@@ -33,7 +33,7 @@ function ConfigurationModeControl({ mode, onChange }: ConfigurationModeControlPr
   return <div className="configuration-mode"><span>Configuration detail</span><ContentSwitcher aria-label="Configuration detail" selectedIndex={mode === "basic" ? 0 : 1} size="sm" onChange={({ name }) => onChange(name === "advanced" ? "advanced" : "basic")}><Switch name="basic" text="Basic" /><Switch name="advanced" text="Advanced" /></ContentSwitcher><p>{mode === "basic" ? "Core workflow and parameter values." : "Bounds, model guidance, optimizer and uncertainty controls."}</p></div>;
 }
 
-export default function WorkspaceView() {
+export default function WorkspaceView({ engineReady }: { engineReady: boolean }) {
   const [activeSection, setActiveSection] = useState<WorkflowSection | null>(null);
   const [configurationMode, setConfigurationMode] = useState<ConfigurationMode>("basic");
   const [isOverlayLayout, setIsOverlayLayout] = useState(() => typeof window !== "undefined" && window.matchMedia(OVERLAY_LAYOUT_QUERY).matches);
@@ -241,7 +241,10 @@ export default function WorkspaceView() {
                       </Select>
                       <NumberInput id="local-refinements" label="Local refinements" defaultValue={16} min={1} max={50} step={1} />
                       <Select id="bootstrap-samples" labelText="Bootstrap replicates" defaultValue="20">
-                        {[20, 50, 100].map((value) => <SelectItem key={value} value={String(value)} text={String(value)} />)}
+                        <SelectItem value="20" text="20 · exploratory" />
+                        <SelectItem value="50" text="50 · exploratory" />
+                        <SelectItem value="100" text="100 · exploratory" />
+                        <SelectItem value="200" text="200 · reporting support" />
                       </Select>
                     </div>
                     <Button id="bootstrap-button" className="full" kind="tertiary" type="button" aria-describedby="bootstrap-prerequisite" disabled>Estimate bootstrap uncertainty</Button>
@@ -249,7 +252,7 @@ export default function WorkspaceView() {
                   </div>
                 </AccordionItem>
               </Accordion>
-              <p id="fit-count" className="model-note">0 / 11 fitted parameters selected.</p>
+              <p id="fit-count" className="model-note">0 / 11 fitted parameters selected. Bootstrap intervals use correlated spectral blocks; fewer than 200 replicates are exploratory.</p>
               <Button id="fit-panel-button" className="full fit-panel-action" kind="primary" renderIcon={ArrowRight} type="button" aria-label="Run fit from configuration panel" onClick={runFitFromPanel}>Run fit</Button>
                 </section>
             </ScientificTaskPanel>
@@ -258,7 +261,7 @@ export default function WorkspaceView() {
     >
       <div id="reflectometry-workspace" className="reflectometry-workspace" tabIndex={-1}>
             <section id="results-panel" className="results scientific-stage" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
-            <ResultsEmpty />
+            <ResultsEmpty engineReady={engineReady} />
             <div id="results-content" hidden>
             <ResultsOutcome />
             <div className="actions result-actions" hidden><Button id="preview-button" kind="tertiary" renderIcon={Renew} type="button">Preview model</Button><Button id="fit-button" kind="primary" renderIcon={ArrowRight} type="button" aria-label="Run fit from results toolbar">Run fit</Button></div>
@@ -314,7 +317,7 @@ export default function WorkspaceView() {
                 </TabPanel>
                 <TabPanel className="results-tab-panel">
                   <PlotCard eyebrow="Active layer" eyebrowId="nk-layer-label" title="Complex refractive index" canvasId="nk-chart" label="Interactive active-layer refractive index" legend={[{ className: "n-line", text: "n" }, { className: "k-line", text: "k" }]} />
-                  <section className="provenance"><Accordion size="sm"><AccordionItem title="Model assumptions and scope"><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Residual bootstrap intervals assume exchangeable spectral residuals and local refits near the selected minimum. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></AccordionItem></Accordion></section>
+                  <section className="provenance"><Accordion size="sm"><AccordionItem title="Model assumptions and scope"><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Cauchy–Urbach is phenomenological, Sellmeier assumes transparency, EMA assumes subwavelength isotropic constituents, and the five-knot KK spline is bandwidth limited. Bootstrap intervals use circular moving blocks to retain short-range spectral correlation and local refits near the selected minimum; 200 replicates provide reporting support but do not replace model adequacy checks. Surface roughness, gradients, anisotropy, scattering, and oblique incidence are not included.</p></AccordionItem></Accordion></section>
                 </TabPanel>
               </TabPanels>
             </Tabs>

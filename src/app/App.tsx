@@ -5,9 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 /** Presentation shell. Scientific behaviour lives outside this component. */
 export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [engineReady, setEngineReady] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => {
     setLoadError(null);
+    setEngineReady(false);
     setAttempt((current) => current + 1);
   }, []);
 
@@ -16,10 +18,12 @@ export default function App() {
     for (const id of ["fit-button", "fit-panel-button", "preview-button"]) {
       document.getElementById(id)?.setAttribute("disabled", "");
     }
-    void import("../multilayer-app.ts").catch((error: unknown) => {
-      if (!active) return;
-      setLoadError(error instanceof Error ? error.message : String(error));
-    });
+    void import("../multilayer-app.ts")
+      .then(() => { if (active) setEngineReady(true); })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setLoadError(error instanceof Error ? error.message : String(error));
+      });
     return () => { active = false; };
   }, [attempt]);
 
@@ -36,6 +40,6 @@ export default function App() {
         <Button kind="ghost" size="sm" type="button" onClick={retry}>Retry</Button>
       </div>
     )}
-    <WorkspaceView />
+    <WorkspaceView engineReady={engineReady} />
   </>;
 }

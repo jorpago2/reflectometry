@@ -1,7 +1,7 @@
 import { ScientificEmptyState, ScientificExampleWorkflow } from "@jorpago2/scientific-ui";
 import { useEffect, useState } from "react";
 
-export default function ResultsEmpty() {
+export default function ResultsEmpty({ engineReady }: { engineReady: boolean }) {
   const [hasMeasurement, setHasMeasurement] = useState(false);
   const [hasResults, setHasResults] = useState(false);
 
@@ -35,7 +35,11 @@ export default function ResultsEmpty() {
       loaded={hasMeasurement}
       loadLabel="Load example"
       runLabel="Preview model"
-      description={hasMeasurement
+      busy={!engineReady}
+      runDisabled={!engineReady}
+      description={!engineReady
+        ? "Starting the local scientific engine…"
+        : hasMeasurement
         ? "The example inputs are loaded. Inspect the layer stack, then preview the optical model explicitly."
         : "Load the deterministic synthetic stack, inspect its inputs, then preview it explicitly."}
       onLoad={() => document.getElementById("reset-example")?.click()}

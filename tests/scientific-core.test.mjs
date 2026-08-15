@@ -3,10 +3,12 @@ import test from "node:test";
 import {
   affineShapeResidual,
   bootstrapFitUncertainty,
+  circularMovingBlockSample,
   calibrateSharedGains,
   createSpectrum,
   createSyntheticSpectrum,
   evaluateOpticalModel,
+  estimateResidualBlockLength,
   filmOnThickSubstrate,
   filmStackOnThickSubstrate,
   fitResidualVector,
@@ -189,8 +191,82 @@ test("produces deterministic residual-bootstrap intervals and spectral bands", (
   const second = bootstrapFitUncertainty(data, null, configuration, truth, 5);
   assert.deepEqual(first, second);
   assert.equal(first.successfulSamples, 5);
+  assert.equal(first.evidenceMode, "exploratory");
+  assert.match(first.method, /moving-block/);
   assert.equal(first.bands.reflectance.length, wavelengthNm.length);
   assert.ok(first.parameterIntervals.film__thicknessNm.lower95 <= first.parameterIntervals.film__thicknessNm.upper95);
+});
+
+test("preserves short-range spectral correlation with deterministic moving blocks", () => {
+  let value = 0;
+  const residuals = Array.from({ length: 128 }, (_, index) => {
+    value = 0.82 * value + Math.sin(index * 0.37);
+    return value;
+  });
+  const blockLength = estimateResidualBlockLength(residuals);
+  assert.ok(blockLength > 1);
+  const generator = (seed) => {
+    let state = seed >>> 0;
+    return () => {
+      state += 0x6d2b79f5;
+      let output = Math.imul(state ^ state >>> 15, 1 | state);
+      output = output + Math.imul(output ^ output >>> 7, 61 | output) ^ output;
+      return ((output ^ output >>> 14) >>> 0) / 4294967296;
+    };
+  };
+  const first = circularMovingBlockSample(residuals, residuals.length, blockLength, generator(1729));
+  const second = circularMovingBlockSample(residuals, residuals.length, blockLength, generator(1729));
+  assert.deepEqual(first, second);
+  const lagOne = (series) => {
+    const mean = series.reduce((sum, entry) => sum + entry, 0) / series.length;
+    const centered = series.map((entry) => entry - mean);
+    const variance = centered.reduce((sum, entry) => sum + entry * entry, 0);
+    return centered.slice(1).reduce((sum, entry, index) => sum + entry * centered[index], 0) / variance;
+  };
+  assert.ok(lagOne(first) > 0.45, `expected retained lag-one correlation, got ${lagOne(first)}`);
+});
+
+test("moving-block intervals retain nominal mean coverage for correlated synthetic noise", () => {
+  const generator = (seed) => {
+    let state = seed >>> 0;
+    return () => {
+      state += 0x6d2b79f5;
+      let output = Math.imul(state ^ state >>> 15, 1 | state);
+      output = output + Math.imul(output ^ output >>> 7, 61 | output) ^ output;
+      return ((output ^ output >>> 14) >>> 0) / 4294967296;
+    };
+  };
+  const quantile = (values, probability) => {
+    const sorted = values.toSorted((left, right) => left - right);
+    const position = (sorted.length - 1) * probability;
+    const lower = Math.floor(position);
+    const fraction = position - lower;
+    return sorted[lower] + fraction * ((sorted[lower + 1] ?? sorted[lower]) - sorted[lower]);
+  };
+  let covered = 0;
+  const experiments = 60;
+  for (let experiment = 0; experiment < experiments; experiment += 1) {
+    const dataRandom = generator(4000 + experiment);
+    const normal = () => Math.sqrt(-2 * Math.log(Math.max(dataRandom(), 1e-12))) * Math.cos(2 * Math.PI * dataRandom());
+    let current = normal() / Math.sqrt(1 - 0.5 ** 2);
+    const series = Array.from({ length: 128 }, () => {
+      current = 0.5 * current + normal();
+      return current;
+    });
+    const mean = series.reduce((sum, value) => sum + value, 0) / series.length;
+    const centered = series.map((value) => value - mean);
+    const blockLength = estimateResidualBlockLength(centered);
+    const bootstrapRandom = generator(9000 + experiment);
+    const deviations = Array.from({ length: 300 }, () => {
+      const sample = circularMovingBlockSample(centered, centered.length, blockLength, bootstrapRandom);
+      return sample.reduce((sum, value) => sum + value, 0) / sample.length;
+    });
+    const lower = mean - quantile(deviations, 0.975);
+    const upper = mean - quantile(deviations, 0.025);
+    if (lower <= 0 && upper >= 0) covered += 1;
+  }
+  const coverage = covered / experiments;
+  assert.ok(coverage >= 0.85 && coverage <= 1, `expected approximately 95% coverage within finite-sample tolerance, got ${coverage}`);
 });
 
 test("fits an independently composed layer through the multilayer worker contract", () => {

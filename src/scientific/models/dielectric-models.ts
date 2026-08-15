@@ -1,4 +1,4 @@
-export const PHOTON_ENERGY_EV_NM = 1239.8419843320026;
+export const PHOTON_ENERGY_EV_NM = 1239.8419843320025;
 
 export const MODEL_LABELS = {
   fixed: "Fixed tabulated n,k",

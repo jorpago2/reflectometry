@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://127.0.0.1:4173/reflectometry/`. Run the numerical checks with `pnpm test` and create the static GitHub Pages bundle with `pnpm build`.
+Open `http://127.0.0.1:4173/reflectometry/`. Run the numerical checks with `pnpm test`, the Chromium accessibility and responsive checks with `pnpm test:ui`, and create the budget-checked static GitHub Pages bundle with `pnpm build`.
 
 The React shell is implemented in `src/App.tsx`. The mature numerical solver and file parsers remain framework-independent TypeScript modules so their existing scientific reference tests continue to run directly in Node.
 
@@ -24,7 +24,7 @@ The React shell is implemented in `src/App.tsx`. The mature numerical solver and
 - Coherent transfer-matrix solver with a finite phase-incoherent dispersive substrate, Beer?Lambert absorption, incoherent rear-surface returns, and either-side illumination. The substrate accepts every generic optical model or a tabulated n,k spectrum.
 - Optional affine spectral-shape residuals and n,k regularization.
 - Scrambled Sobol screening followed by bounded robust trust-region reflective refinement in a Web Worker.
-- Local identifiability, covariance correlation, approximate 95% intervals, reproducible residual-bootstrap bands, bound, convergence, alternative-minimum, and energy-balance diagnostics.
+- Local identifiability, covariance correlation, approximate 95% intervals, reproducible circular moving-block residual-bootstrap bands, bound, convergence, alternative-minimum, and energy-balance diagnostics. Bootstrap runs below 200 refits are explicitly exploratory.
 - Layer duplication, cross-layer parameter links, 30-step undo/redo, selectable alternative solutions, and printable reports.
 - Reproducible JSON fit export/import, spectra CSV, and material-resolved n,k CSV exports. Current JSON files embed the raw measurement, stack, dispersive substrate, links, n,k tables, fitted values, bounds, controls, and uncertainty results; v5?v7 files remain importable with their original limitations.
 - A deterministic browser-generated synthetic stack for immediate testing; no material-specific presets or bundled measurement datasets.

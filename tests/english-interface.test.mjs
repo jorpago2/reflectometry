@@ -55,7 +55,7 @@ test("ships one English-only material-agnostic multilayer interface", async () =
   assert.doesNotMatch(ui, /results-heading|Local computation/);
   assert.match(ui, /<Tabs onChange=/);
   for (const tab of ["Overview", "Fit quality", "Optical n,k"]) assert.match(ui, new RegExp(`<Tab className="results-tab">${tab}<`));
-  const resultPanels = [...ui.matchAll(/<TabPanel className="results-tab-panel[^\"]*">([\s\S]*?)<\/TabPanel>/g)].map((match) => match[1]);
+  const resultPanels = [...ui.matchAll(/<TabPanel className="results-tab-panel[^"]*">([\s\S]*?)<\/TabPanel>/g)].map((match) => match[1]);
   assert.equal(resultPanels.length, 3);
   assert.match(resultPanels[0], /stack-card/);
   assert.match(resultPanels[0], /canvasId="rt-chart"/);

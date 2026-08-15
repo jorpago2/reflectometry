@@ -1,6 +1,6 @@
 import { ScientificOutcomeSummary, useScientificResultTransition } from "@jorpago2/scientific-ui";
 import { useEffect, useRef, useState } from "react";
-import { operationScientificState, type OperationStatus } from "../../app/operation-status.ts";
+import { operationLabel, operationScientificState, type OperationStatus } from "../../app/operation-status.ts";
 
 interface SourceStatus {
   ready: boolean;
@@ -73,7 +73,7 @@ export default function ResultsOutcome() {
       className="reflectometry-outcome"
       title="Optical fit outcome"
       headingRef={outcomeHeading}
-      status={{ state, label: operation.busy ? "Fitting optical model" : operation.message, progress: operation.progress }}
+      status={{ state, label: operation.busy ? "Fitting optical model" : operationLabel(operation, source.ready), detail: operation.message, progress: operation.progress }}
       summary={state === "up-to-date"
         ? "The displayed model corresponds to the current stack and measurement. Inspect residuals, uncertainty and alternative solutions before accepting the fit."
         : state === "modified"

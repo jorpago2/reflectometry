@@ -616,7 +616,36 @@ export function fitOpticalModel(data, nk, configuration, progress: (value: numbe
   return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, optimizer, screeningPoints, localRefinements: refinementCount };
 }
 
-export function bootstrapFitUncertainty(data, nk, configuration, bestParameters, samples = 20, progress: (value: number) => void = () => {}) {
+export function estimateResidualBlockLength(residuals) {
+  if (!Array.isArray(residuals) || residuals.length < 4) return 1;
+  const mean = residuals.reduce((sum, value) => sum + value, 0) / residuals.length;
+  const centered = residuals.map((value) => value - mean);
+  const variance = centered.reduce((sum, value) => sum + value * value, 0);
+  if (!(variance > 0)) return 1;
+  const maximumLag = Math.min(Math.floor(residuals.length / 4), 50);
+  let integratedCorrelation = 1;
+  for (let lag = 1; lag <= maximumLag; lag += 1) {
+    let covariance = 0;
+    for (let index = 0; index < centered.length - lag; index += 1) covariance += centered[index] * centered[index + lag];
+    const correlation = covariance / variance;
+    if (!(correlation > 0)) break;
+    integratedCorrelation += 2 * correlation;
+  }
+  return Math.max(1, Math.min(Math.ceil(2 * integratedCorrelation), Math.max(1, Math.floor(residuals.length / 4))));
+}
+
+export function circularMovingBlockSample(pool, length, blockLength, random) {
+  if (!pool.length || length <= 0) return [];
+  const sampled = [];
+  const block = Math.max(1, Math.min(pool.length, Math.floor(blockLength)));
+  while (sampled.length < length) {
+    const start = Math.floor(random() * pool.length);
+    for (let offset = 0; offset < block && sampled.length < length; offset += 1) sampled.push(pool[(start + offset) % pool.length]);
+  }
+  return sampled;
+}
+
+export function bootstrapFitUncertainty(data, nk, configuration, bestParameters, samples = 20, progress: (value: number) => void = () => {}, options: any = {}) {
   if (!Number.isInteger(samples) || samples < 5 || samples > 200) throw new Error("Bootstrap replicates must be an integer from 5 to 200.");
   const fittedParameters = configuration.fittedParameters ?? [];
   if (!fittedParameters.length) throw new Error("Bootstrap uncertainty requires fitted parameters.");
@@ -625,15 +654,25 @@ export function bootstrapFitUncertainty(data, nk, configuration, bestParameters,
     reflectance: data.reflectance.map((value, index) => data.reflectanceValid[index] ? value - baseline.reflectanceScaled[index] : Number.NaN).filter(Number.isFinite),
     transmittance: data.transmittance.map((value, index) => data.transmittanceValid[index] ? value - baseline.transmittanceScaled[index] : Number.NaN).filter(Number.isFinite),
   };
-  let randomState = 0x6d2b79f5;
+  const seed = Number.isInteger(options.seed) ? options.seed >>> 0 : 0x6d2b79f5;
+  let randomState = seed;
   const random = () => { randomState |= 0; randomState = randomState + 0x6d2b79f5 | 0; let value = Math.imul(randomState ^ randomState >>> 15, 1 | randomState); value = value + Math.imul(value ^ value >>> 7, 61 | value) ^ value; return ((value ^ value >>> 14) >>> 0) / 4294967296; };
-  const sampleResidual = (pool) => pool[Math.floor(random() * pool.length)] ?? 0;
+  const blockLengths = {
+    reflectance: estimateResidualBlockLength(residualPools.reflectance),
+    transmittance: estimateResidualBlockLength(residualPools.transmittance),
+  };
   const replicates = [];
   for (let replicate = 0; replicate < samples; replicate += 1) {
+    const sampledResiduals = {
+      reflectance: circularMovingBlockSample(residualPools.reflectance, residualPools.reflectance.length, blockLengths.reflectance, random),
+      transmittance: circularMovingBlockSample(residualPools.transmittance, residualPools.transmittance.length, blockLengths.transmittance, random),
+    };
+    let reflectanceIndex = 0;
+    let transmittanceIndex = 0;
     const bootstrapData = {
       ...data,
-      reflectance: data.reflectance.map((value, index) => data.reflectanceValid[index] ? baseline.reflectanceScaled[index] + sampleResidual(residualPools.reflectance) : value),
-      transmittance: data.transmittance.map((value, index) => data.transmittanceValid[index] ? baseline.transmittanceScaled[index] + sampleResidual(residualPools.transmittance) : value),
+      reflectance: data.reflectance.map((value, index) => data.reflectanceValid[index] ? baseline.reflectanceScaled[index] + (sampledResiduals.reflectance[reflectanceIndex++] ?? 0) : value),
+      transmittance: data.transmittance.map((value, index) => data.transmittanceValid[index] ? baseline.transmittanceScaled[index] + (sampledResiduals.transmittance[transmittanceIndex++] ?? 0) : value),
     };
     try {
       replicates.push(fitOpticalModel(bootstrapData, nk, { ...configuration, initial: bestParameters, screeningPoints: 64, localRefinements: 1, localOnly: true, skipDiagnostics: true }));
@@ -656,8 +695,10 @@ export function bootstrapFitUncertainty(data, nk, configuration, bestParameters,
   return {
     requestedSamples: samples,
     successfulSamples: replicates.length,
-    seed: 0x6d2b79f5,
-    method: "residual bootstrap with local bounded refits",
+    seed,
+    method: "circular moving-block residual bootstrap with local bounded refits",
+    blockLengths,
+    evidenceMode: samples >= 200 ? "reporting-support" : "exploratory",
     parameterIntervals,
     parameterCorrelation,
     bands: {
