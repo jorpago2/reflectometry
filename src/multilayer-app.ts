@@ -17,6 +17,7 @@ import {
   createScientificPlotlyLayout,
   prepareScientificPlotlyToolbar,
 } from "@jorpago2/scientific-ui";
+import type { ReflectometryPhase } from "./app/operation-status.ts";
 
 const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
@@ -81,7 +82,7 @@ const elements: Record<string, any> = new Proxy({}, {
     return element;
   },
 });
-const state: any = { spectrum: null, fitData: null, evaluation: null, fitResult: null, resultStale: false, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false };
+const state: any = { spectrum: null, fitData: null, evaluation: null, fitResult: null, resultStale: false, source: null, layers: [], substrate: null, activeLayerId: null, nextLayer: 1, worker: null, pendingConfiguration: null, history: [], future: [], lastSnapshot: null, restoringHistory: false, operationPhase: "needs-input" satisfies ReflectometryPhase };
 const chartStates = new Map<any, any>();
 
 elements["reset-example"].addEventListener("click", loadSyntheticExample);
@@ -196,7 +197,7 @@ function loadSyntheticExample() {
     setSourceName("Synthetic stack · generated locally");
     elements["use-t"].checked = true;
     renderLayers();
-    setStatus("Example loaded. Review the stack, then preview the model or run the fit.");
+    setStatus("Example loaded. Review the stack, then preview the model or run the fit.", "ready");
     resetHistory();
   } catch (error) { showError(error); }
   finally { setBusy(false); }
@@ -211,7 +212,7 @@ function initializeWorkspace() {
   state.activeLayerId = layer.id;
   renderLayers();
   resetHistory();
-  setStatus("Load measurement data or the synthetic example to begin.");
+  setStatus("Load measurement data or the synthetic example to begin.", "needs-input");
 }
 
 async function loadLocalFiles() {
@@ -293,7 +294,7 @@ function restoreSavedFit(saved, fileName) {
   if (missingTables.length) {
     clearResult();
     resetHistory();
-    setStatus(`Loaded configuration from ${fileName}. Reload the missing n,k tables for: ${missingTables.map((layer) => layer.name).join(", ")}.`);
+    setStatus(`Loaded configuration from ${fileName}. Reload the missing n,k tables for: ${missingTables.map((layer) => layer.name).join(", ")}.`, state.spectrum ? "ready" : "needs-input");
     return;
   }
   const config = configuration(); const fitData = prepareCurrentData(); validateChannels(fitData, config.settings);
@@ -516,7 +517,7 @@ function restoreAutosaveSnapshot(snapshot) {
   clearResult();
   state.restoringHistory = false;
   resetHistory();
-  setStatus("Previous session restored. Preview the model or run a new fit.");
+  setStatus("Previous session restored. Preview the model or run a new fit.", "ready");
 }
 
 function fileControl(materialId, labelText, field, sourceText) {
@@ -795,18 +796,18 @@ function validateChannels(data, settings) {
 }
 
 function previewModel(message = "Model preview updated; parameters have not been optimized.") {
-  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before previewing the model.");
+  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before previewing the model.", "needs-input");
   try {
     const config = configuration(); const fitData = prepareCurrentData(); validateChannels(fitData, config.settings);
     state.evaluation = evaluateOpticalModel(fitData, null, config.initial, config.settings);
     state.fitResult = { parameters: config.initial, evaluation: state.evaluation, diagnostics: diagnosticsOf(fitData, state.evaluation, config.settings), preview: true, configuration: config };
-    renderResult(message);
+    renderResult(message, "preview");
     commitHistorySnapshot();
   } catch (error) { showError(error); }
 }
 
 function fitModel() {
-  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before fitting.");
+  if (!state.spectrum) return setStatus("Load measurement data or the synthetic example before fitting.", "needs-input");
   try {
     const config = configuration(); const fitData = prepareCurrentData(); validateChannels(fitData, config.settings);
     if (!config.fittedParameters.length) throw new Error("Select at least one parameter to fit.");
@@ -829,12 +830,12 @@ function bootstrapUncertainty() {
 }
 
 function handleWorkerMessage({ data }) {
-  if (data.type === "progress") { elements["fit-progress"].value = data.progress; setStatus(`Fitting parameters… ${data.progress}%`); return; }
-  if (data.type === "bootstrap-progress") { elements["fit-progress"].value = data.progress; setStatus(`Bootstrap refits… ${data.progress}%`); return; }
+  if (data.type === "progress") { elements["fit-progress"].value = data.progress; setStatus(`Fitting parameters… ${data.progress}%`, "fitting"); return; }
+  if (data.type === "bootstrap-progress") { elements["fit-progress"].value = data.progress; setStatus(`Bootstrap refits… ${data.progress}%`, "fitting"); return; }
   if (data.type === "bootstrap-result") {
     stopFitWorker();
     state.fitResult.diagnostics.bootstrap = data.result;
-    renderResult(`Bootstrap complete: ${data.result.successfulSamples} of ${data.result.requestedSamples} refits converged.`); return;
+    renderResult(`Bootstrap complete: ${data.result.successfulSamples} of ${data.result.requestedSamples} refits converged.`, "bootstrap-success"); return;
   }
   if (data.type === "error") return finishFitError(data.message);
   if (data.type !== "result") return;
@@ -847,7 +848,7 @@ function handleWorkerMessage({ data }) {
   synchronizeLinkedParameters(data.result.parameters);
   elements["r-gain"].value = data.result.parameters.rGain; elements["t-gain"].value = data.result.parameters.tGain;
   renderLayers();
-  renderResult(data.result.optimizer.selectedSolver.success ? "Fit complete." : `Fit stopped: ${data.result.optimizer.selectedSolver.message}`);
+  renderResult(data.result.optimizer.selectedSolver.success ? "Fit complete." : `Fit stopped: ${data.result.optimizer.selectedSolver.message}`, data.result.optimizer.selectedSolver.success ? "fit-success" : "error");
 }
 
 function startFitWorker(message) {
@@ -862,14 +863,14 @@ function markResultStale() {
   state.resultStale = true;
   for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = true;
   updateBootstrapGuidance();
-  setStatus("Configuration changed. Preview the model or run a new fit; displayed results are stale.");
+  setStatus("Configuration changed. Preview the model or run a new fit; displayed results are stale.", "stale");
 }
 
 function stopFitWorker() { if (state.worker) state.worker.terminate(); state.worker = null; elements["fit-progress"].hidden = true; elements["cancel-operation"].hidden = true; setBusy(false); }
-function cancelOperation() { if (!state.worker) return; stopFitWorker(); state.pendingConfiguration = null; setStatus(state.resultStale ? "Calculation cancelled; displayed results still precede the current configuration." : "Calculation cancelled; previous valid results were kept."); }
+function cancelOperation() { if (!state.worker) return; stopFitWorker(); state.pendingConfiguration = null; setStatus(state.resultStale ? "Calculation cancelled; displayed results still precede the current configuration." : "Calculation cancelled; previous valid results were kept.", state.resultStale ? "stale" : state.fitResult?.preview ? "preview" : state.fitResult ? "fit-success" : state.spectrum ? "ready" : "needs-input"); }
 function finishFitError(message) { stopFitWorker(); state.pendingConfiguration = null; showError(new Error(message)); }
 
-function renderResult(message) {
+function renderResult(message, phase: ReflectometryPhase = state.fitResult?.preview ? "preview" : "fit-success") {
   state.resultStale = false;
   elements["results-empty"].hidden = true;
   elements["results-content"].hidden = false;
@@ -888,7 +889,7 @@ function renderResult(message) {
   for (const id of ["download-json", "download-csv", "download-nk", "print-report", "bootstrap-button"]) elements[id].disabled = Boolean(result.preview);
   updateBootstrapGuidance();
   renderUncertainty(diagnostics); renderAlternativeSolutions(diagnostics.alternativeSolutions ?? []);
-  setStatus(message); drawAll();
+  setStatus(message, phase); drawAll();
 }
 
 function parameterLabel(key) {
@@ -1186,21 +1187,21 @@ function updateBootstrapGuidance() {
         ? "Run fit again after the configuration change to enable bootstrap uncertainty."
         : "Bootstrap uncertainty is available for the current fit.";
 }
-function publishOperationStatus(message, kind) {
+function publishOperationStatus(message) {
   const progress = state.worker ? Number(elements["fit-progress"].value) : undefined;
   window.dispatchEvent(new CustomEvent("reflectometry:operation-status", {
-    detail: { busy: Boolean(state.worker), kind, message, progress },
+    detail: { busy: Boolean(state.worker), phase: state.operationPhase, message, progress },
   }));
 }
-function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "fit-panel-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) setControlDisabled(id, busy); if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } updateBootstrapGuidance(); if (message) setStatus(message); else { const currentMessage = elements.status.textContent ?? ""; const kind = elements.status.closest(".status-row")?.dataset.kind ?? "neutral"; publishOperationStatus(currentMessage, kind); } }
-function setStatus(message) {
+function setBusy(busy, message = "") { (document.querySelector(".controls") as HTMLElement).inert = busy; for (const id of ["fit-button", "fit-panel-button", "preview-button", "bootstrap-button", "reset-example", "load-files", "saved-fit-file", "add-layer", "undo-button", "redo-button"]) setControlDisabled(id, busy); if (!busy) { elements["bootstrap-button"].disabled = !state.fitResult || Boolean(state.fitResult.preview) || state.resultStale; updateHistoryButtons(); } updateBootstrapGuidance(); if (message) setStatus(message, "fitting"); else publishOperationStatus(elements.status.textContent ?? ""); }
+function setStatus(message, phase: ReflectometryPhase = state.operationPhase) {
+  state.operationPhase = phase;
   elements.status.textContent = message;
   const row = elements.status.closest(".status-row");
-  const kind = /^Error:/i.test(message) ? "error" : /fitting|screening|bootstrap/i.test(message) ? "running" : /optimized|complete|exported/i.test(message) ? "success" : "neutral";
-  if (row) row.dataset.kind = kind;
-  publishOperationStatus(message, kind);
+  if (row) row.dataset.kind = phase === "error" ? "error" : phase === "fitting" ? "running" : phase === "fit-success" || phase === "bootstrap-success" ? "success" : "neutral";
+  publishOperationStatus(message);
 }
-function showError(error) { setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`); }
+function showError(error) { setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`, "error"); }
 function safeName(value) { return String(value ?? "sample").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sample"; }
 function csvCell(value) { return `"${String(value).replaceAll('"', '""')}"`; }
 function saveFile(content, name, type) { const blob = content instanceof Blob ? content : new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }

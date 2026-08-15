@@ -12,6 +12,8 @@ import {
   fitResidualVector,
   fitTabulated,
   prepareFitData,
+  loadNkTable,
+  parseNumericTable,
   robustBackground,
 } from "../src/scientific/solvers/scientific-core.ts";
 
@@ -22,6 +24,29 @@ test("loads generic reference spectra with nm or µm wavelength tables", () => {
   const nanometers = createSpectrum({ ...common, referenceReflectance: "400 0.25\n500 0.36" });
   assert.deepEqual(micrometers.referenceReflectance, [0.25, 0.36]);
   assert.deepEqual(nanometers.referenceReflectance, micrometers.referenceReflectance);
+});
+
+test("processes visible-only spectra when background subtraction and SNR filtering are off", () => {
+  const wavelengthNm = Array.from({ length: 101 }, (_, index) => 400 + index);
+  const spectrum = {
+    sampleName: "Visible only",
+    wavelengthNm,
+    sampleReflectanceCounts: wavelengthNm.map(() => 40),
+    sampleTransmittanceCounts: wavelengthNm.map(() => 60),
+    reflectanceReferenceCounts: wavelengthNm.map(() => 100),
+    transmittanceReferenceCounts: wavelengthNm.map(() => 100),
+    referenceReflectance: wavelengthNm.map(() => 0.3),
+  };
+  const prepared = prepareFitData(spectrum, { wavelengthMinNm: 400, wavelengthMaxNm: 500, referenceThresholdFraction: 0, binWidthNm: 2, sampleSnrMinimum: 0, subtractBackground: false });
+  assert.ok(prepared.wavelengthNm.length >= 10);
+});
+
+test("rejects negative extinction and corrupt numeric rows with provenance", () => {
+  assert.throws(() => loadNkTable("400 2 -0.2\n500 2 0.1"), /row 1 at 400 nm has k=-0\.2/);
+  const corrected = loadNkTable("400 2 -1e-14\n500 2 0.1");
+  assert.equal(corrected.k[0], 0);
+  assert.equal(corrected.corrections.length, 1);
+  assert.throws(() => parseNumericTable("400 2\ncorrupt row\n500 2"), /line 2: corrupt row/);
 });
 
 test("generates a reproducible neutral stack example", () => {

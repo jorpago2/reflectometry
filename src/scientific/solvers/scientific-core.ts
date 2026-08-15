@@ -8,12 +8,17 @@ const baseParameterName = (name) => name.includes("__") ? name.slice(name.lastIn
 const isLogParameter = (name) => LOG_PARAMETERS.has(baseParameterName(name));
 
 export function parseNumericTable(text, minimumColumns = 2) {
-  const rows = String(text)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#") && !line.startsWith(";"))
-    .map((line) => line.replaceAll(";", " ").split(/\s+/).map((field) => Number(field.replace(",", "."))))
-    .filter((row) => row.length >= minimumColumns && row.every(Number.isFinite));
+  const rows = [];
+  String(text).split(/\r?\n/).forEach((sourceLine, index) => {
+    const line = sourceLine.trim();
+    if (!line || line.startsWith("#") || line.startsWith(";")) return;
+    const fields = line.replaceAll(";", " ").split(/\s+/);
+    const row = fields.map((field) => Number(field.replace(",", ".")));
+    if (row.length < minimumColumns || row.some((value) => !Number.isFinite(value))) {
+      throw new Error(`Invalid numeric table row at line ${index + 1}: ${sourceLine}`);
+    }
+    rows.push(row);
+  });
   if (!rows.length) throw new Error(`No numeric table with ${minimumColumns} columns was found.`);
   const width = Math.min(...rows.map((row) => row.length));
   return rows.map((row) => row.slice(0, width));
@@ -27,10 +32,21 @@ export function loadNkTable(text) {
   if (wavelengthNm.some((value, index) => index && value <= wavelengthNm[index - 1])) {
     throw new Error("The n,k table contains repeated or unordered wavelengths.");
   }
+  const corrections = [];
+  rows.forEach((row, index) => {
+    if (row[2] < -1e-12) {
+      throw new Error(`Passive n,k data require k ≥ 0; row ${index + 1} at ${wavelengthNm[index]} nm has k=${row[2]}.`);
+    }
+    if (row[2] < 0) {
+      corrections.push({ row: index + 1, wavelengthNm: wavelengthNm[index], originalK: row[2], correctedK: 0 });
+      row[2] = 0;
+    }
+  });
   return {
     wavelengthNm,
     n: rows.map((row) => row[1]),
-    k: rows.map((row) => Math.max(0, row[2])),
+    k: rows.map((row) => row[2]),
+    corrections,
   };
 }
 
@@ -127,9 +143,11 @@ export function prepareFitData(spectrum, options) {
     reflectanceReference: spectrum.reflectanceReferenceCounts,
     transmittanceReference: spectrum.transmittanceReferenceCounts,
   };
-  const background = Object.fromEntries(
-    Object.entries(channels).map(([name, counts]) => [name, robustBackground(spectrum.wavelengthNm, counts)]),
-  );
+  const requiresBackground = subtractBackground || sampleSnrMinimum > 0;
+  const background = Object.fromEntries(Object.entries(channels).map(([name, counts]) => [
+    name,
+    requiresBackground ? robustBackground(spectrum.wavelengthNm, counts) : { level: 0, sigma: null },
+  ]));
   const corrected = Object.fromEntries(
     Object.entries(channels).map(([name, counts]) => [
       name,
@@ -147,7 +165,7 @@ export function prepareFitData(spectrum, options) {
     && Number.isFinite(corrected.reflectanceReference[index])
     && corrected.sampleR[index] >= 0
     && corrected.reflectanceReference[index] > reflectanceReferenceThreshold
-    && corrected.sampleR[index] - (subtractBackground ? 0 : background.sampleR.level) >= sampleSnrMinimum * background.sampleR.sigma
+    && (sampleSnrMinimum === 0 || corrected.sampleR[index] - (subtractBackground ? 0 : background.sampleR.level) >= sampleSnrMinimum * background.sampleR.sigma)
   ));
   const transmittanceMask = spectrum.wavelengthNm.map((wavelength, index) => (
     wavelength >= wavelengthMinNm
@@ -156,7 +174,7 @@ export function prepareFitData(spectrum, options) {
     && Number.isFinite(corrected.transmittanceReference[index])
     && corrected.sampleT[index] >= 0
     && corrected.transmittanceReference[index] > transmittanceReferenceThreshold
-    && corrected.sampleT[index] - (subtractBackground ? 0 : background.sampleT.level) >= sampleSnrMinimum * background.sampleT.sigma
+    && (sampleSnrMinimum === 0 || corrected.sampleT[index] - (subtractBackground ? 0 : background.sampleT.level) >= sampleSnrMinimum * background.sampleT.sigma)
   ));
   const validIndices = spectrum.wavelengthNm.map((_, index) => index).filter((index) => reflectanceMask[index] || transmittanceMask[index]);
   if (validIndices.length < 10) throw new Error("Fewer than 10 valid calibrated points remain.");

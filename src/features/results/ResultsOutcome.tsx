@@ -1,12 +1,6 @@
-import { ScientificOutcomeSummary, type ScientificState, useScientificResultTransition } from "@jorpago2/scientific-ui";
+import { ScientificOutcomeSummary, useScientificResultTransition } from "@jorpago2/scientific-ui";
 import { useEffect, useRef, useState } from "react";
-
-interface OperationStatus {
-  busy: boolean;
-  kind: "neutral" | "running" | "success" | "error";
-  message: string;
-  progress?: number;
-}
+import { operationScientificState, type OperationStatus } from "../../app/operation-status.ts";
 
 interface SourceStatus {
   ready: boolean;
@@ -18,8 +12,8 @@ interface SourceStatus {
 }
 
 const initialOperation: OperationStatus = {
+  phase: "needs-input",
   busy: false,
-  kind: "neutral",
   message: "Load measurement data or use the synthetic example to begin.",
 };
 
@@ -66,22 +60,12 @@ export default function ResultsOutcome() {
     };
   }, []);
 
-  const state: ScientificState = operation.busy
-    ? "running"
-    : operation.kind === "error"
-      ? "failed"
-      : /stale|precede|changed/i.test(operation.message)
-        ? "modified"
-        : operation.kind === "success"
-          ? "up-to-date"
-          : source.ready
-            ? "ready"
-            : "needs-input";
+  const state = operationScientificState(operation, source.ready);
 
   useScientificResultTransition({
     state,
     resultRef: outcomeHeading,
-    completionKey: operation.kind === "success" || operation.kind === "error" ? operation.message : null,
+    completionKey: operation.phase === "fit-success" || operation.phase === "bootstrap-success" || operation.phase === "error" ? operation.message : null,
   });
 
   return (

@@ -1,18 +1,12 @@
 import { Button, OverflowMenu, OverflowMenuItem } from "@carbon/react";
 import { Download } from "@carbon/react/icons";
-import { ScientificStatusBar, type ScientificState } from "@jorpago2/scientific-ui";
+import { ScientificStatusBar } from "@jorpago2/scientific-ui";
 import { useEffect, useState, type ReactNode } from "react";
-
-interface OperationStatus {
-  busy: boolean;
-  kind: "neutral" | "running" | "success" | "error";
-  message: string;
-  progress?: number;
-}
+import { operationScientificState, type OperationStatus } from "../../app/operation-status.ts";
 
 const initialStatus: OperationStatus = {
+  phase: "needs-input",
   busy: false,
-  kind: "neutral",
   message: "Waiting for measurement data.",
 };
 
@@ -36,17 +30,7 @@ export default function ResultsStatusBar({ metadata }: { metadata?: ReactNode })
     return () => window.removeEventListener("reflectometry:operation-status", updateOperationStatus);
   }, []);
 
-  const scientificState: ScientificState = operation.busy
-    ? "running"
-    : operation.kind === "error"
-      ? "failed"
-      : operation.kind === "success"
-        ? "up-to-date"
-        : /stale|changed/i.test(operation.message)
-          ? "modified"
-          : /load|waiting/i.test(operation.message)
-            ? "needs-input"
-            : "ready";
+  const scientificState = operationScientificState(operation, operation.phase !== "needs-input");
 
   return (
     <ScientificStatusBar

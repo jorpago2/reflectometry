@@ -1,19 +1,13 @@
 import { SkipToContent } from "@carbon/react";
 import { ScientificHeader, ScientificRunControl, useScientificShortcut } from "@jorpago2/scientific-ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-interface OperationStatus {
-  busy: boolean;
-  kind: "neutral" | "running" | "success" | "error";
-  message: string;
-  progress?: number;
-}
+import { operationLabel, operationScientificState, type OperationStatus } from "./operation-status.ts";
 
 export default function AppHeader() {
   const [sourceReady, setSourceReady] = useState(false);
   const [operation, setOperation] = useState<OperationStatus>({
+    phase: "needs-input",
     busy: false,
-    kind: "neutral",
     message: "Load measurement data or the synthetic example to begin.",
   });
 
@@ -47,28 +41,8 @@ export default function AppHeader() {
   }), [cancelFit, operation.busy]);
   useScientificShortcut(cancelShortcut);
 
-  const state = operation.busy
-    ? "running"
-    : operation.kind === "error"
-      ? "failed"
-      : operation.kind === "success"
-        ? "up-to-date"
-        : /stale|changed/i.test(operation.message)
-          ? "modified"
-          : sourceReady
-            ? "ready"
-            : "needs-input";
-  const label = operation.busy
-    ? operation.message
-    : state === "failed"
-      ? "Error"
-      : state === "up-to-date"
-        ? /fit|converg|optim/i.test(operation.message) ? "Fit converged · review validation" : "Preview current · not fitted"
-        : state === "modified"
-          ? "Modified"
-          : sourceReady
-            ? "Ready"
-            : "Needs input";
+  const state = operationScientificState(operation, sourceReady);
+  const label = operationLabel(operation, sourceReady);
 
   return (
     <ScientificHeader
