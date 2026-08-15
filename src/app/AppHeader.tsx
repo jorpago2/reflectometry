@@ -48,6 +48,7 @@ export default function AppHeader() {
     <ScientificHeader
       aria-label="Reflectometry"
       product="Reflectometry"
+      compactProduct="Reflectometry"
       productIcon="reflectometry"
       descriptor="Optical fitting"
       href="./"

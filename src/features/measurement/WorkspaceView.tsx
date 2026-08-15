@@ -123,6 +123,7 @@ export default function WorkspaceView({ engineReady }: { engineReady: boolean })
   return (
     <ScientificAppShell
       className="reflectometry-shell"
+      previewStageWhenPanelOpen
       recovery={autosave.recovery && <ScientificRecoveryNotice savedAt={autosave.recovery.savedAt} onRestore={autosave.restore} onDiscard={autosave.discard} />}
       panelOpen={Boolean(activeSection)}
       header={<><h1 className="visually-hidden">Reflectometry</h1><AppHeader /></>}
