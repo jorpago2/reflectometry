@@ -2,146 +2,102 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("ships one English-only material-agnostic multilayer interface", async () => {
-  const files = await Promise.all(["index.html", "src/app/App.tsx", "src/multilayer-app.ts", "src/features/layer-stack/model-help.ts", "src/scientific/solvers/scientific-core.ts", "src/scientific/models/dielectric-models.ts"].map((name) => readFile(new URL(`../${name}`, import.meta.url), "utf8")));
-  const workspaceView = await readFile(new URL("../src/features/measurement/WorkspaceView.tsx", import.meta.url), "utf8");
-  files[1] += workspaceView;
-  files[1] += await readFile(new URL("../src/app/AppHeader.tsx", import.meta.url), "utf8");
-  files[1] += await readFile(new URL("../src/features/results/ResultsStatusBar.tsx", import.meta.url), "utf8");
-  files[1] += await readFile(new URL("../src/shared/plots/PlotCard.tsx", import.meta.url), "utf8");
-  files[1] += await readFile(new URL("../src/shared/carbon/WorkspaceNavigation.tsx", import.meta.url), "utf8");
-  const main = await readFile(new URL("../src/main.tsx", import.meta.url), "utf8");
-  const vite = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
-  const styles = await readFile(new URL("../src/styles/carbon.scss", import.meta.url), "utf8");
-  const packageJson = await readFile(new URL("../package.json", import.meta.url), "utf8");
-  const combined = files.join("\n");
-  assert.match(files[0], /<html lang="en">/);
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("ships one English-only material-agnostic React interface", async () => {
+  const [index, main, app, workspace, measurement, layers, fit, results, outcome, statusBar, plot, navigation, runtime, help, core, models, carbonBase, styles, vite, packageJson] = await Promise.all([
+    read("index.html"),
+    read("src/main.tsx"),
+    read("src/app/App.tsx"),
+    read("src/features/measurement/WorkspaceView.tsx"),
+    read("src/features/measurement/MeasurementPanel.tsx"),
+    read("src/features/layer-stack/LayerStackEditor.tsx"),
+    read("src/features/fit/FitPanel.tsx"),
+    read("src/features/results/ResultsWorkspace.tsx"),
+    read("src/features/results/ResultsOutcome.tsx"),
+    read("src/features/results/ResultsStatusBar.tsx"),
+    read("src/shared/plots/PlotCard.tsx"),
+    read("src/shared/carbon/WorkspaceNavigation.tsx"),
+    read("src/runtime/reflectometry-store.ts"),
+    read("src/features/layer-stack/model-help.ts"),
+    read("src/scientific/solvers/scientific-core.ts"),
+    read("src/scientific/models/dielectric-models.ts"),
+    read("src/styles/carbon-base.scss"),
+    read("src/styles/carbon.scss"),
+    read("vite.config.ts"),
+    read("package.json"),
+  ]);
+  const ui = [app, workspace, measurement, layers, fit, results, outcome, statusBar, plot, navigation, runtime].join("\n");
+  const combined = [ui, help, core, models].join("\n");
+
+  assert.match(index, /<html lang="en">/);
   for (const metadata of ["theme-color", "canonical", "favicon.svg", "og:site_name", "og:url", "og:image:alt", "twitter:title", "twitter:description", "twitter:image:alt"]) {
-    assert.match(files[0], new RegExp(metadata));
+    assert.match(index, new RegExp(metadata));
   }
-  assert.match(files[0], /src="\/src\/main\.tsx"/);
+  assert.match(index, /src="\/src\/main\.tsx"/);
   assert.match(main, /createRoot/);
   assert.match(main, /ScientificUiProvider/);
-  assert.doesNotMatch(main, /document\.documentElement\.classList\.add/);
-  assert.match(files[1], /useEffect/);
+  assert.match(main, /ReflectometryProvider/);
+  assert.match(main, /carbon-base\.scss[\s\S]*scientific-ui\/styles\.css[\s\S]*carbon\.scss/);
   assert.match(vite, /base: "\/reflectometry\/"/);
-  assert.doesNotMatch(files[1], /tool-heading|Capabilities and model scope/);
-  const ui = files[1] + files[2];
-  assert.match(ui, /href="#reflectometry-workspace"/);
-  assert.match(ui, /id="reflectometry-workspace"/);
-  assert.match(ui, /id="configuration-panel"/);
-  assert.match(ui, /id="results-panel"/);
-  assert.match(ui, /from "@carbon\/react"/);
-  assert.match(ui, /from "@carbon\/react\/icons"/);
-  for (const component of ["Accordion", "Checkbox", "CheckboxGroup", "ContentSwitcher", "FileUploaderButton", "NumberInput", "Select", "Switch", "TextInput"]) assert.match(workspaceView, new RegExp(`<${component}\\b`));
-  assert.doesNotMatch(workspaceView, /<(?:input|select|details)\b/);
-  assert.doesNotMatch(ui, /TabsVertical|TabListVertical/);
-  assert.doesNotMatch(ui, /mobileView/);
-  assert.match(workspaceView, /data-configuration-mode=\{configurationMode\}/);
-  assert.match(workspaceView, /name="basic" text="Basic"/);
-  assert.match(workspaceView, /name="advanced" text="Advanced"/);
-  for (const label of ["Data", "Layer stack", "Fit"]) assert.match(ui, new RegExp(`label: "${label}"`));
-  assert.equal([...ui.matchAll(/<section className="configuration-panel" hidden=/g)].length, 3);
-  assert.match(ui, /<ScientificToolRail/);
-  assert.match(ui, /activeId=\{activeSection \?\? "measurement"\}/);
-  assert.match(ui, /expandedId=\{activeSection\}/);
-  assert.match(ui, /controlsId: "configuration-panel"/);
-  assert.match(ui, /useState<WorkflowSection \| null>\(null\)/);
-  assert.match(ui, /hidden=\{!activeSection\}/);
-  assert.doesNotMatch(ui, /DisclosurePanel/);
-  assert.match(ui, /help=\{\{/);
-  assert.match(ui, /<ScientificStatusBar/);
-  assert.match(ui, /<OverflowMenu hidden=\{operation\.busy\}/);
-  assert.doesNotMatch(ui, /results-heading|Local computation/);
-  assert.match(ui, /<Tabs onChange=/);
-  for (const tab of ["Overview", "Fit quality", "Optical n,k"]) assert.match(ui, new RegExp(`<Tab className="results-tab">${tab}<`));
-  const resultPanels = [...ui.matchAll(/<TabPanel className="results-tab-panel[^"]*">([\s\S]*?)<\/TabPanel>/g)].map((match) => match[1]);
-  assert.equal(resultPanels.length, 3);
-  assert.match(resultPanels[0], /stack-card/);
-  assert.match(resultPanels[0], /canvasId="rt-chart"/);
-  assert.doesNotMatch(resultPanels[0], /metrics|diagnostics|residual-chart|nk-chart/);
-  assert.doesNotMatch(ui, /All tools|Local processing/i);
-  assert.match(ui, /id="reset-example"/);
-  assert.match(ui, /id="saved-fit-file"/);
-  assert.match(ui, /R reference signal/);
-  assert.match(files[1], /id="add-layer"/);
-  assert.match(files[1], /id="substrate-editor"/);
-  assert.match(files[1], /id="substrate-thickness"/);
-  assert.match(files[1], /micrometres \(µm\)/);
-  assert.match(files[1], /id="stack-diagram"/);
-  assert.match(files[1], /Layers n,k/);
-  for (const id of ["fit-panel-button", "undo-button", "redo-button", "bootstrap-button", "bootstrap-prerequisite", "cancel-operation", "print-report", "download-json", "download-csv", "download-nk", "uncertainty-content", "solutions-content"]) assert.match(files[1], new RegExp(`id="${id}"`));
-  assert.match(files[1], />Preview model</);
-  assert.match(files[1], />Run fit</);
-  for (const id of ["rt-chart", "residual-chart", "nk-chart"]) {
-    assert.match(files[1], new RegExp(`canvasId="${id}"`));
-  }
-  assert.match(files[1], /data-reset-chart=\{canvasId\}/);
-  assert.match(files[2], /Independent dielectric components/);
-  assert.match(files[2], /function renderStackDiagram/);
-  assert.match(files[2], /function markResultStale/);
-  assert.match(files[2], /state\.resultStale/);
-  assert.match(files[2], /Tauc–Lorentz oscillators/);
-  assert.match(files[2], /Lorentz oscillators/);
-  assert.match(files[2], /Brendel–Bormann/);
-  assert.match(files[2], /Drude–Smith/);
-  assert.match(files[2], /Effective-medium constituents/);
-  assert.match(files[2], /Model guide/);
-  assert.match(files[3], /Kramers–Kronig/);
-  assert.match(files[2], /https:\/\/doi\.org\//);
-  const modelSelector = files[2].match(/const MULTILAYER_MODEL_LABELS = \{([\s\S]*?)\n\};/)[1];
-  assert.doesNotMatch(modelSelector, /\btl1\b|\btl2\b|tl-gaussian|drude-tl|MODEL_LABELS\.cody/);
-  assert.match(files[2], /className = "parameter-help-button"/);
-  assert.match(files[2], /function handleParameterHelp/);
-  assert.match(files[2], /aria-expanded/);
-  assert.match(styles, /\.parameter-help-popover\b/);
-  assert.match(styles, /\.chart-tooltip\b/);
-  assert.match(styles, /@use "@carbon\/react"/);
-  assert.match(styles, /@use "@carbon\/react\/scss\/config" with \([\s\S]*\$font-path: "@ibm\/plex"/);
-  assert.match(styles, /@use "@carbon\/react\/scss\/breakpoint" as breakpoint/);
+  assert.doesNotMatch(app, /multilayer-app|dom-contract/);
+
+  assert.match(workspace, /<ScientificAppShell\b/);
+  assert.match(workspace, /<ScientificTaskPanel[\s\S]*id="configuration-panel"/);
+  assert.match(workspace, /panelOpen=\{Boolean\(activeSection\)\}/);
+  assert.match(workspace, /hidden=\{!activeSection\}/);
+  assert.match(workspace, /inert=\{state\.operation\.busy\}/);
+  assert.match(workspace, /onKeyDown=/);
+  assert.match(navigation, /label: "Data"/);
+  assert.match(navigation, /label: "Layer stack"/);
+  assert.match(navigation, /label: "Fit"/);
+  assert.match(navigation, /onClick=\{/);
+  assert.doesNotMatch(ui, /ScientificToolRail|TabsVertical|TabListVertical|mobileView|DisclosurePanel/);
+
+  for (const component of ["Accordion", "Checkbox", "FileUploaderButton", "NumberInput", "TextInput"]) assert.match(measurement, new RegExp(`<${component}\\b`));
+  for (const component of ["Accordion", "Checkbox", "FileUploaderButton", "IconButton", "Modal", "NumberInput", "RadioButton", "Select", "TextInput", "Toggletip"]) assert.match(layers, new RegExp(`\\b${component}\\b`));
+  for (const component of ["Checkbox", "CheckboxGroup", "NumberInput", "Select"]) assert.match(fit, new RegExp(`<${component}\\b`));
+  assert.doesNotMatch([measurement, layers, fit].join("\n"), /<(?:input|select|details)\b/);
+  assert.match(measurement, /R reference signal/);
+  assert.match(measurement, /id="saved-fit-file"/);
+  assert.match(measurement, /onClick=\{actions\.loadSyntheticExample\}/);
+  assert.match(layers, /micrometres \(µm\)/);
+  assert.match(layers, /onClick=\{actions\.addLayer\}/);
+  assert.match(fit, /onClick=\{run\}/);
+  assert.match(fit, /state\.canBootstrap/);
+
+  assert.match(results, /<Tabs>/);
+  for (const tab of ["Overview", "Fit quality", "Optical n,k"]) assert.match(results, new RegExp(`<Tab>${tab}<`));
+  assert.equal([...results.matchAll(/<TabPanel className="results-tab-panel[^>]*>/g)].length, 3);
+  assert.match(results, /plotId="rt-chart"/);
+  assert.match(results, /plotId="residual-chart"/);
+  assert.match(results, /plotId="nk-chart"/);
+  assert.match(results, /state\.layers\.map/);
+  assert.match(results, /stack-card/);
+  assert.match(outcome, /onClick: actions\.fit/);
+  assert.match(outcome, /onClick: actions\.preview/);
+  assert.match(statusBar, /<ScientificStatusBar/);
+  assert.match(statusBar, /<OverflowMenu/);
+  assert.match(statusBar, /href=\{exports\?\./);
+  assert.match(plot, /Plotly\.react/);
+  assert.match(plot, /onClick=\{/);
+  assert.doesNotMatch(ui, /LegacyPlotCard|legacy-|All tools|Local processing/i);
+
+  for (const token of ["MULTILAYER_MODEL_LABELS", "parseSavedFit", "SAVED_FIT_SCHEMA", "substrateThicknessNm: 1000 \\* substrateThicknessUm"]) assert.match(runtime, new RegExp(token));
+  assert.match(help, /Kramers–Kronig/);
+  assert.match(layers, /https:\/\/doi\.org\//);
+  assert.match(carbonBase, /@use "@carbon\/react"/);
+  assert.match(carbonBase, /@use "@carbon\/react\/scss\/config" with \([\s\S]*\$font-path: "@ibm\/plex"/);
   assert.match(styles, /@use "@carbon\/react\/scss\/spacing" as spacing/);
   assert.doesNotMatch(styles, /var\(--cds-spacing-/);
-  assert.doesNotMatch(styles, /!important/);
-  assert.match(styles, /\[hidden\]\s*\{\s*display:\s*none;/);
-  assert.match(workspaceView, /panelOpen=\{Boolean\(activeSection\)\}/);
-  assert.doesNotMatch(workspaceView, /<(?:Grid|Column)\b/);
-  assert.match(files[1], /setActiveSection[\s\S]*dispatchEvent\(new Event\("resize"\)\)/);
+  assert.match(styles, /@media \(max-width: 65\.99rem\)/);
+  assert.match(styles, /@container \(max-width: 38rem\)/);
+  for (const token of ["--color-plot-r", "--color-plot-t", "--plot-background", "--plot-grid", "--plot-axis"]) assert.match(styles, new RegExp(token));
+  assert.doesNotMatch(styles, /parameter-help-mark|file-selector-button|workbench-shell\[data-panel-open/);
+
   assert.match(packageJson, /"@carbon\/react"/);
   assert.match(packageJson, /"sass"/);
   assert.doesNotMatch(packageJson, /storybook/i);
-  assert.doesNotMatch(`${files[1]}\n${styles}\n${vite}\n${packageJson}`, /headlessui|heroicons|tailwindcss/i);
-  for (const token of ["--color-plot-r", "--color-plot-t", "--plot-background", "--plot-grid", "--plot-axis"]) assert.match(styles, new RegExp(token));
-  assert.doesNotMatch(styles, /parameter-help-mark/);
-  assert.match(files[2], /substrateThicknessNm: 1000 \* substrateThicknessUm/);
-  assert.match(files[2], /parseSavedFit/);
-  assert.match(files[2], /SAVED_FIT_SCHEMA/);
-  assert.match(files[2], /function makeSubstrate/);
-  for (const helper of ["renderChart", "niceTicks", "handleChartWheel", "handleChartKeydown", "resetChart"]) assert.match(files[2], new RegExp(`function ${helper}`));
-  assert.match(files[2], /getBoundingClientRect\(\)/);
-  assert.match(files[2], /context\.setTransform\(pixelWidth \/ width, 0, 0, pixelHeight \/ height/);
-  assert.doesNotMatch(files[2], /Math\.min\(2, window\.devicePixelRatio/);
-  assert.match(files[2], /parameter-link/);
-  assert.match(files[4], /bootstrapFitUncertainty/);
-  assert.match(files[2], /thicknessUm: Number\(elements\["substrate-thickness"\]\.value\)/);
-  assert.match(files[2], /deterministic browser-generated example/);
-  for (const selector of ["layer-actions", "component-selector", "layer-reference", "layer-flags", "parameter-header", "parameter-row"]) assert.match(styles, new RegExp(`\\.${selector}\\b`));
-  for (const selector of ["scientific-data-table", "correlation-data-table", "fit-solution", "solution-action"]) assert.match(`${files[2]}\n${styles}`, new RegExp(`\\b${selector}\\b`));
-  assert.match(files[2], /className = `parameter-field parameter-field-\$\{kind\}`/);
-  assert.match(files[2], /className = "parameter-fit-control"/);
-  assert.match(files[2], /className = "parameter-owner"/);
-  assert.doesNotMatch(files[1], /LegacyPlotCard/);
-  assert.doesNotMatch(files[1], /legacy-/);
-  assert.doesNotMatch(styles, /\.parameter-grid\b/);
-  assert.doesNotMatch(styles, /\.tool-heading\b/);
-  assert.doesNotMatch(styles, /(?:html|body)\s*\{[^}]*overflow-x:\s*(?:clip|hidden)/);
-  assert.match(files[1], /<ScientificAppShell\b/);
-  assert.doesNotMatch(styles, /workbench-shell\[data-panel-open="true"\]/);
-  assert.match(styles, /@container \(max-width: 30rem\)/);
-  assert.doesNotMatch(styles, /data-mobile-view|mobile-view-switcher/);
-  assert.match(files[1], /id="header-source-name"/);
-  assert.match(files[2], /function setSourceName/);
-  assert.match(files[2], /initializeWorkspace\(\);/);
-  assert.doesNotMatch(files[2], /loadSyntheticExample\(\);\s*$/);
-  assert.doesNotMatch(combined, new RegExp(["single", "layer"].join("[- ]") + "|material " + "preset|included example", "i"));
+  assert.doesNotMatch(`${combined}\n${styles}\n${vite}\n${packageJson}`, /headlessui|heroicons|tailwindcss/i);
   assert.doesNotMatch(combined, /\b(?:Cargar|Ajustar|Calibración|Muestra|Espesor|Índice|Parámetros|Reflectancia|Transmitancia)\b/i);
 });

@@ -1,48 +1,33 @@
 import { SkipToContent } from "@carbon/react";
 import { ScientificHeader, ScientificRunControl, useScientificShortcut } from "@jorpago2/scientific-ui";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { operationLabel, operationScientificState, type OperationStatus } from "./operation-status.ts";
+import { useMemo } from "react";
+import { useReflectometry } from "./reflectometry-context.ts";
+import { operationLabel, operationScientificState } from "./operation-status.ts";
 
 export default function AppHeader() {
-  const [sourceReady, setSourceReady] = useState(false);
-  const [operation, setOperation] = useState<OperationStatus>({
-    phase: "needs-input",
-    busy: false,
-    message: "Load measurement data or the synthetic example to begin.",
-  });
+  const [state, actions] = useReflectometry();
+  const scientificState = operationScientificState(state.operation, state.hasMeasurement);
+  const label = operationLabel(state.operation, state.hasMeasurement);
 
-  useEffect(() => {
-    const updateSourceStatus = (event: Event) => {
-      setSourceReady(Boolean((event as CustomEvent<{ ready: boolean }>).detail?.ready));
-    };
-    window.addEventListener("reflectometry:source-status", updateSourceStatus);
-    return () => window.removeEventListener("reflectometry:source-status", updateSourceStatus);
-  }, []);
-
-  useEffect(() => {
-    const updateOperationStatus = (event: Event) => {
-      const detail = (event as CustomEvent<OperationStatus>).detail;
-      if (detail) setOperation(detail);
-    };
-    window.addEventListener("reflectometry:operation-status", updateOperationStatus);
-    return () => window.removeEventListener("reflectometry:operation-status", updateOperationStatus);
-  }, []);
-
-  const runFit = useCallback(() => document.getElementById("fit-button")?.click(), []);
-  const cancelFit = useCallback(() => document.getElementById("cancel-operation")?.click(), []);
-  const cancelShortcut = useMemo(() => ({
+  useScientificShortcut(useMemo(() => ({
     id: "reflectometry:cancel-fit",
     shortcut: "Escape",
     description: "Cancel fitting",
     displayKeys: ["Esc"],
-    handler: cancelFit,
-    enabled: operation.busy,
+    handler: actions.cancel,
+    enabled: state.operation.busy,
     priority: 20,
-  }), [cancelFit, operation.busy]);
-  useScientificShortcut(cancelShortcut);
+  }), [actions, state.operation.busy]));
 
-  const state = operationScientificState(operation, sourceReady);
-  const label = operationLabel(operation, sourceReady);
+  useScientificShortcut(useMemo(() => ({
+    id: "reflectometry:run-fit",
+    shortcut: "Control+Enter",
+    description: "Run fit",
+    displayKeys: ["Ctrl", "Enter"],
+    handler: actions.fit,
+    enabled: state.canFit,
+    priority: 10,
+  }), [actions, state.canFit]));
 
   return (
     <ScientificHeader
@@ -54,23 +39,23 @@ export default function AppHeader() {
       href="./"
       skipLink={<SkipToContent href="#reflectometry-workspace">Skip to fitting workspace</SkipToContent>}
       contextLabel="Current measurement"
-      context={<span id="header-source-name">No measurement loaded</span>}
-      contextDetail={<span id="header-source-status" className="visually-hidden" aria-hidden="true">Needs input</span>}
-      status={{ state, label, progress: operation.progress, detail: operation.message }}
+      context={<span title={state.sourceLabel}>{state.source?.sampleName ?? "No measurement loaded"}</span>}
+      contextDetail={<span className="visually-hidden">{state.hasMeasurement ? "Ready" : "Needs input"}</span>}
+      status={{ state: scientificState, label, progress: state.operation.progress, detail: state.operation.message }}
       primaryAction={(
         <ScientificRunControl
           size="md"
           execution={{
-            state,
+            state: scientificState,
             label,
-            progress: operation.progress,
-            detail: operation.message,
-            onRun: runFit,
-            onStop: cancelFit,
+            progress: state.operation.progress,
+            detail: state.operation.message,
+            onRun: actions.fit,
+            onStop: actions.cancel,
             runLabel: "Fit",
             stopLabel: "Cancel",
-            disabled: !sourceReady,
-            disabledReason: "Load measurement data before fitting.",
+            disabled: !state.canFit,
+            disabledReason: state.selectedFitCount === 0 ? "Select at least one fitted parameter." : "Load measurement data before fitting.",
           }}
         />
       )}

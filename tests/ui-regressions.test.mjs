@@ -4,50 +4,62 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("keeps responsive panels and floating actions inside their owning viewport", async () => {
-  const [workspace, statusBar, styles, app] = await Promise.all([
+test("keeps responsive panels and floating actions inside their owning React viewport", async () => {
+  const [workspace, statusBar, styles, plot, results] = await Promise.all([
     read("src/features/measurement/WorkspaceView.tsx"),
     read("src/features/results/ResultsStatusBar.tsx"),
     read("src/styles/carbon.scss"),
-    read("src/multilayer-app.ts"),
+    read("src/shared/plots/PlotCard.tsx"),
+    read("src/features/results/ResultsWorkspace.tsx"),
   ]);
 
-  assert.match(workspace, /scrollTo\(\{ top: 0 \}\)/);
-  assert.match(workspace, /getElementById\("results-content"\)\?\.scrollTo\(\{ top: 0 \}\)/);
-  assert.match(workspace, /inert=\{overlayPanelOpen\}/);
-  assert.match(workspace, /aria-hidden=\{overlayPanelOpen \|\| undefined\}/);
-  assert.match(workspace, /size="sm" isFlush/);
-  assert.match(statusBar, /direction="top" flipped/);
-  assert.match(workspace, /\(max-width: 65\.98rem\)/);
-  assert.match(styles, /@include breakpoint\.breakpoint-down\("lg"\)/);
-  assert.match(workspace, /<ScientificAppShell\b/);
-  assert.match(workspace, /<ScientificTaskPanel[\s\S]*bodyClassName="configuration-tabs"/);
-  assert.match(workspace, /panel=\{\(/);
+  assert.match(workspace, /useRef<HTMLElement>/);
+  assert.match(workspace, /lastTriggerRef/);
+  assert.match(workspace, /query\.addEventListener\("change", updateLayout\)/);
+  assert.match(workspace, /query\.removeEventListener\("change", updateLayout\)/);
+  assert.match(workspace, /panelRef\.current\?\.focus\(\)/);
+  assert.match(workspace, /onKeyDown=/);
+  assert.match(workspace, /event\.key === "Escape"/);
+  assert.match(workspace, /inert=\{state\.operation\.busy\}/);
+  assert.match(workspace, /aria-busy=\{state\.operation\.busy\}/);
   assert.match(workspace, /hidden=\{!activeSection\}/);
-  assert.match(styles, /\.controls \{[^}]*min-block-size: 0;[^}]*block-size: 100%;/s);
-  assert.doesNotMatch(styles, /\.controls \{[^}]*overflow:/s);
   assert.match(workspace, /className="results scientific-stage"/);
-  assert.match(styles, /\.parameter-help-popover \{[^\n]*inset-block-end:/);
-  assert.match(styles, /\.parameter-help-popover \{[^\n]*inset-inline-end: 0;/);
-  assert.match(styles, /\.parameter-help-popover \{[^\n]*inline-size: min\(18rem, 100%\);/);
+  assert.match(workspace, /aria-hidden=\{overlayPanelOpen \|\| undefined\}/);
+  assert.match(workspace, /inert=\{overlayPanelOpen\}/);
+  assert.doesNotMatch(workspace, /document\.(?:getElementById|querySelector|querySelectorAll)|dispatchEvent|\.click\(\)|MutationObserver/);
+
   assert.match(statusBar, /<ScientificStatusBar/);
-  assert.match(statusBar, /id="fit-progress" className="visually-hidden"/);
-  assert.doesNotMatch(styles, /\.status-row/);
-  assert.match(styles, /\.result-panel-content \{[^\n]*overflow-x: auto;/);
-  assert.match(styles, /\.controls\[data-configuration-mode="basic"\]/);
-  assert.match(styles, /\.parameter-row \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.parameter-field-minimum \{ grid-column: 1; grid-row: 3; \}/);
-  assert.match(styles, /\.parameter-field-maximum \{ grid-column: 2; grid-row: 3; \}/);
-  assert.doesNotMatch(styles, /\.plotly-chart \.modebar/);
-  assert.match(styles, /\.layer-actions button \{[^\n]*inline-size: 2\.75rem;[^\n]*block-size: 2\.75rem;/);
-  assert.match(app, /const compactModebar = chart\.getBoundingClientRect\(\)\.width < 308/);
-  assert.match(app, /t: compactModebar \? 112 : 56/);
-  assert.match(app, /createScientificPlotlyConfig/);
-  assert.match(app, /prepareScientificPlotlyToolbar/);
-  assert.doesNotMatch(styles, /grid-template-columns: 1\.5rem repeat\(4/);
-  assert.match(app, /cell\.dataset\.correlation/);
-  assert.doesNotMatch(app, /cell\.style\.backgroundColor/);
-  assert.match(app, /function fileControl\(/);
-  assert.match(app, /input\.className = "visually-hidden"/);
-  assert.doesNotMatch(styles, /file-selector-button/);
+  assert.match(statusBar, /<OverflowMenu/);
+  assert.match(statusBar, /onClick=\{actions\.cancel\}/);
+  assert.match(statusBar, /URL\.createObjectURL/);
+  assert.match(statusBar, /URL\.revokeObjectURL/);
+  assert.match(statusBar, /href=\{exports\?\./);
+  assert.doesNotMatch(statusBar, /data-export-target|document\.|\.click\(\)|dispatchEvent/);
+
+  assert.match(plot, /createScientificPlotlyConfig/);
+  assert.match(plot, /createScientificPlotlyLayout/);
+  assert.match(plot, /prepareScientificPlotlyToolbar/);
+  assert.match(plot, /Plotly\.react/);
+  assert.match(plot, /ResizeObserver/);
+  assert.match(plot, /plotlyRef\.current\.purge/);
+  assert.match(plot, /onClick=\{\(\) =>/);
+  assert.doesNotMatch(plot, /document\.(?:getElementById|querySelector|querySelectorAll|createElement)|appendChild|replaceChildren|textContent\s*=|innerHTML\s*=|classList\.(?:add|remove|toggle)/);
+
+  assert.match(results, /state\.layers\.map/);
+  assert.match(results, /state\.controls\.substrateThicknessUm/);
+  assert.match(results, /data-correlation=\{value >= 0 \? "positive" : "negative"\}/);
+  assert.match(results, /style=\{\{ "--correlation-strength"/);
+  assert.doesNotMatch(results, /document\.|createElement|replaceChildren|textContent\s*=|innerHTML\s*=|\.click\(\)/);
+
+  assert.match(styles, /\.configuration-panel-body \{[^}]*overflow-y: auto;/s);
+  assert.match(styles, /\.results-content \{[^}]*min-inline-size: 0;/s);
+  assert.match(styles, /\.results-tab-list \{ overflow-x: auto; \}/);
+  assert.match(styles, /\.table-scroll \{[^}]*overflow-x: auto;/s);
+  assert.match(styles, /\.parameter-row \{ display: grid; grid-template-columns: 3\.5rem/);
+  assert.match(styles, /\.parameter-row,\n {2}\.parameter-row:has\(> :nth-child\(3\):last-child\) \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.workflow-navigation \{/);
+  assert.match(styles, /@media \(max-width: 65\.99rem\)/);
+  assert.match(styles, /@container \(max-width: 38rem\)/);
+  assert.match(styles, /\.plotly-chart \{[^}]*block-size: 330px;/s);
+  assert.doesNotMatch(styles, /\.plotly-chart \.modebar|file-selector-button|grid-template-columns: 1\.5rem repeat\(4/);
 });

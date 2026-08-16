@@ -19,11 +19,4 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
-  {
-    files: ['src/multilayer-app.ts'],
-    rules: {
-      '@typescript-eslint/no-unused-vars': 'off',
-      'prefer-const': 'off',
-    },
-  },
 )

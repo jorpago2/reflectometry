@@ -1,11 +1,11 @@
 import { Layers, SettingsAdjust, Upload } from "@carbon/react/icons";
-import { ScientificToolRail } from "@jorpago2/scientific-ui";
+import { Button } from "@carbon/react";
 
 export type WorkflowSection = "measurement" | "layers" | "fit";
 
 type Props = {
   activeSection: WorkflowSection | null;
-  onToggle: (section: WorkflowSection) => void;
+  onToggle: (section: WorkflowSection, trigger: HTMLButtonElement) => void;
 };
 
 const workflowItems = [
@@ -16,24 +16,20 @@ const workflowItems = [
 
 export default function WorkspaceNavigation({ activeSection, onToggle }: Props) {
   return (
-    <ScientificToolRail
-      className="workflow-navigation"
-      label="Configuration tools"
-      activeId={activeSection ?? "measurement"}
-      expandedId={activeSection}
-      onChange={(id) => {
-        if (id === null) {
-          if (activeSection) onToggle(activeSection);
-          return;
-        }
-        onToggle(id as WorkflowSection);
-      }}
-      items={workflowItems.map(({ id, label, icon: Icon }) => ({
-        id,
-        label,
-        icon: <Icon size={20} />,
-        controlsId: "configuration-panel",
-      }))}
-    />
+    <nav className="workflow-navigation" aria-label="Configuration tools">
+      <ul>{workflowItems.map(({ id, label, icon }) => <li key={id}>
+        <Button
+          id={`workflow-${id}`}
+          className={activeSection === id ? "is-active" : undefined}
+          kind="ghost"
+          size="lg"
+          renderIcon={icon}
+          type="button"
+          aria-expanded={activeSection === id}
+          aria-controls="configuration-panel"
+          onClick={(event) => onToggle(id, event.currentTarget)}
+        >{label}</Button>
+      </li>)}</ul>
+    </nav>
   );
 }
