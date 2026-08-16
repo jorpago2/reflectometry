@@ -40,8 +40,9 @@ function StackDiagram() {
 
 function UncertaintyPanel() {
   const [state, actions] = useReflectometry();
-  const diagnostics = state.fitResult?.diagnostics;
-  if (!diagnostics) return <p>Run a fit to estimate uncertainty.</p>;
+  const result = state.fitResult;
+  if (!result) return <p>Run a fit to estimate uncertainty.</p>;
+  const diagnostics = result.diagnostics;
   const bootstrap = diagnostics.bootstrap;
   const intervals = bootstrap?.parameterIntervals ?? diagnostics.parameterConfidenceIntervals95Approximate ?? {};
   const correlation = bootstrap?.parameterCorrelation ?? diagnostics.parameterCorrelation;
@@ -49,7 +50,7 @@ function UncertaintyPanel() {
     <p>{bootstrap ? `${bootstrap.method}; ${bootstrap.successfulSamples}/${bootstrap.requestedSamples} successful refits. Evidence mode: ${bootstrap.evidenceMode === "reporting-support" ? "reporting support" : "exploratory"}.` : "Approximate 95% intervals and correlations from the local Jacobian. Run the bootstrap before reporting uncertainty."}</p>
     {Object.keys(intervals).length > 0 && <div className="table-scroll" tabIndex={0} aria-label="Approximate 95% parameter intervals">
       <table className="scientific-data-table"><caption className="visually-hidden">Approximate 95% parameter intervals</caption><thead><tr><th scope="col">Parameter</th><th scope="col">Lower 95%</th><th scope="col">Estimate</th><th scope="col">Upper 95%</th></tr></thead><tbody>
-        {Object.entries(intervals).map(([name, interval]: [string, any]) => interval && <tr key={name}><th scope="row">{actions.parameterLabel(name)}</th><td>{format(interval.lower95, 5)}</td><td>{format(state.fitResult.parameters[name] ?? interval.median, 5)}</td><td>{format(interval.upper95, 5)}</td></tr>)}
+        {Object.entries(intervals).map(([name, interval]) => interval && <tr key={name}><th scope="row">{actions.parameterLabel(name)}</th><td>{format(interval.lower95, 5)}</td><td>{format(result.parameters[name] ?? ("median" in interval ? interval.median : null), 5)}</td><td>{format(interval.upper95, 5)}</td></tr>)}
       </tbody></table>
     </div>}
     {correlation?.matrix?.length > 0 && <>
@@ -67,7 +68,7 @@ function AlternativeSolutions() {
   const [state, actions] = useReflectometry();
   const solutions = state.fitResult?.diagnostics?.alternativeSolutions ?? [];
   if (!solutions.length) return <p>No distinct local alternatives were retained.</p>;
-  return <div className="alternative-solutions">{solutions.map((solution: any, index: number) => <article className="fit-solution" key={solution.rank}>
+  return <div className="alternative-solutions">{solutions.map((solution, index) => <article className="fit-solution" key={solution.rank}>
     <div><strong>Solution {solution.rank}</strong><span>Δcost {format(100 * solution.relativeCostIncrease, 2)}% · distance {format(solution.normalizedParameterDistanceFromBest, 3)}</span></div>
     <Button kind="tertiary" size="sm" type="button" onClick={() => actions.applyAlternative(index)}>Use as new start</Button>
   </article>)}</div>;
@@ -76,6 +77,7 @@ function AlternativeSolutions() {
 function FitQuality() {
   const [state] = useReflectometry();
   const result = state.fitResult;
+  if (!result) return null;
   const diagnostics = result.diagnostics;
   const totalThickness = state.layers.reduce((sum, layer) => sum + result.parameters[`${layer.id}__thicknessNm`], 0);
   return <div className="result-column">
@@ -93,7 +95,7 @@ function FitQuality() {
         { id: "bounds", label: "Bound hits", value: diagnostics.parametersAtBounds?.length ? diagnostics.parametersAtBounds.join(", ") : "None", detail: "Fitted parameters" },
         { id: "power", label: "Max R + T", value: format(diagnostics.maximumPowerBalance, 5), detail: "Physical model" },
       ]} />
-      <p>{diagnostics.nearEqualAlternativeMinima > 0 ? `${diagnostics.nearEqualAlternativeMinima} near-equal alternative minima were found; report parameter ambiguity.` : "Check residual structure, bound hits and Jacobian conditioning before interpreting fitted optical constants."}</p>
+      <p>{(diagnostics.nearEqualAlternativeMinima ?? 0) > 0 ? `${diagnostics.nearEqualAlternativeMinima} near-equal alternative minima were found; report parameter ambiguity.` : "Check residual structure, bound hits and Jacobian conditioning before interpreting fitted optical constants."}</p>
       <Accordion className="result-details" size="sm">
         <AccordionItem title="Parameter uncertainty and correlation"><UncertaintyPanel /></AccordionItem>
         <AccordionItem title="Alternative fitted solutions"><AlternativeSolutions /></AccordionItem>
@@ -105,29 +107,31 @@ function FitQuality() {
 export default function ResultsWorkspace() {
   const [state, actions] = useReflectometry();
   const plots = useMemo(() => {
-    if (!state.fitData || !state.evaluation) return null;
-    const x = state.fitData.wavelengthNm;
+    const fitData = state.fitData;
+    const evaluation = state.evaluation;
+    if (!fitData || !evaluation?.layerIndices?.length) return null;
+    const x = fitData.wavelengthNm;
     const bands = state.fitResult?.diagnostics?.bootstrap?.bands;
     const rt: PlotSeries[] = [
       ...(bands ? [
-        { lower: bands.reflectance.map((entry: any) => entry.lower95), upper: bands.reflectance.map((entry: any) => entry.upper95), color: "r" as const, band: true },
-        { lower: bands.transmittance.map((entry: any) => entry.lower95), upper: bands.transmittance.map((entry: any) => entry.upper95), color: "t" as const, band: true },
+        { lower: bands.reflectance.map((entry) => entry.lower95), upper: bands.reflectance.map((entry) => entry.upper95), color: "r" as const, band: true },
+        { lower: bands.transmittance.map((entry) => entry.lower95), upper: bands.transmittance.map((entry) => entry.upper95), color: "t" as const, band: true },
       ] : []),
-      { label: "R data", values: state.fitData.reflectance.map((value: number, index: number) => state.fitData.reflectanceValid[index] ? value : Number.NaN), color: "r", points: true, marker: "circle", line: false },
-      { label: "R model", values: state.evaluation.reflectanceScaled, color: "r" },
-      { label: "T data", values: state.fitData.transmittance.map((value: number, index: number) => state.fitData.transmittanceValid[index] ? value : Number.NaN), color: "t", points: true, marker: "square", line: false },
-      { label: "T model", values: state.evaluation.transmittanceScaled, color: "t", dash: true },
+      { label: "R data", values: fitData.reflectance.map((value, index) => fitData.reflectanceValid[index] ? value : Number.NaN), color: "r", points: true, marker: "circle", line: false },
+      { label: "R model", values: evaluation.reflectanceScaled, color: "r" },
+      { label: "T data", values: fitData.transmittance.map((value, index) => fitData.transmittanceValid[index] ? value : Number.NaN), color: "t", points: true, marker: "square", line: false },
+      { label: "T model", values: evaluation.transmittanceScaled, color: "t", dash: true },
     ];
     const residual: PlotSeries[] = [
-      { label: "R residual", values: state.evaluation.reflectanceScaled.map((value: number, index: number) => state.fitData.reflectanceValid[index] ? value - state.fitData.reflectance[index] : Number.NaN), color: "r" },
-      { label: "T residual", values: state.evaluation.transmittanceScaled.map((value: number, index: number) => state.fitData.transmittanceValid[index] ? value - state.fitData.transmittance[index] : Number.NaN), color: "t", dash: true },
+      { label: "R residual", values: evaluation.reflectanceScaled.map((value, index) => fitData.reflectanceValid[index] ? value - fitData.reflectance[index] : Number.NaN), color: "r" },
+      { label: "T residual", values: evaluation.transmittanceScaled.map((value, index) => fitData.transmittanceValid[index] ? value - fitData.transmittance[index] : Number.NaN), color: "t", dash: true },
     ];
-    const active = state.evaluation.layerIndices.find((layer: any) => layer.id === state.activeLayerId) ?? state.evaluation.layerIndices[0];
+    const active = evaluation.layerIndices.find((layer) => layer.id === state.activeLayerId) ?? evaluation.layerIndices[0];
     const activeBands = bands?.layers?.[active.id] ?? (bands?.layerId === active.id ? bands : null);
     const nk: PlotSeries[] = [
       ...(activeBands ? [
-        { lower: activeBands.n.map((entry: any) => entry.lower95), upper: activeBands.n.map((entry: any) => entry.upper95), color: "r" as const, band: true },
-        { lower: activeBands.k.map((entry: any) => entry.lower95), upper: activeBands.k.map((entry: any) => entry.upper95), color: "t" as const, band: true },
+        { lower: activeBands.n.map((entry) => entry.lower95), upper: activeBands.n.map((entry) => entry.upper95), color: "r" as const, band: true },
+        { lower: activeBands.k.map((entry) => entry.lower95), upper: activeBands.k.map((entry) => entry.upper95), color: "t" as const, band: true },
       ] : []),
       { label: "n", values: active.n, color: "r" },
       { label: "k", values: active.k, color: "t", dash: true },
@@ -140,8 +144,8 @@ export default function ResultsWorkspace() {
     {!state.hasResult || !plots ? <ResultsEmpty /> : <div className="results-content">
       <ResultsOutcome />
       <Tabs>
-        <TabList contained className="results-tab-list" aria-label="Result views">
-          <Tab>Overview</Tab><Tab>Fit quality</Tab><Tab>Optical n,k</Tab>
+        <TabList contained className="results-tab-list cds--tabs--full-width" aria-label="Result views">
+          <Tab>Overview</Tab><Tab aria-label="Fit quality">Quality</Tab><Tab aria-label="Optical n,k">n,k</Tab>
         </TabList>
         <TabPanels>
           <TabPanel className="results-tab-panel overview-panel">

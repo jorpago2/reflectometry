@@ -6,7 +6,7 @@ import {
   ScientificTaskPanel,
   useScientificAutosave,
 } from "@jorpago2/scientific-ui";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import AppHeader from "../../app/AppHeader.tsx";
 import { useReflectometry } from "../../app/reflectometry-context.ts";
 import FitPanel from "../fit/FitPanel.tsx";
@@ -61,7 +61,7 @@ export default function WorkspaceView() {
     lastTriggerRef.current = trigger;
     const opening = activeSection !== section;
     setActiveSection(opening ? section : null);
-    if (opening && isOverlayLayout) window.requestAnimationFrame(() => panelRef.current?.focus());
+    if (opening && isOverlayLayout) window.requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>(".scientific-task-panel__heading h2")?.focus());
   };
 
   useEffect(() => {
@@ -71,6 +71,12 @@ export default function WorkspaceView() {
     query.addEventListener("change", updateLayout);
     return () => query.removeEventListener("change", updateLayout);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!activeSection) return;
+    const body = panelRef.current?.querySelector<HTMLElement>(".configuration-panel-body");
+    if (body) body.scrollTop = 0;
+  }, [activeSection]);
 
   const autosave = useScientificAutosave({
     storageKey: "reflectometry:session",
@@ -104,16 +110,18 @@ export default function WorkspaceView() {
           tabIndex={-1}
           aria-busy={state.operation.busy}
           onKeyDown={(event: React.KeyboardEvent) => {
-            if (event.key === "Escape" && !state.operation.busy) {
+            const target = event.target instanceof Element ? event.target : null;
+            if (event.key === "Escape" && (state.operation.busy || target?.closest('[role="dialog"]'))) {
               event.preventDefault();
-              closePanel();
             }
           }}
         >
           <p className="configuration-panel-description">{panelCopy.description}</p>
           <ConfigurationModeControl mode={configurationMode} onChange={setConfigurationMode} />
           <div className="configuration-panel-content" inert={state.operation.busy}>
-            {activeSection === "measurement" && <MeasurementPanel advanced={configurationMode === "advanced"} />}
+            <div hidden={activeSection !== "measurement"}>
+              <MeasurementPanel advanced={configurationMode === "advanced"} />
+            </div>
             {activeSection === "layers" && <LayerStackEditor advanced={configurationMode === "advanced"} />}
             {activeSection === "fit" && <FitPanel advanced={configurationMode === "advanced"} onRun={overlayPanelOpen ? closePanel : undefined} />}
           </div>

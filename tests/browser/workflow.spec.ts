@@ -42,6 +42,18 @@ test('initial and preview states have no serious accessibility violations or ove
   await expect(toolbar).toBeVisible()
   const toolbarRows = await toolbar.getByRole('button').evaluateAll((buttons) => new Set(buttons.map((button) => Math.round(button.getBoundingClientRect().top))).size)
   expect(toolbarRows).toBe(1)
+  const zoom = toolbar.getByRole('button', { name: 'Zoom', exact: true })
+  const pan = toolbar.getByRole('button', { name: 'Pan' })
+  const fullscreen = toolbar.getByRole('button', { name: 'Toggle fullscreen' })
+  await expect(zoom).toHaveAttribute('aria-pressed', 'false')
+  await expect(pan).toHaveAttribute('aria-pressed', 'true')
+  await zoom.click()
+  await expect(zoom).toHaveAttribute('aria-pressed', 'true')
+  await expect(pan).toHaveAttribute('aria-pressed', 'false')
+  await fullscreen.click()
+  await expect(fullscreen).toHaveAttribute('aria-pressed', 'true')
+  await fullscreen.press('Escape')
+  await expect(fullscreen).toHaveAttribute('aria-pressed', 'false')
   audit = await new AxeBuilder({ page }).exclude('canvas').analyze()
   expect(audit.violations.filter(({ impact }) => impact === 'serious' || impact === 'critical')).toEqual([])
   await expectNoPageOverflow(page)
@@ -82,21 +94,27 @@ test('advanced layer controls, confirmation modal and keyboard closing remain op
     const body = node.querySelector<HTMLElement>('.configuration-panel-body')
     const add = [...node.querySelectorAll<HTMLElement>('button')].find((button) => button.textContent?.trim() === 'Add layer')
     const navigation = document.querySelector<HTMLElement>('.workflow-navigation')
+    const definition = node.querySelector<HTMLElement>('.model-guide__body dd')
     return {
       bodyOverflow: body ? body.scrollWidth - body.clientWidth : Number.POSITIVE_INFINITY,
       addLeft: add?.getBoundingClientRect().left ?? 0,
+      definitionWidth: definition?.getBoundingClientRect().width ?? 0,
       navigationRight: navigation?.getBoundingClientRect().right ?? 0,
     }
   })
   expect(geometry.bodyOverflow).toBeLessThanOrEqual(1)
+  expect(geometry.definitionWidth).toBeGreaterThan(120)
   if ((page.viewportSize()?.width ?? 0) >= 1056) expect(geometry.addLeft).toBeGreaterThanOrEqual(geometry.navigationRight)
 
   await panel.getByRole('button', { name: 'Add layer' }).click()
-  await panel.getByRole('button', { name: 'Remove Generic layer' }).click()
+  const removeTrigger = panel.getByRole('button', { name: 'Remove Generic layer' })
+  await removeTrigger.click()
   const dialog = page.getByRole('dialog', { name: 'Remove Generic layer?' })
   await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await dialog.getByRole('button', { name: 'Cancel' }).press('Escape')
   await expect(dialog).toBeHidden()
+  await expect(removeTrigger).toBeFocused()
+  await expect(panel).toBeVisible()
 
   await panel.press('Escape')
   await expect(panel).toBeHidden()
@@ -105,8 +123,7 @@ test('advanced layer controls, confirmation modal and keyboard closing remain op
 })
 
 test('invalid processing settings surface a React error notification', async ({ page }) => {
-  await page.goto('./')
-  await page.getByRole('button', { name: 'Load example' }).click()
+  await loadAndPreview(page)
   await page.getByRole('button', { name: 'Data', exact: true }).click()
   const panel = page.getByRole('complementary', { name: 'Measurement' })
   await panel.getByRole('tab', { name: 'Advanced' }).click()
@@ -116,7 +133,100 @@ test('invalid processing settings surface a React error notification', async ({ 
   await panel.getByRole('button', { name: 'Close' }).click()
   await page.getByRole('button', { name: 'Preview model' }).click()
   await expect(page.getByText('The calculation needs attention')).toBeVisible()
-  await expect(page.getByText(/wavelength/i).last()).toBeVisible()
+  await expect(page.getByText('The wavelength range, bin width, and SNR must be valid.', { exact: true }).first()).toBeVisible()
+  const outcomeGeometry = await page.locator('.reflectometry-outcome').evaluate((node) => {
+    const status = node.querySelector<HTMLElement>('.scientific-status')
+    return {
+      outcomeOverflow: node.scrollWidth - node.clientWidth,
+      statusOverflow: status ? status.scrollWidth - status.clientWidth : Number.POSITIVE_INFINITY,
+    }
+  })
+  expect(outcomeGeometry.outcomeOverflow).toBeLessThanOrEqual(1)
+  expect(outcomeGeometry.statusOverflow).toBeLessThanOrEqual(1)
+  await expectNoPageOverflow(page)
+})
+
+test('switching configuration tools resets the owned panel scroll', async ({ page }) => {
+  await page.goto('./')
+  await page.getByRole('button', { name: 'Load example' }).click()
+  await page.getByRole('button', { name: 'Layer stack', exact: true }).click()
+  const layerPanel = page.getByRole('complementary', { name: 'Layer stack' })
+  await layerPanel.getByRole('tab', { name: 'Advanced' }).click()
+  await layerPanel.getByRole('button', { name: /Model guide/ }).first().click()
+  await layerPanel.getByRole('heading', { name: 'Parameters in this material' }).first().scrollIntoViewIfNeeded()
+  expect(await layerPanel.locator('.configuration-panel-body').evaluate((node) => node.scrollTop)).toBeGreaterThan(0)
+
+  await page.getByRole('navigation', { name: 'Configuration tools' }).getByRole('button', { name: 'Fit', exact: true }).click()
+  const fitPanel = page.getByRole('complementary', { name: 'Fit' })
+  await expect(fitPanel).toBeVisible()
+  expect(await fitPanel.locator('.configuration-panel-body').evaluate((node) => node.scrollTop)).toBe(0)
+})
+
+test('measurement file selections survive switching configuration tools', async ({ page }) => {
+  await page.goto('./')
+  await page.getByRole('button', { name: 'Data', exact: true }).click()
+  const panel = page.getByRole('complementary', { name: 'Measurement' })
+  await panel.getByRole('button', { name: 'Load measurement files' }).click()
+  await panel.locator('#file-sample-r').setInputFiles({
+    name: 'sample-r.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('400 1\n500 1\n'),
+  })
+  await expect(panel.getByText('sample-r.txt', { exact: true })).toBeVisible()
+
+  await page.getByRole('navigation', { name: 'Configuration tools' }).getByRole('button', { name: 'Layer stack', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Configuration tools' }).getByRole('button', { name: 'Data', exact: true }).click()
+  await expect(panel.getByText('sample-r.txt', { exact: true })).toBeVisible()
+})
+
+test('docked configuration panel does not cover result actions at an intermediate desktop width', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-light', 'The docked intermediate layout only applies to desktop.')
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await loadAndPreview(page)
+  await page.getByRole('button', { name: 'Layer stack', exact: true }).click()
+
+  const geometry = await page.evaluate(() => {
+    const stage = document.querySelector<HTMLElement>('.results')
+    const actions = [...document.querySelectorAll<HTMLElement>('.reflectometry-outcome .scientific-command-bar__action')]
+    return {
+      stageLeft: stage?.getBoundingClientRect().left ?? Number.POSITIVE_INFINITY,
+      actionLeft: Math.min(...actions.map((action) => action.getBoundingClientRect().left)),
+    }
+  })
+  expect(geometry.actionLeft).toBeGreaterThanOrEqual(geometry.stageLeft)
+})
+
+test('320px results keep readable tabs and a single-row essential plot toolbar', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-dark', 'The narrow result layout only applies to mobile.')
+  await page.setViewportSize({ width: 320, height: 568 })
+  await loadAndPreview(page)
+
+  const tabs = page.getByRole('tablist', { name: 'Result views' }).getByRole('tab')
+  await expect(tabs).toHaveCount(3)
+  const truncatedTabs = await tabs.evaluateAll((items) => items.filter((item) => item.scrollWidth > item.clientWidth + 1).length)
+  expect(truncatedTabs).toBe(0)
+
+  const toolbar = page.locator('.plot-card').first().locator('.modebar')
+  await expect(toolbar).toBeVisible()
+  const toolbarRows = await toolbar.getByRole('button').evaluateAll((buttons) => new Set(buttons.map((button) => Math.round(button.getBoundingClientRect().top))).size)
+  expect(toolbarRows).toBe(1)
+})
+
+test('mobile results keep one scroll owner, visible actions and fitted tabs', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-dark', 'The compact shell only applies to the mobile project.')
+  await loadAndPreview(page)
+
+  const tabGeometry = await page.getByRole('tablist', { name: 'Result views' }).evaluate((node) => ({ clientWidth: node.clientWidth, scrollWidth: node.scrollWidth }))
+  expect(tabGeometry.scrollWidth - tabGeometry.clientWidth).toBeLessThanOrEqual(1)
+  await expect(page.getByRole('button', { name: 'Export results' })).toBeVisible()
+
+  const layout = await page.evaluate(() => ({
+    documentHeight: document.documentElement.scrollHeight,
+    viewportHeight: document.documentElement.clientHeight,
+    metricRows: new Set([...document.querySelectorAll('.reflectometry-outcome .scientific-metric')].map((node) => Math.round(node.getBoundingClientRect().top))).size,
+  }))
+  expect(layout.documentHeight - layout.viewportHeight).toBeLessThanOrEqual(1)
+  expect(layout.metricRows).toBe(1)
   await expectNoPageOverflow(page)
 })
 

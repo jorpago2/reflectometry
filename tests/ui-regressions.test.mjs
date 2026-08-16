@@ -17,7 +17,7 @@ test("keeps responsive panels and floating actions inside their owning React vie
   assert.match(workspace, /lastTriggerRef/);
   assert.match(workspace, /query\.addEventListener\("change", updateLayout\)/);
   assert.match(workspace, /query\.removeEventListener\("change", updateLayout\)/);
-  assert.match(workspace, /panelRef\.current\?\.focus\(\)/);
+  assert.match(workspace, /panelRef\.current\?\.querySelector<HTMLElement>\("\.scientific-task-panel__heading h2"\)\?\.focus\(\)/);
   assert.match(workspace, /onKeyDown=/);
   assert.match(workspace, /event\.key === "Escape"/);
   assert.match(workspace, /inert=\{state\.operation\.busy\}/);
@@ -53,7 +53,7 @@ test("keeps responsive panels and floating actions inside their owning React vie
 
   assert.match(styles, /\.configuration-panel-body \{[^}]*overflow-y: auto;/s);
   assert.match(styles, /\.results-content \{[^}]*min-inline-size: 0;/s);
-  assert.match(styles, /\.results-tab-list \{ overflow-x: auto; \}/);
+  assert.doesNotMatch(styles, /\.results-tab-list \{ overflow-x: auto; \}/);
   assert.match(styles, /\.table-scroll \{[^}]*overflow-x: auto;/s);
   assert.match(styles, /\.parameter-row \{ display: grid; grid-template-columns: 3\.5rem/);
   assert.match(styles, /\.parameter-row,\n {2}\.parameter-row:has\(> :nth-child\(3\):last-child\) \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);

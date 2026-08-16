@@ -20,4 +20,8 @@ test("saved fits restore complete v8 data and legacy substrate units", () => {
   assert.throws(() => parseSavedFit(JSON.stringify({ ...base, schema: SAVED_FIT_SCHEMA, stack: [{ ...base.stack[0], opticalModel: "__proto__" }] })), /unsupported optical model/);
   assert.throws(() => parseSavedFit(JSON.stringify({ ...base, schema: SAVED_FIT_SCHEMA, substrate: { ...base.substrate, opticalModel: "__proto__" } })), /substrate uses an unsupported optical model/);
   assert.throws(() => parseSavedFit(JSON.stringify({ ...base, schema: SAVED_FIT_SCHEMA, substrate: { ...base.substrate, parameterSettings: { nScale: { minimum: 1.1, maximum: 2, fit: true } } } })), /outside its saved bounds/);
+  assert.throws(() => parseSavedFit(JSON.stringify({ ...base, schema: SAVED_FIT_SCHEMA, stack: [{ ...base.stack[0], parameterSettings: { n: { minimum: 1, maximum: 3, fit: "false" } } }] })), /fit must be true or false/);
+  const invalidSpectrumWavelengths = [-1, ...wavelengthNm];
+  const invalidSpectrum = { sampleName: "Invalid", wavelengthNm: invalidSpectrumWavelengths, sampleReflectanceCounts: invalidSpectrumWavelengths, sampleTransmittanceCounts: invalidSpectrumWavelengths, reflectanceReferenceCounts: invalidSpectrumWavelengths, transmittanceReferenceCounts: invalidSpectrumWavelengths, referenceReflectance: invalidSpectrumWavelengths.map(() => 0.3) };
+  assert.throws(() => parseSavedFit(JSON.stringify({ ...base, schema: SAVED_FIT_SCHEMA, measurement: { spectrum: invalidSpectrum } })), /wavelengths must be positive/);
 });

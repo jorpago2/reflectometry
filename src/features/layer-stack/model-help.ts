@@ -1,4 +1,4 @@
-const reference = (citation, doi) => ({ citation, doi });
+const reference = (citation: string, doi: string) => ({ citation, doi });
 
 const REFERENCES = {
   opticalData: reference("M. N. Polyanskiy, Refractiveindex.info database of optical constants, Scientific Data 11 (2024).", "10.1038/s41597-023-02898-2"),
@@ -18,7 +18,7 @@ const REFERENCES = {
   maxwellGarnett: reference("J. C. Maxwell Garnett, Colours in metal glasses and in metallic films, Phil. Trans. R. Soc. A 203, 385–420 (1904).", "10.1098/rsta.1904.0024"),
 };
 
-const equation = (label, mathml) => ({ label, mathml });
+const equation = (label: string, mathml: string) => ({ label, mathml });
 
 const TL_EQUATION = equation(
   "Tauc–Lorentz imaginary permittivity and its Kramers–Kronig real part",
@@ -246,9 +246,9 @@ const PARAMETER_HELP = {
   drudeGammaEv: "Drude collision/damping energy γ; τ = ħ/γ is the corresponding relaxation time.",
 };
 
-export function parameterDescription(parameter) {
-  const name = parameter.includes("__") ? parameter.split("__").at(-1) : parameter;
-  if (PARAMETER_HELP[name]) return PARAMETER_HELP[name];
+export function parameterDescription(parameter: string): string {
+  const name = parameter.includes("__") ? parameter.split("__").at(-1) ?? parameter : parameter;
+  if (Object.hasOwn(PARAMETER_HELP, name)) return PARAMETER_HELP[name as keyof typeof PARAMETER_HELP];
   if (/^amplitude[12]Ev$/.test(name)) return PARAMETER_HELP.amplitudeEv;
   if (/^resonance[12]Ev$/.test(name)) return PARAMETER_HELP.resonanceEv;
   if (/^broadening[12]Ev$/.test(name)) return PARAMETER_HELP.broadeningEv;

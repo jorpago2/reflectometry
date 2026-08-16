@@ -15,9 +15,44 @@ export const MODEL_LABELS = {
   "forouhi-bloomer": "Forouhi–Bloomer (amorphous)",
   "kk-spline": "Kramers–Kronig constrained B-spline",
   ema: "Effective-medium mixture",
+} as const;
+
+export type OpticalModel = keyof typeof MODEL_LABELS;
+export type NumericParameters = Record<string, number>;
+export type ComplexValue = { re: number; im: number };
+export type DielectricResponse = { epsilon1: number[]; epsilon2: number[] };
+export type RefractiveIndex = { n: number[]; k: number[] };
+export type NkTable = RefractiveIndex & { wavelengthNm: number[] };
+export type ParameterSpecification = {
+  label: string;
+  unit: string;
+  value: number;
+  minimum: number;
+  maximum: number;
+  fit: boolean;
+  uncertainty?: string | null;
+};
+export type ParameterSpecifications = Record<string, ParameterSpecification>;
+export type DielectricComponents = {
+  taucLorentz?: number;
+  lorentz?: number;
+  tl1?: boolean;
+  tl2?: boolean;
+  gaussian?: boolean;
+  cody?: boolean;
+  drude?: boolean;
+  drudeSmith?: boolean;
+  brendelBormann?: boolean;
+  criticalPoint?: boolean;
+  [name: string]: number | boolean | undefined;
+};
+export type EffectiveMedium = {
+  method: "bruggeman" | "maxwell-garnett";
+  hostNk: NkTable | null;
+  inclusionNk: NkTable | null;
 };
 
-const GENERIC_TL = {
+const GENERIC_TL: Record<string, [number, number, number]> = {
   epsilonInf: [4, 0.5, 20],
   amplitudeEv: [80, 1e-4, 600],
   resonanceEv: [3, 2.3, 6],
@@ -25,10 +60,10 @@ const GENERIC_TL = {
   bandgapEv: [1, 0, 2.2],
 };
 
-export function modelParameterSpecs(model, referenceAt1064 = { n: 2, k: 0.05 }, nominalThicknessNm = 150, components: any = {}): any {
+export function modelParameterSpecs(model: string, referenceAt1064: { n: number; k: number } = { n: 2, k: 0.05 }, nominalThicknessNm = 150, components: DielectricComponents = {}): ParameterSpecifications {
   const thickness = nominalThicknessNm;
   if (!Number.isFinite(thickness) || thickness <= 0) throw new Error("Nominal film thickness must be positive and finite.");
-  const parameter = (label, unit, values, fit = false) => ({ label, unit, value: values[0], minimum: values[1], maximum: values[2], fit });
+  const parameter = (label: string, unit: string, values: readonly [number, number, number], fit = false): ParameterSpecification => ({ label, unit, value: values[0], minimum: values[1], maximum: values[2], fit });
   const common = {
     thicknessNm: parameter("Film thickness", "nm", [thickness, 0.5 * thickness, 1.5 * thickness], true),
     rGain: parameter("R gain", "", [1, 0.1, 10], model === "fixed" || model === "scaled" || model === "constant"),
@@ -36,11 +71,11 @@ export function modelParameterSpecs(model, referenceAt1064 = { n: 2, k: 0.05 }, 
   };
   if (model === "composite") {
     const preset = GENERIC_TL;
-    const specifications = {
+    const specifications: ParameterSpecifications = {
       thicknessNm: common.thicknessNm,
       epsilonInf: parameter("ε∞", "", preset.epsilonInf),
     };
-    const add = (prefix, entries) => Object.entries(entries).forEach(([name, specification]) => { specifications[`${prefix}__${name}`] = specification; });
+    const add = (prefix: string, entries: ParameterSpecifications) => Object.entries(entries).forEach(([name, specification]) => { specifications[`${prefix}__${name}`] = specification; });
     const taucLorentzCount = components.taucLorentz ?? Number(Boolean(components.tl1)) + Number(Boolean(components.tl2));
     if (!Number.isInteger(taucLorentzCount) || taucLorentzCount < 0 || taucLorentzCount > 5) throw new Error("Select from 0 to 5 Tauc–Lorentz oscillators.");
     for (let oscillator = 1; oscillator <= taucLorentzCount; oscillator += 1) {
@@ -235,7 +270,8 @@ export function modelParameterSpecs(model, referenceAt1064 = { n: 2, k: 0.05 }, 
   throw new Error(`Unsupported optical model: ${model}.`);
 }
 
-export function refractiveIndexModel(model, wavelengthNm, parameters, nk, options: any = {}): any {
+export function refractiveIndexModel(model: string, wavelengthNm: number[], parameters: NumericParameters, nk: NkTable | null, options: { ema?: EffectiveMedium | null; components?: DielectricComponents } = {}): RefractiveIndex {
+  validatePositiveWavelengths(wavelengthNm);
   if (model === "constant") return { n: wavelengthNm.map(() => parameters.n), k: wavelengthNm.map(() => parameters.k) };
   if (model === "cauchy") return cauchyRefractiveIndex(wavelengthNm, parameters);
   if (model === "sellmeier") return sellmeierRefractiveIndex(wavelengthNm, parameters);
@@ -260,7 +296,7 @@ export function refractiveIndexModel(model, wavelengthNm, parameters, nk, option
   return passiveRefractiveIndex(dielectric);
 }
 
-export function compositeDielectric(wavelengthNm, parameters, components: any = {}): any {
+export function compositeDielectric(wavelengthNm: number[], parameters: NumericParameters, components: DielectricComponents = {}): DielectricResponse {
   validatePositiveWavelengths(wavelengthNm);
   if (!(parameters.epsilonInf > 0)) throw new Error("The composite model requires a finite positive ε∞.");
   const taucLorentzCount = components.taucLorentz ?? Number(Boolean(components.tl1)) + Number(Boolean(components.tl2));
@@ -272,8 +308,8 @@ export function compositeDielectric(wavelengthNm, parameters, components: any = 
   if (components.drude && components.drudeSmith) throw new Error("Choose Drude or Drude–Smith, not both.");
   const epsilon1 = wavelengthNm.map(() => parameters.epsilonInf);
   const epsilon2 = wavelengthNm.map(() => 0);
-  const values = (prefix) => Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(`${prefix}__`)).map(([name, value]) => [name.slice(prefix.length + 2), value]));
-  const add = (dielectric, subtractBackground = false) => dielectric.epsilon1.forEach((value, index) => {
+  const values = (prefix: string): NumericParameters => Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(`${prefix}__`)).map(([name, value]) => [name.slice(prefix.length + 2), value]));
+  const add = (dielectric: DielectricResponse, subtractBackground = false) => dielectric.epsilon1.forEach((value, index) => {
     epsilon1[index] += value - Number(subtractBackground);
     epsilon2[index] += dielectric.epsilon2[index];
   });
@@ -298,10 +334,10 @@ export function compositeDielectric(wavelengthNm, parameters, components: any = 
   return { epsilon1, epsilon2 };
 }
 
-export function lorentzOscillatorDielectric(wavelengthNm, strength, resonanceEv, gammaEv) {
+export function lorentzOscillatorDielectric(wavelengthNm: number[], strength: number, resonanceEv: number, gammaEv: number): DielectricResponse {
   validatePositiveWavelengths(wavelengthNm);
   if (![strength, resonanceEv, gammaEv].every((value) => Number.isFinite(value) && value > 0)) throw new Error("Lorentz strength, resonance, and damping must be finite and positive.");
-  const epsilon1 = []; const epsilon2 = [];
+  const epsilon1: number[] = []; const epsilon2: number[] = [];
   for (const wavelength of wavelengthNm) {
     const energy = PHOTON_ENERGY_EV_NM / wavelength;
     const denominator = (resonanceEv ** 2 - energy ** 2) ** 2 + gammaEv ** 2 * energy ** 2;
@@ -311,10 +347,10 @@ export function lorentzOscillatorDielectric(wavelengthNm, strength, resonanceEv,
   return { epsilon1, epsilon2 };
 }
 
-export function drudeSmithDielectric(wavelengthNm, plasmaEnergyEv, gammaEv, backscattering) {
+export function drudeSmithDielectric(wavelengthNm: number[], plasmaEnergyEv: number, gammaEv: number, backscattering: number): DielectricResponse {
   if (!Number.isFinite(backscattering) || backscattering < -1 || backscattering > 0) throw new Error("Drude–Smith c₁ must be from −1 to 0.");
   const drude = drudeDielectric(wavelengthNm, plasmaEnergyEv, gammaEv);
-  const epsilon1 = []; const epsilon2 = [];
+  const epsilon1: number[] = []; const epsilon2: number[] = [];
   wavelengthNm.forEach((wavelength, index) => {
     const energy = PHOTON_ENERGY_EV_NM / wavelength;
     const denominator = gammaEv ** 2 + energy ** 2;
@@ -328,7 +364,8 @@ export function drudeSmithDielectric(wavelengthNm, plasmaEnergyEv, gammaEv, back
 const HERMITE_NODES = [-3.436159118837738, -2.53273167423279, -1.756683649299882, -1.036610829789514, -0.342901327223705, 0.342901327223705, 1.036610829789514, 1.756683649299882, 2.53273167423279, 3.436159118837738];
 const HERMITE_WEIGHTS = [0.000007640432856, 0.001343645746781, 0.033874394455481, 0.240138611082315, 0.610862633735326, 0.610862633735326, 0.240138611082315, 0.033874394455481, 0.001343645746781, 0.000007640432856];
 
-export function brendelBormannDielectric(wavelengthNm, parameters) {
+export function brendelBormannDielectric(wavelengthNm: number[], parameters: NumericParameters): DielectricResponse {
+  validatePositiveWavelengths(wavelengthNm);
   const { strength, resonanceEv, gammaEv, sigmaEv } = parameters;
   if (![strength, resonanceEv, gammaEv, sigmaEv].every((value) => Number.isFinite(value) && value > 0)) throw new Error("Brendel–Bormann parameters must be finite and positive.");
   const samples = HERMITE_NODES.map((node, index) => ({ resonance: resonanceEv + Math.SQRT2 * sigmaEv * node, weight: HERMITE_WEIGHTS[index] / Math.sqrt(Math.PI) })).filter((sample) => sample.resonance > 0);
@@ -341,7 +378,8 @@ export function brendelBormannDielectric(wavelengthNm, parameters) {
   return { epsilon1, epsilon2 };
 }
 
-export function criticalPointDielectric(wavelengthNm, parameters) {
+export function criticalPointDielectric(wavelengthNm: number[], parameters: NumericParameters): DielectricResponse {
+  validatePositiveWavelengths(wavelengthNm);
   const { amplitude, energyEv, broadeningEv } = parameters;
   if (![amplitude, energyEv, broadeningEv].every((value) => Number.isFinite(value) && value > 0)) throw new Error("Critical-point parameters must be finite and positive.");
   const epsilon1 = []; const epsilon2 = [];
@@ -355,11 +393,11 @@ export function criticalPointDielectric(wavelengthNm, parameters) {
   return { epsilon1, epsilon2 };
 }
 
-export function cauchyRefractiveIndex(wavelengthNm, parameters) {
+export function cauchyRefractiveIndex(wavelengthNm: number[], parameters: NumericParameters): RefractiveIndex {
   validatePositiveWavelengths(wavelengthNm);
   if (![parameters.cauchyA, parameters.cauchyBUm2, parameters.cauchyCUm4, parameters.urbachK0, parameters.urbachReferenceEv, parameters.urbachEnergyEv].every(Number.isFinite)
     || parameters.cauchyA <= 0 || parameters.urbachK0 < 0 || parameters.urbachEnergyEv <= 0) throw new Error("Invalid Cauchy–Urbach parameters.");
-  const n = []; const k = [];
+  const n: number[] = []; const k: number[] = [];
   for (const wavelength of wavelengthNm) {
     const wavelengthUm = wavelength / 1000;
     const index = parameters.cauchyA + parameters.cauchyBUm2 / wavelengthUm ** 2 + parameters.cauchyCUm4 / wavelengthUm ** 4;
@@ -370,7 +408,7 @@ export function cauchyRefractiveIndex(wavelengthNm, parameters) {
   return { n, k };
 }
 
-export function sellmeierRefractiveIndex(wavelengthNm, parameters) {
+export function sellmeierRefractiveIndex(wavelengthNm: number[], parameters: NumericParameters): RefractiveIndex {
   validatePositiveWavelengths(wavelengthNm);
   const coefficients = [1, 2, 3].map((index) => [parameters[`sellmeierB${index}`], parameters[`sellmeierC${index}Um2`]]);
   if (!coefficients.flat().every(Number.isFinite) || coefficients.some(([b, c]) => b < 0 || c <= 0)) throw new Error("Sellmeier coefficients must be finite with B ≥ 0 and C > 0.");
@@ -383,14 +421,14 @@ export function sellmeierRefractiveIndex(wavelengthNm, parameters) {
   return { n, k: wavelengthNm.map(() => 0) };
 }
 
-export function forouhiBloomerRefractiveIndex(wavelengthNm, parameters) {
+export function forouhiBloomerRefractiveIndex(wavelengthNm: number[], parameters: NumericParameters): RefractiveIndex {
   validatePositiveWavelengths(wavelengthNm);
   const { nInfinity, amplitudeEv, bEv, cEv2, bandgapEv } = parameters;
   if (![nInfinity, amplitudeEv, bEv, cEv2, bandgapEv].every(Number.isFinite) || nInfinity < 1 || amplitudeEv <= 0 || bandgapEv < 0 || 4 * cEv2 <= bEv ** 2) throw new Error("Forouhi–Bloomer requires n∞ ≥ 1, A > 0, E_g ≥ 0, and 4C > B².");
   const q = 0.5 * Math.sqrt(4 * cEv2 - bEv ** 2);
   const b0 = amplitudeEv / q * (-(bEv ** 2) / 2 + bandgapEv * bEv - bandgapEv ** 2 + cEv2);
   const c0 = amplitudeEv / q * ((bandgapEv ** 2 + cEv2) * bEv / 2 - 2 * bandgapEv * cEv2);
-  const n = []; const k = [];
+  const n: number[] = []; const k: number[] = [];
   for (const wavelength of wavelengthNm) {
     const energy = PHOTON_ENERGY_EV_NM / wavelength;
     const denominator = energy ** 2 - bEv * energy + cEv2;
@@ -401,12 +439,13 @@ export function forouhiBloomerRefractiveIndex(wavelengthNm, parameters) {
   return { n, k };
 }
 
-export function effectiveMediumRefractiveIndex(wavelengthNm, parameters, ema) {
+export function effectiveMediumRefractiveIndex(wavelengthNm: number[], parameters: NumericParameters, ema: EffectiveMedium | null | undefined): RefractiveIndex {
+  validatePositiveWavelengths(wavelengthNm);
   if (!ema?.hostNk || !ema?.inclusionNk || !new Set(["bruggeman", "maxwell-garnett"]).has(ema.method)) throw new Error("EMA requires host and inclusion n,k tables and a supported mixing rule.");
   const fraction = parameters.volumeFraction;
   if (!Number.isFinite(fraction) || fraction < 0 || fraction > 1) throw new Error("EMA volume fraction must be from 0 to 1.");
   const host = tabulatedRefractiveIndex(ema.hostNk, wavelengthNm); const inclusion = tabulatedRefractiveIndex(ema.inclusionNk, wavelengthNm);
-  const epsilon1 = []; const epsilon2 = [];
+  const epsilon1: number[] = []; const epsilon2: number[] = [];
   wavelengthNm.forEach((_, index) => {
     const hostEpsilon = indexToDielectric(host.n[index], host.k[index]); const inclusionEpsilon = indexToDielectric(inclusion.n[index], inclusion.k[index]);
     let effective;
@@ -429,9 +468,10 @@ export function effectiveMediumRefractiveIndex(wavelengthNm, parameters, ema) {
 }
 
 const KK_SPLINE_ENERGIES_EV = [0.5, 1.625, 2.75, 3.875, 5];
-const kkSplineCache = new WeakMap();
+type KkSplineBasis = { real: number[][]; imaginary: number[][] };
+const kkSplineCache = new WeakMap<number[], KkSplineBasis>();
 
-export function kkSplineDielectric(wavelengthNm, parameters) {
+export function kkSplineDielectric(wavelengthNm: number[], parameters: NumericParameters): DielectricResponse {
   validatePositiveWavelengths(wavelengthNm);
   if (!(parameters.epsilonInf > 0)) throw new Error("KK B-spline ε∞ must be positive.");
   const amplitudes = KK_SPLINE_ENERGIES_EV.map((_, index) => parameters[`splineEpsilon2_${index + 1}`]);
@@ -444,12 +484,12 @@ export function kkSplineDielectric(wavelengthNm, parameters) {
   };
 }
 
-function precomputeKkSplineBasis(wavelengthNm) {
+function precomputeKkSplineBasis(wavelengthNm: number[]): KkSplineBasis {
   const step = KK_SPLINE_ENERGIES_EV[1] - KK_SPLINE_ENERGIES_EV[0];
-  const cubic = (energy, center) => { const distance = Math.abs((energy - center) / step); return distance < 1 ? 2 / 3 - distance ** 2 + distance ** 3 / 2 : distance < 2 ? (2 - distance) ** 3 / 6 : 0; };
+  const cubic = (energy: number, center: number) => { const distance = Math.abs((energy - center) / step); return distance < 1 ? 2 / 3 - distance ** 2 + distance ** 3 / 2 : distance < 2 ? (2 - distance) ** 3 / 6 : 0; };
   const maximum = 30; const bins = 800; const delta = maximum / bins; const integrationEnergy = Array.from({ length: bins }, (_, index) => (index + 0.5) * delta);
   const energies = wavelengthNm.map((wavelength) => PHOTON_ENERGY_EV_NM / wavelength);
-  const real = []; const imaginary = [];
+  const real: number[][] = []; const imaginary: number[][] = [];
   for (const center of KK_SPLINE_ENERGIES_EV) {
     const basisAtGrid = integrationEnergy.map((energy) => cubic(energy, center));
     imaginary.push(energies.map((energy) => cubic(energy, center)));
@@ -467,22 +507,26 @@ function precomputeKkSplineBasis(wavelengthNm) {
   return { real, imaginary };
 }
 
-function indexToDielectric(n, k) { return { re: n ** 2 - k ** 2, im: 2 * n * k }; }
-function dielectricComplexAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
-function dielectricComplexSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
-function dielectricComplexScale(a, scale) { return { re: a.re * scale, im: a.im * scale }; }
-function dielectricComplexMul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
-function dielectricComplexDiv(a, b) { const denominator = b.re ** 2 + b.im ** 2; return { re: (a.re * b.re + a.im * b.im) / denominator, im: (a.im * b.re - a.re * b.im) / denominator }; }
-function dielectricComplexSqrt(value) { const magnitude = Math.hypot(value.re, value.im); return { re: Math.sqrt(Math.max(0, (magnitude + value.re) / 2)), im: Math.sign(value.im || 1) * Math.sqrt(Math.max(0, (magnitude - value.re) / 2)) }; }
-function dielectricComplexLog(value) { return { re: Math.log(Math.hypot(value.re, value.im)), im: Math.atan2(value.im, value.re) }; }
-function dielectricComplexDistance(a, b) { return Math.hypot(a.re - b.re, a.im - b.im); }
+function indexToDielectric(n: number, k: number): ComplexValue { return { re: n ** 2 - k ** 2, im: 2 * n * k }; }
+function dielectricComplexAdd(a: ComplexValue, b: ComplexValue): ComplexValue { return { re: a.re + b.re, im: a.im + b.im }; }
+function dielectricComplexSub(a: ComplexValue, b: ComplexValue): ComplexValue { return { re: a.re - b.re, im: a.im - b.im }; }
+function dielectricComplexScale(a: ComplexValue, scale: number): ComplexValue { return { re: a.re * scale, im: a.im * scale }; }
+function dielectricComplexMul(a: ComplexValue, b: ComplexValue): ComplexValue { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
+function dielectricComplexDiv(a: ComplexValue, b: ComplexValue): ComplexValue { const denominator = b.re ** 2 + b.im ** 2; return { re: (a.re * b.re + a.im * b.im) / denominator, im: (a.im * b.re - a.re * b.im) / denominator }; }
+function dielectricComplexSqrt(value: ComplexValue): ComplexValue { const magnitude = Math.hypot(value.re, value.im); return { re: Math.sqrt(Math.max(0, (magnitude + value.re) / 2)), im: Math.sign(value.im || 1) * Math.sqrt(Math.max(0, (magnitude - value.re) / 2)) }; }
+function dielectricComplexLog(value: ComplexValue): ComplexValue { return { re: Math.log(Math.hypot(value.re, value.im)), im: Math.atan2(value.im, value.re) }; }
+function dielectricComplexDistance(a: ComplexValue, b: ComplexValue): number { return Math.hypot(a.re - b.re, a.im - b.im); }
 
-export function tabulatedRefractiveIndex(nk, wavelengthNm) {
-  if (!nk?.wavelengthNm?.length || nk.wavelengthNm.length !== nk.n?.length || nk.n.length !== nk.k?.length) throw new Error("Invalid ellipsometry n,k table.");
+export function tabulatedRefractiveIndex(nk: NkTable, wavelengthNm: number[]): RefractiveIndex {
+  if (!Array.isArray(nk?.wavelengthNm) || !nk.wavelengthNm.length || nk.wavelengthNm.length !== nk.n?.length || nk.n.length !== nk.k?.length
+    || nk.wavelengthNm.some((value, index) => !(value > 0) || !Number.isFinite(value) || (index && value <= nk.wavelengthNm[index - 1]))
+    || nk.n.some((value) => !(value > 0) || !Number.isFinite(value))
+    || nk.k.some((value) => !(value >= 0) || !Number.isFinite(value))) throw new Error("Invalid ellipsometry n,k table.");
+  validatePositiveWavelengths(wavelengthNm);
   return { n: interpolate(nk.wavelengthNm, nk.n, wavelengthNm), k: interpolate(nk.wavelengthNm, nk.k, wavelengthNm) };
 }
 
-export function taucLorentzDielectric(wavelengthNm, epsilonInf, amplitudeEv, resonanceEv, broadeningEv, bandgapEv) {
+export function taucLorentzDielectric(wavelengthNm: number[], epsilonInf: number, amplitudeEv: number, resonanceEv: number, broadeningEv: number, bandgapEv: number): DielectricResponse {
   validatePositiveWavelengths(wavelengthNm);
   if (![epsilonInf, amplitudeEv, resonanceEv, broadeningEv, bandgapEv].every(Number.isFinite) || epsilonInf <= 0 || amplitudeEv <= 0) {
     throw new Error("Tauc–Lorentz ε∞ and amplitude must be finite and positive.");
@@ -518,13 +562,13 @@ export function taucLorentzDielectric(wavelengthNm, epsilonInf, amplitudeEv, res
   return { epsilon1, epsilon2 };
 }
 
-export function multiTaucLorentzDielectric(wavelengthNm, parameters) {
+export function multiTaucLorentzDielectric(wavelengthNm: number[], parameters: NumericParameters): DielectricResponse {
   const first = taucLorentzDielectric(wavelengthNm, parameters.epsilonInf, parameters.amplitude1Ev, parameters.resonance1Ev, parameters.broadening1Ev, parameters.bandgapEv);
   const second = taucLorentzDielectric(wavelengthNm, 1, parameters.amplitude2Ev, parameters.resonance2Ev, parameters.broadening2Ev, parameters.bandgapEv);
   return { epsilon1: first.epsilon1.map((value, index) => value + second.epsilon1[index] - 1), epsilon2: first.epsilon2.map((value, index) => value + second.epsilon2[index]) };
 }
 
-export function gaussianOscillatorDielectric(wavelengthNm, amplitude, centerEnergyEv, fwhmEv) {
+export function gaussianOscillatorDielectric(wavelengthNm: number[], amplitude: number, centerEnergyEv: number, fwhmEv: number): DielectricResponse {
   validatePositiveWavelengths(wavelengthNm);
   if (![amplitude, centerEnergyEv, fwhmEv].every((value) => Number.isFinite(value) && value > 0)) throw new Error("Gaussian amplitude, center energy, and FWHM must be finite and positive.");
   const widthScale = 2 * Math.sqrt(Math.log(2)) / fwhmEv;
@@ -540,15 +584,16 @@ export function gaussianOscillatorDielectric(wavelengthNm, amplitude, centerEner
   return { epsilon1, epsilon2 };
 }
 
-export function taucGaussianDielectric(wavelengthNm, parameters) {
+export function taucGaussianDielectric(wavelengthNm: number[], parameters: NumericParameters): DielectricResponse {
   const tl = taucLorentzDielectric(wavelengthNm, parameters.epsilonInf, parameters.amplitudeEv, parameters.resonanceEv, parameters.broadeningEv, parameters.bandgapEv);
   const gaussian = gaussianOscillatorDielectric(wavelengthNm, parameters.gaussianAmplitude, parameters.gaussianCenterEv, parameters.gaussianFwhmEv);
   return { epsilon1: tl.epsilon1.map((value, index) => value + gaussian.epsilon1[index]), epsilon2: tl.epsilon2.map((value, index) => value + gaussian.epsilon2[index]) };
 }
 
-const codyCache = new WeakMap();
+type CodyBasis = { real: number[]; imaginary: number[] };
+const codyCache = new WeakMap<number[], Map<string, CodyBasis>>();
 
-export function codyLorentzDielectric(wavelengthNm, parameters) {
+export function codyLorentzDielectric(wavelengthNm: number[], parameters: NumericParameters): DielectricResponse {
   validatePositiveWavelengths(wavelengthNm);
   if (!(parameters.epsilonInf > 0)) throw new Error("Cody–Lorentz ε∞ must be finite and positive.");
   const cacheKey = [parameters.transitionEv, parameters.broadeningEv, parameters.crossoverEv, parameters.resonanceEv, parameters.urbachEv, parameters.bandgapEv].join("|");
@@ -559,7 +604,7 @@ export function codyLorentzDielectric(wavelengthNm, parameters) {
     const integrationEnergy = Array.from({ length: 1200 }, (_, index) => 0.01 + index * (30 - 0.01) / 1199);
     const step = integrationEnergy[1] - integrationEnergy[0];
     const integrationEpsilon2 = codyLorentzEpsilon2(integrationEnergy, 1, parameters);
-    const kkAtIndex = (row) => {
+    const kkAtIndex = (row: number) => {
       let sum = 0;
       for (let column = 1 - (row & 1); column < integrationEnergy.length; column += 2) {
         sum += 4 * step / Math.PI * integrationEnergy[column] * integrationEpsilon2[column]
@@ -583,20 +628,20 @@ export function codyLorentzDielectric(wavelengthNm, parameters) {
   };
 }
 
-function codyLorentzEpsilon2(energyEv, amplitudeEv, parameters) {
+function codyLorentzEpsilon2(energyEv: number[], amplitudeEv: number, parameters: NumericParameters): number[] {
   const { transitionEv, broadeningEv, crossoverEv, resonanceEv, urbachEv, bandgapEv } = parameters;
   const values = [amplitudeEv, transitionEv, broadeningEv, crossoverEv, resonanceEv, urbachEv, bandgapEv];
   if (!values.every(Number.isFinite) || Math.min(...values.slice(0, -1)) <= 0 || bandgapEv < 0) throw new Error("Cody–Lorentz energies and amplitude must be finite and positive.");
   if (transitionEv <= bandgapEv || resonanceEv <= bandgapEv) throw new Error("Cody–Lorentz requires Eₜ > E_g and E₀ > E_g.");
-  const onset = (energy) => (energy - bandgapEv) ** 2 / ((energy - bandgapEv) ** 2 + crossoverEv ** 2);
-  const lorentz = (energy) => amplitudeEv * resonanceEv * broadeningEv * energy / ((energy ** 2 - resonanceEv ** 2) ** 2 + broadeningEv ** 2 * energy ** 2);
+  const onset = (energy: number) => (energy - bandgapEv) ** 2 / ((energy - bandgapEv) ** 2 + crossoverEv ** 2);
+  const lorentz = (energy: number) => amplitudeEv * resonanceEv * broadeningEv * energy / ((energy ** 2 - resonanceEv ** 2) ** 2 + broadeningEv ** 2 * energy ** 2);
   const transitionScale = transitionEv * onset(transitionEv) * lorentz(transitionEv);
   return energyEv.map((energy) => energy <= transitionEv
     ? transitionScale / energy * Math.exp((energy - transitionEv) / urbachEv)
     : onset(energy) * lorentz(energy));
 }
 
-export function drudeTaucLorentzDielectric(wavelengthNm, parameters) {
+export function drudeTaucLorentzDielectric(wavelengthNm: number[], parameters: NumericParameters): DielectricResponse {
   if (!(parameters.plasmaEnergyEv > 0) || !(parameters.drudeGammaEv > 0)) throw new Error("Drude plasma energy and γ must be finite and positive.");
   const interband = taucLorentzDielectric(wavelengthNm, parameters.epsilonInf, parameters.amplitudeEv, parameters.resonanceEv, parameters.broadeningEv, parameters.bandgapEv);
   const drude = drudeDielectric(wavelengthNm, parameters.plasmaEnergyEv, parameters.drudeGammaEv);
@@ -606,11 +651,11 @@ export function drudeTaucLorentzDielectric(wavelengthNm, parameters) {
   };
 }
 
-export function drudeDielectric(wavelengthNm, plasmaEnergyEv, gammaEv) {
+export function drudeDielectric(wavelengthNm: number[], plasmaEnergyEv: number, gammaEv: number): DielectricResponse {
   validatePositiveWavelengths(wavelengthNm);
   if (!(plasmaEnergyEv > 0) || !(gammaEv > 0)) throw new Error("Drude plasma energy and γ must be finite and positive.");
-  const epsilon1 = [];
-  const epsilon2 = [];
+  const epsilon1: number[] = [];
+  const epsilon2: number[] = [];
   wavelengthNm.forEach((wavelength) => {
     const energy = PHOTON_ENERGY_EV_NM / wavelength;
     const denominator = energy ** 4 + gammaEv ** 2 * energy ** 2;
@@ -620,9 +665,9 @@ export function drudeDielectric(wavelengthNm, plasmaEnergyEv, gammaEv) {
   return { epsilon1, epsilon2 };
 }
 
-export function passiveRefractiveIndex({ epsilon1, epsilon2 }) {
-  const n = [];
-  const k = [];
+export function passiveRefractiveIndex({ epsilon1, epsilon2 }: DielectricResponse): RefractiveIndex {
+  const n: number[] = [];
+  const k: number[] = [];
   epsilon1.forEach((real, index) => {
     const imaginary = epsilon2[index];
     const magnitude = Math.hypot(real, imaginary);
@@ -635,26 +680,26 @@ export function passiveRefractiveIndex({ epsilon1, epsilon2 }) {
   return { n, k };
 }
 
-function validatePositiveWavelengths(wavelengthNm) {
-  if (!wavelengthNm.length || wavelengthNm.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error("Wavelengths must be finite and positive.");
+function validatePositiveWavelengths(wavelengthNm: number[]): void {
+  if (!Array.isArray(wavelengthNm) || !wavelengthNm.length || wavelengthNm.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error("Wavelengths must be finite and positive.");
 }
 
-function interpolate(x, y, points) {
+function interpolate(x: number[], y: number[], points: number[]): number[] {
   return points.map((point) => {
-    if (point <= x[0]) return y[0];
-    if (point >= x.at(-1)) return y.at(-1);
+    if (point <= x[0]!) return y[0]!;
+    if (point >= x.at(-1)!) return y.at(-1)!;
     let low = 0;
     let high = x.length - 1;
     while (high - low > 1) {
       const middle = (low + high) >> 1;
-      if (x[middle] <= point) low = middle;
+      if (x[middle]! <= point) low = middle;
       else high = middle;
     }
-    return y[low] + (y[high] - y[low]) * (point - x[low]) / (x[high] - x[low]);
+    return y[low]! + (y[high]! - y[low]!) * (point - x[low]!) / (x[high]! - x[low]!);
   });
 }
 
-function dawson(value) {
+function dawson(value: number): number {
   const absolute = Math.abs(value);
   if (absolute < 0.2) {
     const square = value ** 2;

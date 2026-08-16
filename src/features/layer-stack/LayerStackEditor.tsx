@@ -16,26 +16,28 @@ import {
   ToggletipContent,
 } from "@carbon/react";
 import { Add, ArrowDown, ArrowUp, Copy, Information, Redo, TrashCan, Undo } from "@carbon/react/icons";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useReflectometry } from "../../app/reflectometry-context.ts";
 import { COMPONENT_GUIDES, EMA_RULE_GUIDES, MODEL_GUIDES, parameterDescription } from "./model-help.ts";
-import { COMPONENT_LABELS, MULTILAYER_MODEL_LABELS } from "../../runtime/reflectometry-store.ts";
+import { COMPONENT_LABELS, MULTILAYER_MODEL_LABELS, type OpticalMaterial } from "../../runtime/reflectometry-store.ts";
+import type { ParameterSpecification } from "../../scientific/models/dielectric-models.ts";
 
-function numberValue(event: any, data: any) {
-  return Number(data?.value ?? event?.target?.value);
+function numberValue(event: unknown, data: { value?: string | number } | undefined) {
+  const target = event && typeof event === "object" && "target" in event ? event.target : null;
+  return Number(data?.value ?? (target instanceof HTMLInputElement ? target.value : undefined));
 }
 
-function MaterialFile({ id, label, source, onSelect }: { id: string; label: string; source: string | null; onSelect: (file: File) => void }) {
+function MaterialFile({ id, label, actionLabel, source, onSelect }: { id: string; label: string; actionLabel: string; source: string | null; onSelect: (file: File) => void }) {
   return (
     <div className="material-file">
       <span className="material-file__label">{label}</span>
       <FileUploaderButton
         id={id}
-        labelText="Choose file"
+        labelText={`${source ? "Replace" : "Choose"} ${actionLabel}`}
         accept={[".txt", "text/plain"]}
         buttonKind="tertiary"
         size="sm"
-        onChange={(event: any) => {
+        onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
           const file = event.target.files?.[0];
           if (file) onSelect(file);
         }}
@@ -45,14 +47,23 @@ function MaterialFile({ id, label, source, onSelect }: { id: string; label: stri
   );
 }
 
-function ModelGuide({ material }: { material: any }) {
+type GuideEntry = {
+  title?: string;
+  summary?: string;
+  equation: { label: string; mathml: string };
+  represents: string;
+  limitation?: string;
+  references: Array<{ citation: string; doi: string }>;
+};
+
+function ModelGuide({ material }: { material: OpticalMaterial }) {
   const guide = MODEL_GUIDES[material.model];
   if (!guide) return null;
-  const activeGuides: Array<[string, any]> = [];
+  const activeGuides: Array<[string, GuideEntry]> = [];
   if (material.model === "composite") {
     if (material.components.taucLorentz) activeGuides.push([`${material.components.taucLorentz} × Tauc–Lorentz`, COMPONENT_GUIDES.taucLorentz]);
     if (material.components.lorentz) activeGuides.push([`${material.components.lorentz} × Lorentz`, COMPONENT_GUIDES.lorentz]);
-    for (const component of Object.keys(COMPONENT_LABELS)) if (material.components[component]) activeGuides.push([COMPONENT_LABELS[component], COMPONENT_GUIDES[component]]);
+    for (const component of Object.keys(COMPONENT_LABELS) as Array<keyof typeof COMPONENT_LABELS>) if (material.components[component]) activeGuides.push([COMPONENT_LABELS[component], COMPONENT_GUIDES[component]]);
   } else if (material.model === "ema") {
     activeGuides.push([EMA_RULE_GUIDES[material.ema.method].title, EMA_RULE_GUIDES[material.ema.method]]);
   }
@@ -61,7 +72,7 @@ function ModelGuide({ material }: { material: any }) {
 
   return (
     <Accordion className="model-guide" size="sm" isFlush>
-      <AccordionItem title={`Model guide · ${MULTILAYER_MODEL_LABELS[material.model] ?? material.model}`}>
+      <AccordionItem title={`Model guide · ${Object.hasOwn(MULTILAYER_MODEL_LABELS, material.model) ? MULTILAYER_MODEL_LABELS[material.model as keyof typeof MULTILAYER_MODEL_LABELS] : material.model}`}>
         <div className="model-guide__body">
           <p>{guide.summary}</p>
           <div className="scientific-equation" dangerouslySetInnerHTML={{ __html: `<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" aria-label="${guide.equation.label}">${guide.equation.mathml}</math>` }} />
@@ -78,7 +89,7 @@ function ModelGuide({ material }: { material: any }) {
             </section>)}
           </>}
           <h4>Parameters in this material</h4>
-          <dl>{Object.entries(material.specs).flatMap(([name, specification]: [string, any]) => [
+          <dl>{Object.entries(material.specs).flatMap(([name, specification]) => [
             <dt key={`${name}-term`}>{specification.label}{specification.unit ? ` (${specification.unit})` : ""}</dt>,
             <dd key={`${name}-definition`}>{parameterDescription(name)}</dd>,
           ])}</dl>
@@ -91,7 +102,7 @@ function ModelGuide({ material }: { material: any }) {
   );
 }
 
-function ComponentEditor({ material }: { material: any }) {
+function ComponentEditor({ material }: { material: OpticalMaterial }) {
   const [, actions] = useReflectometry();
   if (material.model !== "composite") return null;
   return (
@@ -121,7 +132,7 @@ function ComponentEditor({ material }: { material: any }) {
   );
 }
 
-function EmaEditor({ material }: { material: any }) {
+function EmaEditor({ material }: { material: OpticalMaterial }) {
   const [, actions] = useReflectometry();
   if (material.model !== "ema") return null;
   return (
@@ -131,13 +142,13 @@ function EmaEditor({ material }: { material: any }) {
         <SelectItem value="bruggeman" text="Bruggeman (symmetric)" />
         <SelectItem value="maxwell-garnett" text="Maxwell–Garnett (inclusions in host)" />
       </Select>
-      <MaterialFile id={`${material.id}-ema-host`} label="Host n,k table" source={material.ema.hostSource} onSelect={(file) => void actions.loadMaterialTable(material.id, "host", file)} />
-      <MaterialFile id={`${material.id}-ema-inclusion`} label="Inclusion n,k table" source={material.ema.inclusionSource} onSelect={(file) => void actions.loadMaterialTable(material.id, "inclusion", file)} />
+      <MaterialFile id={`${material.id}-ema-host`} label="Host n,k table" actionLabel="host n,k" source={material.ema.hostSource} onSelect={(file) => void actions.loadMaterialTable(material.id, "host", file)} />
+      <MaterialFile id={`${material.id}-ema-inclusion`} label="Inclusion n,k table" actionLabel="inclusion n,k" source={material.ema.inclusionSource} onSelect={(file) => void actions.loadMaterialTable(material.id, "inclusion", file)} />
     </fieldset>
   );
 }
 
-function ParameterRow({ material, name, specification, advanced }: { material: any; name: string; specification: any; advanced: boolean }) {
+function ParameterRow({ material, name, specification, advanced }: { material: OpticalMaterial; name: string; specification: ParameterSpecification; advanced: boolean }) {
   const [state, actions] = useReflectometry();
   const linkedSource = material.links?.[name] ?? "";
   const candidates = material.id === "substrate" ? [] : state.layers.slice(0, state.layers.findIndex((layer) => layer.id === material.id)).filter((candidate) => candidate.specs[name]);
@@ -186,7 +197,7 @@ function ParameterRow({ material, name, specification, advanced }: { material: a
   );
 }
 
-function MaterialCard({ material, index, substrate = false, advanced, onRequestRemove }: { material: any; index: number; substrate?: boolean; advanced: boolean; onRequestRemove: (material: any) => void }) {
+function MaterialCard({ material, index, substrate = false, advanced, onRequestRemove }: { material: OpticalMaterial; index: number; substrate?: boolean; advanced: boolean; onRequestRemove: (material: OpticalMaterial, trigger: HTMLElement) => void }) {
   const [state, actions] = useReflectometry();
   return (
     <article className={`material-card${substrate ? " material-card--substrate" : ""}`} aria-labelledby={`${material.id}-title`}>
@@ -206,7 +217,7 @@ function MaterialCard({ material, index, substrate = false, advanced, onRequestR
           <IconButton label={`Move up ${material.name}`} kind="ghost" size="sm" disabled={index === 0 || state.operation.busy} onClick={() => actions.moveLayer(material.id, -1)}><ArrowUp /></IconButton>
           <IconButton label={`Move down ${material.name}`} kind="ghost" size="sm" disabled={index === state.layers.length - 1 || state.operation.busy} onClick={() => actions.moveLayer(material.id, 1)}><ArrowDown /></IconButton>
           <IconButton label={`Duplicate ${material.name}`} kind="ghost" size="sm" disabled={state.layers.length >= 12 || state.operation.busy} onClick={() => actions.duplicateLayer(material.id)}><Copy /></IconButton>
-          <IconButton label={`Remove ${material.name}`} kind="ghost" size="sm" disabled={state.layers.length === 1 || state.operation.busy} onClick={() => onRequestRemove(material)}><TrashCan /></IconButton>
+          <IconButton label={`Remove ${material.name}`} kind="ghost" size="sm" disabled={state.layers.length === 1 || state.operation.busy} onClick={(event) => onRequestRemove(material, event.currentTarget)}><TrashCan /></IconButton>
         </div>}
       </div>
       <Accordion className="material-card__editor" size="sm" isFlush>
@@ -218,14 +229,14 @@ function MaterialCard({ material, index, substrate = false, advanced, onRequestR
             {advanced && <ModelGuide material={material} />}
             <ComponentEditor material={material} />
             <EmaEditor material={material} />
-            {material.model !== "ema" && <MaterialFile id={`${material.id}-nk-file`} label={`${substrate ? "Substrate" : "Layer"} n,k table`} source={material.nkSource} onSelect={(file) => void actions.loadMaterialTable(material.id, "nk", file)} />}
+            {material.model !== "ema" && <MaterialFile id={`${material.id}-nk-file`} label={`${substrate ? "Substrate" : "Layer"} n,k table`} actionLabel={`${substrate ? "substrate" : "layer"} n,k`} source={material.nkSource} onSelect={(file) => void actions.loadMaterialTable(material.id, "nk", file)} />}
             <div className="material-editor__flags">
               {!substrate && <RadioButton id={`${material.id}-active`} name="active-layer" value={material.id} labelText="Active n,k plot" checked={state.activeLayerId === material.id} onChange={() => actions.setActiveLayer(material.id)} />}
               {advanced && <Checkbox id={`${material.id}-regularize`} labelText="Regularize to n,k" checked={Boolean(material.regularize)} disabled={!material.nk || material.model === "fixed" || material.model === "ema"} onChange={(_event, { checked }) => actions.setMaterialRegularization(material.id, checked)} />}
             </div>
             <div className="parameter-table" role="group" aria-label={`${material.name} parameters`}>
               <div className={`parameter-table__head${advanced ? "" : " parameter-table__head--basic"}`} aria-hidden="true"><span>Fit</span><span>Parameter</span><span>Value</span>{advanced && <><span>Min</span><span>Max</span><span>1σ</span></>}</div>
-              {Object.entries(material.specs).map(([name, specification]: [string, any]) => <ParameterRow key={name} material={material} name={name} specification={specification} advanced={advanced} />)}
+              {Object.entries(material.specs).map(([name, specification]) => <ParameterRow key={name} material={material} name={name} specification={specification} advanced={advanced} />)}
             </div>
           </div>
         </AccordionItem>
@@ -236,22 +247,29 @@ function MaterialCard({ material, index, substrate = false, advanced, onRequestR
 
 export default function LayerStackEditor({ advanced }: { advanced: boolean }) {
   const [state, actions] = useReflectometry();
-  const [removeCandidate, setRemoveCandidate] = useState<any>(null);
+  const [removeCandidate, setRemoveCandidate] = useState<OpticalMaterial | null>(null);
+  const removeTriggerRef = useRef<HTMLElement | null>(null);
+  const addLayerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const requestRemove = (material: OpticalMaterial, trigger: HTMLElement) => {
+    removeTriggerRef.current = trigger;
+    setRemoveCandidate(material);
+  };
   return <>
     <div className="stack-editor__scope">
       <NumberInput id="substrate-thickness" label="Substrate thickness" helperText="micrometres (µm)" value={state.controls.substrateThicknessUm} min={10} max={1000000} step={1} onChange={(event, data) => actions.updateControl("substrateThicknessUm", numberValue(event, data))} />
       <Select id="incidence" labelText="Incidence" value={state.controls.incidence} onChange={(event) => actions.updateControl("incidence", event.target.value as "film" | "substrate")}><SelectItem value="film" text="Stack side" /><SelectItem value="substrate" text="Substrate side" /></Select>
     </div>
-    <div className="layer-list">{state.layers.map((layer, index) => <MaterialCard key={layer.id} material={layer} index={index} advanced={advanced} onRequestRemove={setRemoveCandidate} />)}</div>
+    <div className="layer-list">{state.layers.map((layer, index) => <MaterialCard key={layer.id} material={layer} index={index} advanced={advanced} onRequestRemove={requestRemove} />)}</div>
     <div className="stack-toolbar">
       <Button kind="ghost" renderIcon={Undo} type="button" disabled={!state.canUndo} onClick={actions.undo}>Undo</Button>
       <Button kind="ghost" renderIcon={Redo} type="button" disabled={!state.canRedo} onClick={actions.redo}>Redo</Button>
-      <Button kind="tertiary" renderIcon={Add} type="button" disabled={state.layers.length >= 12 || state.operation.busy} onClick={actions.addLayer}>Add layer</Button>
+      <Button ref={addLayerButtonRef} kind="tertiary" renderIcon={Add} type="button" disabled={state.layers.length >= 12 || state.operation.busy} onClick={actions.addLayer}>Add layer</Button>
     </div>
     <div className="stack-editor__substrate-heading"><span>S</span><div><p>Substrate</p><h3>Dispersive substrate</h3></div></div>
-    <MaterialCard material={state.substrate} index={0} substrate advanced={advanced} onRequestRemove={setRemoveCandidate} />
+    <MaterialCard material={state.substrate} index={0} substrate advanced={advanced} onRequestRemove={requestRemove} />
     <Modal
       open={Boolean(removeCandidate)}
+      launcherButtonRef={removeTriggerRef}
       danger
       modalHeading={`Remove ${removeCandidate?.name ?? "layer"}?`}
       primaryButtonText="Remove layer"
@@ -259,6 +277,7 @@ export default function LayerStackEditor({ advanced }: { advanced: boolean }) {
       onRequestClose={() => setRemoveCandidate(null)}
       onRequestSubmit={() => {
         if (removeCandidate) actions.removeLayer(removeCandidate.id);
+        removeTriggerRef.current = addLayerButtonRef.current;
         setRemoveCandidate(null);
       }}
     >

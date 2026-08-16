@@ -140,6 +140,15 @@ test("evaluates every generic optical model with passive finite results", () => 
   assert.throws(() => modelParameterSpecs("composite", { n: 3, k: 0.1 }, 250, { lorentz: 6 }), /0 to 5 Lorentz/);
 });
 
+test("rejects non-physical wavelength and tabulated-index inputs at model boundaries", () => {
+  assert.throws(() => criticalPointDielectric([0], { amplitude: 2, energyEv: 3, broadeningEv: 0.2 }), /finite and positive/);
+  assert.throws(() => effectiveMediumRefractiveIndex([500], { volumeFraction: 0.5 }, {
+    method: "bruggeman",
+    hostNk: { wavelengthNm: [400, 600], n: [1.5, Number.NaN], k: [0, 0] },
+    inclusionNk: { wavelengthNm: [400, 600], n: [2.5, 2.5], k: [0.1, 0.1] },
+  }), /Invalid ellipsometry n,k table/);
+});
+
 test("fits a dynamic ellipsometry seed from the loaded n,k table", () => {
   const grid = Array.from({ length: 81 }, (_, index) => 300 + 10 * index);
   const truth = { epsilonInf: 4, amplitudeEv: 80, resonanceEv: 3, broadeningEv: 1, bandgapEv: 1 };

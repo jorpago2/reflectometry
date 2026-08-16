@@ -8,6 +8,13 @@ export default function AppHeader() {
   const [state, actions] = useReflectometry();
   const scientificState = operationScientificState(state.operation, state.hasMeasurement);
   const label = operationLabel(state.operation, state.hasMeasurement);
+  const fitDisabledReason = !state.hasMeasurement
+    ? "Load measurement data before fitting."
+    : state.selectedFitCount === 0
+      ? "Select at least one fitted parameter."
+      : state.selectedFitCount > 11
+        ? "Select at most 11 fitted parameters."
+        : undefined;
 
   useScientificShortcut(useMemo(() => ({
     id: "reflectometry:cancel-fit",
@@ -18,16 +25,6 @@ export default function AppHeader() {
     enabled: state.operation.busy,
     priority: 20,
   }), [actions, state.operation.busy]));
-
-  useScientificShortcut(useMemo(() => ({
-    id: "reflectometry:run-fit",
-    shortcut: "Control+Enter",
-    description: "Run fit",
-    displayKeys: ["Ctrl", "Enter"],
-    handler: actions.fit,
-    enabled: state.canFit,
-    priority: 10,
-  }), [actions, state.canFit]));
 
   return (
     <ScientificHeader
@@ -55,7 +52,7 @@ export default function AppHeader() {
             runLabel: "Fit",
             stopLabel: "Cancel",
             disabled: !state.canFit,
-            disabledReason: state.selectedFitCount === 0 ? "Select at least one fitted parameter." : "Load measurement data before fitting.",
+            disabledReason: fitDisabledReason,
           }}
         />
       )}

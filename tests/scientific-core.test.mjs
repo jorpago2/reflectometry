@@ -45,10 +45,56 @@ test("processes visible-only spectra when background subtraction and SNR filteri
 
 test("rejects negative extinction and corrupt numeric rows with provenance", () => {
   assert.throws(() => loadNkTable("400 2 -0.2\n500 2 0.1"), /row 1 at 400 nm has k=-0\.2/);
+  assert.throws(() => loadNkTable("400 0 -0.2\n500 2 0.1"), /row 1 at 400 nm has n=0/);
   const corrected = loadNkTable("400 2 -1e-14\n500 2 0.1");
   assert.equal(corrected.k[0], 0);
   assert.equal(corrected.corrections.length, 1);
   assert.throws(() => parseNumericTable("400 2\ncorrupt row\n500 2"), /line 2: corrupt row/);
+});
+
+test("rejects unordered measurement grids before calibration", () => {
+  const unordered = "500 10\n400 20";
+  const references = "500 100\n400 100";
+  assert.throws(() => createSpectrum({
+    sampleName: "Unordered",
+    sampleR: unordered,
+    sampleT: unordered,
+    reflectanceReference: references,
+    transmittanceReference: references,
+    referenceReflectance: "400 0.3\n500 0.3",
+  }), /wavelengths must be finite, positive, and strictly increasing/);
+});
+
+test("rejects empty fit channels instead of returning a zero-cost no-op", () => {
+  assert.throws(() => fitTabulated({
+    wavelengthNm: [400],
+    reflectance: [0.2],
+    transmittance: [0.4],
+    reflectanceValid: [false],
+    transmittanceValid: [false],
+  }, null, {
+    settings: { model: "constant", substrateIndex: 1.5, incidence: "film", useReflectance: true, useTransmittance: false },
+    initial: { thicknessNm: 100, n: 2, k: 0, rGain: 1, tGain: 1 },
+    bounds: { thicknessNm: [50, 150], n: [1, 3], k: [0, 1], rGain: [0.1, 10], tGain: [0.1, 10] },
+    fittedParameters: ["thicknessNm"],
+    screeningPoints: 64,
+    localRefinements: 1,
+  }), /At least one valid reflectance point is required/);
+
+  assert.throws(() => fitTabulated({
+    wavelengthNm: [400],
+    reflectance: [Number.NaN],
+    transmittance: [0.4],
+    reflectanceValid: [true],
+    transmittanceValid: [false],
+  }, null, {
+    settings: { model: "constant", substrateIndex: 1.5, incidence: "film", useReflectance: true, useTransmittance: false },
+    initial: { thicknessNm: 100, n: 2, k: 0, rGain: 1, tGain: 1 },
+    bounds: { thicknessNm: [50, 150], n: [1, 3], k: [0, 1], rGain: [0.1, 10], tGain: [0.1, 10] },
+    fittedParameters: ["thicknessNm"],
+    screeningPoints: 64,
+    localRefinements: 1,
+  }), /Valid reflectance points must be finite/);
 });
 
 test("generates a reproducible neutral stack example", () => {
@@ -78,6 +124,8 @@ test("multilayer TMM reproduces the single-film solver and conserves lossless po
 
   const opaque = filmStackOnThickSubstrate([500], [{ n: [2], k: [5], thicknessNm: 100000 }], 1.52, "film");
   assert.ok(Number.isFinite(opaque.reflectance[0]) && Number.isFinite(opaque.transmittance[0]));
+  assert.throws(() => filmStackOnThickSubstrate([500], [{ n: [2], k: [Number.NaN], thicknessNm: 100 }], 1.52), /finite, physical n,k/);
+  assert.throws(() => filmStackOnThickSubstrate([500], [null], 1.52), /finite, physical n,k/);
 });
 
 test("complex substrates include incoherent Beer–Lambert absorption", () => {

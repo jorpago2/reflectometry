@@ -1,14 +1,116 @@
-import { refractiveIndexModel } from "../models/dielectric-models.ts";
+import {
+  refractiveIndexModel,
+  type ComplexValue,
+  type DielectricComponents,
+  type EffectiveMedium,
+  type NkTable,
+  type NumericParameters,
+  type OpticalModel,
+  type ParameterSpecifications,
+  type RefractiveIndex,
+} from "../models/dielectric-models.ts";
 import { scrambledSobolPoints } from "../fitting/sobol.ts";
+
+export type Incidence = "film" | "substrate";
+export type Spectrum = {
+  sampleName: string;
+  wavelengthNm: number[];
+  sampleReflectanceCounts: number[];
+  sampleTransmittanceCounts: number[];
+  reflectanceReferenceCounts: number[];
+  transmittanceReferenceCounts: number[];
+  referenceReflectance: number[];
+};
+type BackgroundEstimate = { level: number; sigma: number | null };
+export type FitData = {
+  wavelengthNm: number[];
+  reflectance: number[];
+  transmittance: number[];
+  reflectanceValid: boolean[];
+  transmittanceValid: boolean[];
+  rawValidPoints?: number;
+  rawValidReflectance?: number;
+  rawValidTransmittance?: number;
+  background?: { subtracted: boolean; aggregationOrder: string } & Record<string, unknown>;
+};
+export type PreparedFitOptions = {
+  wavelengthMinNm: number;
+  wavelengthMaxNm: number;
+  referenceThresholdFraction: number;
+  binWidthNm: number;
+  sampleSnrMinimum?: number;
+  subtractBackground?: boolean;
+};
+export type OpticalMaterialSettings = {
+  model: OpticalModel;
+  nk?: NkTable | null;
+  components?: DielectricComponents;
+  ema?: EffectiveMedium;
+  regularize?: boolean;
+};
+export type OpticalLayerSettings = OpticalMaterialSettings & {
+  id: string;
+  name: string;
+};
+export type OpticalSettings = {
+  model?: OpticalModel;
+  substrateIndex?: number;
+  incidence: Incidence;
+  substrateExtinction?: number;
+  substrateThicknessNm?: number;
+  useReflectance: boolean;
+  useTransmittance: boolean;
+  sigmaReflectance: number;
+  sigmaTransmittance: number;
+  sigmaN: number;
+  sigmaK: number;
+  preferSpectralShape?: boolean;
+  regularizeEllipsometry?: boolean;
+  parameterLinks?: Record<string, string>;
+  layers?: OpticalLayerSettings[];
+  substrate?: OpticalMaterialSettings | null;
+  activeLayerId?: string | null;
+};
+export type OpticalLayerIndex = RefractiveIndex & {
+  id: string;
+  name: string;
+  model: OpticalModel;
+  thicknessNm: number;
+};
+export type OpticalEvaluation = RefractiveIndex & {
+  reflectance: number[];
+  transmittance: number[];
+  reflectanceScaled: number[];
+  transmittanceScaled: number[];
+  activeLayerId?: string;
+  layerIndices?: OpticalLayerIndex[];
+  substrateIndex?: RefractiveIndex;
+};
+export type ParameterBounds = Record<string, [number, number]>;
+export type FitConfiguration = {
+  settings: OpticalSettings;
+  initial: NumericParameters;
+  bounds: ParameterBounds;
+  fittedParameters?: string[];
+  localOnly?: boolean;
+  screeningPoints?: number;
+  localRefinements?: number;
+  skipDiagnostics?: boolean;
+};
+type FilmLayerGrid = RefractiveIndex & { thicknessNm: number };
+type ScalarFilmLayer = { n: number; k: number; thicknessNm: number };
+type SolverDetails = { point: number[]; success: boolean; message: string; evaluations: number; optimality: number; cost: number };
 
 const EPSILON = Number.EPSILON;
 const LOG_PARAMETERS = new Set(["amplitude", "amplitudeEv", "amplitude1Ev", "amplitude2Ev", "strength", "broadeningEv", "broadening1Ev", "broadening2Ev", "fwhmEv", "gammaEv", "sigmaEv", "urbachEnergyEv", "gaussianAmplitude", "gaussianFwhmEv", "plasmaEnergyEv", "drudeGammaEv", "rGain", "tGain"]);
 const CAUSAL_ELLIPSOMETRY_MODELS = new Set(["tl1", "tl2", "tl-gaussian", "cody"]);
-const baseParameterName = (name) => name.includes("__") ? name.slice(name.lastIndexOf("__") + 2) : name;
-const isLogParameter = (name) => LOG_PARAMETERS.has(baseParameterName(name));
+type CausalEllipsometryModel = "tl1" | "tl2" | "tl-gaussian" | "cody";
+const isCausalEllipsometryModel = (model: OpticalModel): model is CausalEllipsometryModel => CAUSAL_ELLIPSOMETRY_MODELS.has(model);
+const baseParameterName = (name: string): string => name.includes("__") ? name.slice(name.lastIndexOf("__") + 2) : name;
+const isLogParameter = (name: string): boolean => LOG_PARAMETERS.has(baseParameterName(name));
 
-export function parseNumericTable(text, minimumColumns = 2) {
-  const rows = [];
+export function parseNumericTable(text: string, minimumColumns = 2): number[][] {
+  const rows: number[][] = [];
   String(text).split(/\r?\n/).forEach((sourceLine, index) => {
     const line = sourceLine.trim();
     if (!line || line.startsWith("#") || line.startsWith(";")) return;
@@ -24,16 +126,19 @@ export function parseNumericTable(text, minimumColumns = 2) {
   return rows.map((row) => row.slice(0, width));
 }
 
-export function loadNkTable(text) {
+export function loadNkTable(text: string): NkTable & { corrections: Array<{ row: number; wavelengthNm: number; originalK: number; correctedK: number }> } {
   const rows = parseNumericTable(text, 3).map((row) => row.slice(0, 3));
   const factor = median(rows.map((row) => row[0])) < 10 ? 1000 : 1;
   rows.sort((a, b) => a[0] - b[0]);
   const wavelengthNm = rows.map((row) => row[0] * factor);
-  if (wavelengthNm.some((value, index) => index && value <= wavelengthNm[index - 1])) {
+  if (wavelengthNm.some((value) => !(value > 0)) || wavelengthNm.some((value, index) => index && value <= wavelengthNm[index - 1])) {
     throw new Error("The n,k table contains repeated or unordered wavelengths.");
   }
-  const corrections = [];
+  const corrections: Array<{ row: number; wavelengthNm: number; originalK: number; correctedK: number }> = [];
   rows.forEach((row, index) => {
+    if (!(row[1] > 0)) {
+      throw new Error(`Passive n,k data require n > 0; row ${index + 1} at ${wavelengthNm[index]} nm has n=${row[1]}.`);
+    }
     if (row[2] < -1e-12) {
       throw new Error(`Passive n,k data require k ≥ 0; row ${index + 1} at ${wavelengthNm[index]} nm has k=${row[2]}.`);
     }
@@ -50,11 +155,23 @@ export function loadNkTable(text) {
   };
 }
 
-export function createSpectrum({ sampleName, sampleR, sampleT, reflectanceReference, transmittanceReference, referenceReflectance }) {
+export function createSpectrum({ sampleName, sampleR, sampleT, reflectanceReference, transmittanceReference, referenceReflectance }: {
+  sampleName: string;
+  sampleR: string;
+  sampleT: string;
+  reflectanceReference: string;
+  transmittanceReference: string;
+  referenceReflectance: string;
+}): Spectrum {
   const r = parseNumericTable(sampleR).map((row) => row.slice(0, 2));
   const t = parseNumericTable(sampleT).map((row) => row.slice(0, 2));
   const rReference = parseNumericTable(reflectanceReference).map((row) => row.slice(0, 2));
   const tReference = parseNumericTable(transmittanceReference).map((row) => row.slice(0, 2));
+  for (const [name, table] of [["sample", r], ["sample", t], ["reflectance reference", rReference], ["transmittance reference", tReference]] as [string, number[][]][]) {
+    if (table.some(([wavelength]) => !(wavelength > 0)) || table.some(([wavelength], index) => index && wavelength <= table[index - 1][0])) {
+      throw new Error(`The ${name} spectrum wavelengths must be finite, positive, and strictly increasing.`);
+    }
+  }
   if (![t, rReference, tReference].every((table) => sameGrid(r, table))) {
     throw new Error("The sample and reference spectra do not share the same wavelength grid.");
   }
@@ -77,11 +194,11 @@ export function createSpectrum({ sampleName, sampleR, sampleT, reflectanceRefere
   };
 }
 
-export function createSyntheticSpectrum() {
+export function createSyntheticSpectrum(): Spectrum {
   const wavelengthNm = Array.from({ length: 906 }, (_, index) => 195 + index);
   const optical = filmStackOnThickSubstrate(wavelengthNm, [{ thicknessNm: 150, n: wavelengthNm.map(() => 2), k: wavelengthNm.map(() => 0.05) }], 1.46, "film");
   const gate = wavelengthNm.map((wavelength) => Math.max(0, Math.min(1, (wavelength - 250) / 50)));
-  const background = (index, phase) => 100 + (((17 * index + phase) % 11) - 5) * 0.4;
+  const background = (index: number, phase: number): number => 100 + (((17 * index + phase) % 11) - 5) * 0.4;
   return {
     sampleName: "Synthetic stack",
     wavelengthNm,
@@ -93,24 +210,24 @@ export function createSyntheticSpectrum() {
   };
 }
 
-function sameGrid(a, b) {
+function sameGrid(a: number[][], b: number[][]): boolean {
   return a.length === b.length && a.every((row, index) => row[0] === b[index][0]);
 }
 
-export function median(values) {
+export function median(values: number[]): number {
   if (!values.length) return Number.NaN;
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-function standardDeviation(values) {
+function standardDeviation(values: number[]): number {
   if (values.length < 2) return 0;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1));
 }
 
-export function robustBackground(wavelengthNm, counts, minimumNm = 195, maximumNm = 250) {
+export function robustBackground(wavelengthNm: number[], counts: number[], minimumNm = 195, maximumNm = 250): { level: number; sigma: number } {
   const values = counts.filter((value, index) => wavelengthNm[index] >= minimumNm && wavelengthNm[index] <= maximumNm);
   if (values.length < 20 || values.some((value) => !Number.isFinite(value))) {
     throw new Error("At least 20 finite points from 195 to 250 nm are required to estimate the background.");
@@ -122,7 +239,7 @@ export function robustBackground(wavelengthNm, counts, minimumNm = 195, maximumN
   return { level, sigma };
 }
 
-export function prepareFitData(spectrum, options) {
+export function prepareFitData(spectrum: Spectrum, options: PreparedFitOptions): FitData {
   const {
     wavelengthMinNm,
     wavelengthMaxNm,
@@ -147,14 +264,14 @@ export function prepareFitData(spectrum, options) {
   const background = Object.fromEntries(Object.entries(channels).map(([name, counts]) => [
     name,
     requiresBackground ? robustBackground(spectrum.wavelengthNm, counts) : { level: 0, sigma: null },
-  ]));
+  ])) as Record<keyof typeof channels, BackgroundEstimate>;
   const corrected = Object.fromEntries(
     Object.entries(channels).map(([name, counts]) => [
       name,
-      counts.map((value) => value - (subtractBackground ? background[name].level : 0)),
+      counts.map((value) => value - (subtractBackground ? background[name as keyof typeof channels].level : 0)),
     ]),
-  );
-  const finiteMax = (values) => Math.max(...values.filter(Number.isFinite));
+  ) as Record<keyof typeof channels, number[]>;
+  const finiteMax = (values: number[]): number => Math.max(...values.filter(Number.isFinite));
   const reflectanceReferenceThreshold = referenceThresholdFraction * finiteMax(corrected.reflectanceReference);
   const transmittanceReferenceThreshold = referenceThresholdFraction * finiteMax(corrected.transmittanceReference);
   const reflectanceMask = spectrum.wavelengthNm.map((wavelength, index) => (
@@ -165,7 +282,7 @@ export function prepareFitData(spectrum, options) {
     && Number.isFinite(corrected.reflectanceReference[index])
     && corrected.sampleR[index] >= 0
     && corrected.reflectanceReference[index] > reflectanceReferenceThreshold
-    && (sampleSnrMinimum === 0 || corrected.sampleR[index] - (subtractBackground ? 0 : background.sampleR.level) >= sampleSnrMinimum * background.sampleR.sigma)
+    && (sampleSnrMinimum === 0 || corrected.sampleR[index] - (subtractBackground ? 0 : background.sampleR.level) >= sampleSnrMinimum * (background.sampleR.sigma ?? 0))
   ));
   const transmittanceMask = spectrum.wavelengthNm.map((wavelength, index) => (
     wavelength >= wavelengthMinNm
@@ -174,22 +291,22 @@ export function prepareFitData(spectrum, options) {
     && Number.isFinite(corrected.transmittanceReference[index])
     && corrected.sampleT[index] >= 0
     && corrected.transmittanceReference[index] > transmittanceReferenceThreshold
-    && (sampleSnrMinimum === 0 || corrected.sampleT[index] - (subtractBackground ? 0 : background.sampleT.level) >= sampleSnrMinimum * background.sampleT.sigma)
+    && (sampleSnrMinimum === 0 || corrected.sampleT[index] - (subtractBackground ? 0 : background.sampleT.level) >= sampleSnrMinimum * (background.sampleT.sigma ?? 0))
   ));
   const validIndices = spectrum.wavelengthNm.map((_, index) => index).filter((index) => reflectanceMask[index] || transmittanceMask[index]);
   if (validIndices.length < 10) throw new Error("Fewer than 10 valid calibrated points remain.");
 
-  const bins = new Map();
+  const bins = new Map<number, number[]>();
   for (const index of validIndices) {
     const bin = Math.floor((spectrum.wavelengthNm[index] - wavelengthMinNm) / binWidthNm);
     if (!bins.has(bin)) bins.set(bin, []);
-    bins.get(bin).push(index);
+    bins.get(bin)!.push(index);
   }
-  const wavelengthNm = [];
-  const reflectance = [];
-  const transmittance = [];
-  const reflectanceValid = [];
-  const transmittanceValid = [];
+  const wavelengthNm: number[] = [];
+  const reflectance: number[] = [];
+  const transmittance: number[] = [];
+  const reflectanceValid: boolean[] = [];
+  const transmittanceValid: boolean[] = [];
   for (const indices of bins.values()) {
     const rIndices = indices.filter((index) => reflectanceMask[index]);
     const tIndices = indices.filter((index) => transmittanceMask[index]);
@@ -219,20 +336,25 @@ export function prepareFitData(spectrum, options) {
   };
 }
 
-export function restrictToNkRange(data, nk) {
-  const keep = data.wavelengthNm.map((value) => value >= nk.wavelengthNm[0] && value <= nk.wavelengthNm.at(-1));
-  const filtered: any = {};
-  for (const [key, values] of Object.entries(data)) {
-    filtered[key] = Array.isArray(values) && values.length === keep.length ? values.filter((_, index) => keep[index]) : values;
-  }
+export function restrictToNkRange(data: FitData, nk: NkTable): FitData {
+  const keep = data.wavelengthNm.map((value) => value >= nk.wavelengthNm[0] && value <= nk.wavelengthNm[nk.wavelengthNm.length - 1]);
+  const filtered: FitData = {
+    ...data,
+    wavelengthNm: data.wavelengthNm.filter((_, index) => keep[index]),
+    reflectance: data.reflectance.filter((_, index) => keep[index]),
+    transmittance: data.transmittance.filter((_, index) => keep[index]),
+    reflectanceValid: data.reflectanceValid.filter((_, index) => keep[index]),
+    transmittanceValid: data.transmittanceValid.filter((_, index) => keep[index]),
+  };
   if (filtered.wavelengthNm.length < 10) throw new Error("Fewer than 10 bins overlap the n,k table.");
   return filtered;
 }
 
-export function evaluateOpticalModel(data, nk, parameters, settings) {
+export function evaluateOpticalModel(data: Pick<FitData, "wavelengthNm">, nk: NkTable | null, parameters: NumericParameters, settings: OpticalSettings): OpticalEvaluation {
   const resolvedParameters = resolveParameterLinks(parameters, settings.parameterLinks);
   validateModelInputs(resolvedParameters, settings);
   if (settings.layers?.length) return evaluateMultilayerModel(data, resolvedParameters, settings);
+  if (!settings.model || settings.substrateIndex === undefined) throw new Error("The single-layer optical model and substrate index are required.");
   const index = refractiveIndexModel(settings.model, data.wavelengthNm, resolvedParameters, nk);
   const optical = filmOnThickSubstrate(
     data.wavelengthNm,
@@ -253,8 +375,8 @@ export function evaluateOpticalModel(data, nk, parameters, settings) {
   };
 }
 
-function resolveParameterLinks(parameters, links: any = {}) {
-  const resolved: any = { ...parameters };
+function resolveParameterLinks(parameters: NumericParameters, links: Record<string, string> = {}): NumericParameters {
+  const resolved: NumericParameters = { ...parameters };
   for (let pass = 0; pass <= Object.keys(links).length; pass += 1) for (const [target, source] of Object.entries(links) as [string, string][]) {
     if (Number.isFinite(resolved[source])) resolved[target] = resolved[source];
   }
@@ -263,17 +385,20 @@ function resolveParameterLinks(parameters, links: any = {}) {
 
 export const evaluateTabulated = evaluateOpticalModel;
 
-function evaluateMultilayerModel(data, parameters, settings) {
-  const layerIndices = settings.layers.map((layer) => {
+function evaluateMultilayerModel(data: Pick<FitData, "wavelengthNm">, parameters: NumericParameters, settings: OpticalSettings): OpticalEvaluation {
+  const layers = settings.layers;
+  if (!layers?.length) throw new Error("The optical stack must contain at least one layer.");
+  const layerIndices = layers.map((layer) => {
     const layerParameters = parametersForLayer(parameters, layer.id);
     const index = refractiveIndexModel(layer.model, data.wavelengthNm, layerParameters, layer.nk ?? null, { components: layer.components, ema: layer.ema });
     return { id: layer.id, name: layer.name, model: layer.model, thicknessNm: layerParameters.thicknessNm, n: index.n, k: index.k };
   });
   const substrateIndex = settings.substrate
     ? refractiveIndexModel(settings.substrate.model, data.wavelengthNm, parametersForLayer(parameters, "substrate"), settings.substrate.nk ?? null, { components: settings.substrate.components, ema: settings.substrate.ema })
-    : { n: data.wavelengthNm.map(() => settings.substrateIndex), k: data.wavelengthNm.map(() => settings.substrateExtinction ?? 0) };
+    : { n: data.wavelengthNm.map(() => settings.substrateIndex ?? Number.NaN), k: data.wavelengthNm.map(() => settings.substrateExtinction ?? 0) };
   const optical = filmStackOnThickSubstrate(data.wavelengthNm, layerIndices, substrateIndex.n, settings.incidence, substrateIndex.k, settings.substrateThicknessNm ?? 1e6);
   const active = layerIndices.find((layer) => layer.id === settings.activeLayerId) ?? layerIndices[0];
+  if (!active) throw new Error("The optical stack must contain at least one layer.");
   return {
     ...optical,
     reflectanceScaled: optical.reflectance.map((value) => value * parameters.rGain),
@@ -286,12 +411,12 @@ function evaluateMultilayerModel(data, parameters, settings) {
   };
 }
 
-function parametersForLayer(parameters, layerId) {
+function parametersForLayer(parameters: NumericParameters, layerId: string): NumericParameters {
   const prefix = `${layerId}__`;
   return Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(prefix)).map(([name, value]) => [name.slice(prefix.length), value]));
 }
 
-function validateModelInputs(parameters, settings) {
+function validateModelInputs(parameters: NumericParameters, settings: OpticalSettings): void {
   if (Object.values(parameters).some((value) => !Number.isFinite(value))) throw new Error("Optical parameters must be finite.");
   if (!(parameters.rGain > 0) || !(parameters.tGain > 0)) throw new Error("Channel gains must be positive.");
   if (settings.layers?.length) {
@@ -300,28 +425,29 @@ function validateModelInputs(parameters, settings) {
       if (!(parameters[`${layer.id}__thicknessNm`] > 0)) throw new Error(`Layer ${layer.name} must have a positive thickness.`);
     }
   } else if (!(parameters.thicknessNm > 0)) throw new Error("Film thickness must be positive.");
-  if (!settings.substrate && (!(settings.substrateIndex > 0) || !((settings.substrateExtinction ?? 0) >= 0))) throw new Error("The substrate must have n > 0 and k ≥ 0.");
+  if (!settings.substrate && (!((settings.substrateIndex ?? Number.NaN) > 0) || !((settings.substrateExtinction ?? 0) >= 0))) throw new Error("The substrate must have n > 0 and k ≥ 0.");
   if (!((settings.substrateThicknessNm ?? 1e6) > 0)) throw new Error("The substrate must have positive thickness.");
   if (!new Set(["film", "substrate"]).has(settings.incidence)) throw new Error("Unsupported incidence geometry.");
 }
 
-export function filmOnThickSubstrate(wavelengthNm, n, k, thicknessNm, substrateIndex, incidence = "film", substrateExtinction = 0, substrateThicknessNm = 1e6) {
+export function filmOnThickSubstrate(wavelengthNm: number[], n: number[], k: number[], thicknessNm: number, substrateIndex: number | number[], incidence: Incidence = "film", substrateExtinction: number | number[] = 0, substrateThicknessNm = 1e6): { reflectance: number[]; transmittance: number[] } {
   return filmStackOnThickSubstrate(wavelengthNm, [{ n, k, thicknessNm }], substrateIndex, incidence, substrateExtinction, substrateThicknessNm);
 }
 
-export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, incidence = "film", substrateExtinction = 0, substrateThicknessNm = 1e6) {
+export function filmStackOnThickSubstrate(wavelengthNm: number[], layers: FilmLayerGrid[], substrateIndex: number | number[], incidence: Incidence = "film", substrateExtinction: number | number[] = 0, substrateThicknessNm = 1e6): { reflectance: number[]; transmittance: number[] } {
+  if (!Array.isArray(wavelengthNm) || !wavelengthNm.length || wavelengthNm.some((value) => !(value > 0) || !Number.isFinite(value))) throw new Error("Wavelengths must be finite and positive.");
   const substrateN = Array.isArray(substrateIndex) ? substrateIndex : wavelengthNm.map(() => substrateIndex);
   const substrateK = Array.isArray(substrateExtinction) ? substrateExtinction : wavelengthNm.map(() => substrateExtinction);
-  if (!Array.isArray(layers) || !layers.length || layers.length > 12 || substrateN.length !== wavelengthNm.length || substrateK.length !== wavelengthNm.length || substrateN.some((value) => !(value > 0)) || substrateK.some((value) => !(value >= 0)) || !(substrateThicknessNm > 0) || !new Set(["film", "substrate"]).has(incidence)) {
+  if (!Array.isArray(layers) || !layers.length || layers.length > 12 || substrateN.length !== wavelengthNm.length || substrateK.length !== wavelengthNm.length || substrateN.some((value) => !(value > 0) || !Number.isFinite(value)) || substrateK.some((value) => !(value >= 0) || !Number.isFinite(value)) || !(substrateThicknessNm > 0) || !Number.isFinite(substrateThicknessNm) || !new Set(["film", "substrate"]).has(incidence)) {
     throw new Error("Invalid multilayer TMM stack or substrate.");
   }
   if (!wavelengthNm.length || wavelengthNm.some((value) => !(value > 0)) || substrateThicknessNm < 10 * Math.max(...wavelengthNm)) throw new Error("The phase-incoherent substrate thickness must be at least ten wavelengths.");
   for (const layer of layers) {
-    if (!(layer.thicknessNm > 0) || layer.n.length !== wavelengthNm.length || layer.k.length !== wavelengthNm.length) throw new Error("Every layer must define positive thickness and n,k on the calculation grid.");
+    if (!layer || !(layer.thicknessNm > 0) || !Number.isFinite(layer.thicknessNm) || !Array.isArray(layer.n) || !Array.isArray(layer.k) || layer.n.length !== wavelengthNm.length || layer.k.length !== wavelengthNm.length || layer.n.some((value) => !(value > 0) || !Number.isFinite(value)) || layer.k.some((value) => !(value >= 0) || !Number.isFinite(value))) throw new Error("Every layer must define positive thickness and finite, physical n,k on the calculation grid.");
   }
   const air = { re: 1, im: 0 };
-  const reflectance = [];
-  const transmittance = [];
+  const reflectance: number[] = [];
+  const transmittance: number[] = [];
   for (let index = 0; index < wavelengthNm.length; index += 1) {
     const substrate = { re: substrateN[index], im: substrateK[index] };
     const rear = interfacePower(substrate, air);
@@ -345,9 +471,16 @@ export function filmStackOnThickSubstrate(wavelengthNm, layers, substrateIndex, 
   return { reflectance, transmittance };
 }
 
-export function calibrateSharedGains(records, settings) {
+type CalibrationRecord = {
+  sampleId: string;
+  nominalThicknessNm: number;
+  data: FitData;
+  nk: NkTable;
+};
+
+export function calibrateSharedGains(records: CalibrationRecord[], settings: OpticalSettings) {
   if (!Array.isArray(records) || !records.length) throw new Error("Shared calibration requires sample records with n,k tables.");
-  if (!(settings.substrateIndex > 0) || !((settings.substrateExtinction ?? 0) >= 0) || !((settings.substrateThicknessNm ?? 1e6) > 0) || !new Set(["film", "substrate"]).has(settings.incidence) || !(settings.sigmaReflectance > 0) || !(settings.sigmaTransmittance > 0)) throw new Error("Shared calibration settings are invalid.");
+  if (!((settings.substrateIndex ?? Number.NaN) > 0) || !((settings.substrateExtinction ?? 0) >= 0) || !((settings.substrateThicknessNm ?? 1e6) > 0) || !new Set(["film", "substrate"]).has(settings.incidence) || !(settings.sigmaReflectance > 0) || !(settings.sigmaTransmittance > 0)) throw new Error("Shared calibration settings are invalid.");
   const usable = records.map((record) => ({
     ...record,
     useReflectance: record.data.reflectanceValid.filter(Boolean).length >= 0.5 * record.data.wavelengthNm.length,
@@ -360,14 +493,14 @@ export function calibrateSharedGains(records, settings) {
   const upper = [10, 10, ...usable.map((record) => 1.5 * record.nominalThicknessNm)];
   const initial = [1, 1, ...usable.map((record) => record.nominalThicknessNm)];
   const normalizedInitial = initial.map((value, index) => (value - lower[index]) / (upper[index] - lower[index]));
-  const physical = (point) => point.map((value, index) => lower[index] + value * (upper[index] - lower[index]));
-  const residualFunction = (point) => {
+  const physical = (point: number[]): number[] => point.map((value, index) => lower[index] + value * (upper[index] - lower[index]));
+  const residualFunction = (point: number[]): number[] => {
     const values = physical(point);
     return usable.flatMap((record, index) => {
       const evaluation = evaluateOpticalModel(record.data, record.nk, {
         thicknessNm: values[index + 2], rGain: values[0], tGain: values[1],
       }, { ...settings, model: "fixed" });
-      const residuals = [];
+      const residuals: number[] = [];
       if (record.useReflectance) record.data.reflectance.forEach((value, bin) => {
         if (record.data.reflectanceValid[bin]) residuals.push((evaluation.reflectanceScaled[bin] - value) / settings.sigmaReflectance);
       });
@@ -377,13 +510,13 @@ export function calibrateSharedGains(records, settings) {
       return residuals;
     });
   };
-  const gainSeed = [[0, 0], [0, 0]];
+  const gainSeed: [[number, number], [number, number]] = [[0, 0], [0, 0]];
   usable.forEach((record) => {
     const evaluation = evaluateOpticalModel(record.data, record.nk, { thicknessNm: record.nominalThicknessNm, rGain: 1, tGain: 1 }, { ...settings, model: "fixed" });
     for (const [channel, enabled, valid, measured, modeled] of [
       [0, record.useReflectance, record.data.reflectanceValid, record.data.reflectance, evaluation.reflectance],
       [1, record.useTransmittance, record.data.transmittanceValid, record.data.transmittance, evaluation.transmittance],
-    ]) if (enabled) measured.forEach((value, index) => {
+    ] as Array<[number, boolean, boolean[], number[], number[]]>) if (enabled) measured.forEach((value, index) => {
       if (valid[index]) { gainSeed[channel][0] += modeled[index] * value; gainSeed[channel][1] += modeled[index] ** 2; }
     });
   });
@@ -416,7 +549,7 @@ export function calibrateSharedGains(records, settings) {
   };
 }
 
-function coherentFilmStack(wavelengthNm, layers, incidentIndex, exitIndex) {
+function coherentFilmStack(wavelengthNm: number, layers: ScalarFilmLayer[], incidentIndex: ComplexValue, exitIndex: ComplexValue): { reflectance: number; transmittance: number } {
   if (!(wavelengthNm > 0) || !(incidentIndex.re > 0) || incidentIndex.im < 0 || !(exitIndex.re > 0) || exitIndex.im < 0) throw new Error("Non-physical multilayer boundary conditions.");
   for (const layer of layers) {
     if (!(layer.n > 0) || layer.k < 0 || !(layer.thicknessNm > 0)) throw new Error("Non-physical multilayer optical constants.");
@@ -439,31 +572,31 @@ function coherentFilmStack(wavelengthNm, layers, incidentIndex, exitIndex) {
   };
 }
 
-function fresnelReflection(left, right) { return complexDiv(complexSub(left, right), complexAdd(left, right)); }
-function fresnelTransmission(left, right) { return complexDiv(complexScale(left, 2), complexAdd(left, right)); }
-function interfacePower(left, right) {
+function fresnelReflection(left: ComplexValue, right: ComplexValue): ComplexValue { return complexDiv(complexSub(left, right), complexAdd(left, right)); }
+function fresnelTransmission(left: ComplexValue, right: ComplexValue): ComplexValue { return complexDiv(complexScale(left, 2), complexAdd(left, right)); }
+function interfacePower(left: ComplexValue, right: ComplexValue): { reflectance: number; transmittance: number } {
   return {
     reflectance: complexAbs2(fresnelReflection(left, right)),
     transmittance: (right.re / left.re) * complexAbs2(fresnelTransmission(left, right)),
   };
 }
 
-function complexAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
-function complexSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
-function complexMul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
-function complexScale(a, value) { return { re: a.re * value, im: a.im * value }; }
-function complexDiv(a, b) {
+function complexAdd(a: ComplexValue, b: ComplexValue): ComplexValue { return { re: a.re + b.re, im: a.im + b.im }; }
+function complexSub(a: ComplexValue, b: ComplexValue): ComplexValue { return { re: a.re - b.re, im: a.im - b.im }; }
+function complexMul(a: ComplexValue, b: ComplexValue): ComplexValue { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
+function complexScale(a: ComplexValue, value: number): ComplexValue { return { re: a.re * value, im: a.im * value }; }
+function complexDiv(a: ComplexValue, b: ComplexValue): ComplexValue {
   const denominator = b.re ** 2 + b.im ** 2;
   return { re: (a.re * b.re + a.im * b.im) / denominator, im: (a.im * b.re - a.re * b.im) / denominator };
 }
-function complexExpI(value) {
+function complexExpI(value: ComplexValue): ComplexValue {
   const magnitude = Math.exp(-value.im);
   return { re: magnitude * Math.cos(value.re), im: magnitude * Math.sin(value.re) };
 }
-function complexAbs2(value) { return value.re ** 2 + value.im ** 2; }
+function complexAbs2(value: ComplexValue): number { return value.re ** 2 + value.im ** 2; }
 
-export function fitEllipsometrySeed(nk, model, specifications) {
-  if (!CAUSAL_ELLIPSOMETRY_MODELS.has(model)) throw new Error("Dynamic ellipsometry seeding is available only for causal dielectric models.");
+export function fitEllipsometrySeed(nk: NkTable, model: OpticalModel, specifications: ParameterSpecifications) {
+  if (!isCausalEllipsometryModel(model)) throw new Error("Dynamic ellipsometry seeding is available only for causal dielectric models.");
   const selected = nk.wavelengthNm.map((value) => value >= 300 && value <= 1100);
   let wavelengthNm = nk.wavelengthNm.filter((_, index) => selected[index]);
   let targetN = nk.n.filter((_, index) => selected[index]);
@@ -481,14 +614,14 @@ export function fitEllipsometrySeed(nk, model, specifications) {
   const start = names.map((name, index) => (specifications[name].value - lower[index]) / (upper[index] - lower[index]));
   const targetEpsilon1 = targetN.map((value, index) => value ** 2 - targetK[index] ** 2);
   const targetEpsilon2 = targetN.map((value, index) => 2 * value * targetK[index]);
-  const populationDeviation = (values) => {
+  const populationDeviation = (values: number[]): number => {
     const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
     return Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length);
   };
   const realScale = Math.max(populationDeviation(targetEpsilon1), 1);
   const imaginaryScale = Math.max(populationDeviation(targetEpsilon2), 1);
-  const toParameters = (point) => Object.fromEntries(names.map((name, index) => [name, lower[index] + point[index] * (upper[index] - lower[index])]));
-  const residualFunction = (point) => {
+  const toParameters = (point: number[]): NumericParameters => Object.fromEntries(names.map((name, index) => [name, lower[index] + point[index] * (upper[index] - lower[index])]));
+  const residualFunction = (point: number[]): number[] => {
     const modeled = refractiveIndexModel(model, wavelengthNm, toParameters(point), nk);
     const epsilon1 = modeled.n.map((value, index) => value ** 2 - modeled.k[index] ** 2);
     const epsilon2 = modeled.n.map((value, index) => 2 * value * modeled.k[index]);
@@ -504,7 +637,7 @@ export function fitEllipsometrySeed(nk, model, specifications) {
   const referenceN = nk.n.filter((_, index) => selected[index]);
   const referenceK = nk.k.filter((_, index) => selected[index]);
   const modeled = refractiveIndexModel(model, fullWavelength, parameters, nk);
-  const diagnostics: any = indexDiagnostics(
+  const diagnostics = indexDiagnostics(
     fullWavelength,
     modeled.n.map((value, index) => value - referenceN[index]),
     modeled.k.map((value, index) => value - referenceK[index]),
@@ -515,7 +648,12 @@ export function fitEllipsometrySeed(nk, model, specifications) {
   return { parameters, diagnostics };
 }
 
-export function fitOpticalModel(data, nk, configuration, progress: (value: number) => void = () => {}) {
+type ObjectiveResult = { cost: number; residuals: number[]; parameters: NumericParameters; evaluated: OpticalEvaluation };
+type ScreeningCandidate = { point: number[]; sobolIndex: number | null; cost: number };
+type StartCandidate = { point: number[]; sobolIndex: number | null; cost: number | null };
+type RefinedCandidate = ObjectiveResult & { point: number[]; localStart: number; solver?: SolverDetails; sobolIndex?: number | null };
+
+export function fitOpticalModel(data: FitData, nk: NkTable | null, configuration: FitConfiguration, progress: (value: number) => void = () => {}) {
   const { settings, initial, bounds } = configuration;
   const localOnly = Boolean(configuration.localOnly);
   const screeningPoints = configuration.screeningPoints ?? 512;
@@ -532,16 +670,23 @@ export function fitOpticalModel(data, nk, configuration, progress: (value: numbe
     !(name === "rGain" && !settings.useReflectance) && !(name === "tGain" && !settings.useTransmittance)
   ));
   if (!fittedParameters.length) throw new Error("Select at least one parameter to fit.");
+  if (!Array.isArray(data?.wavelengthNm) || !data.wavelengthNm.length || !Array.isArray(data.reflectance) || !Array.isArray(data.transmittance) || !Array.isArray(data.reflectanceValid) || !Array.isArray(data.transmittanceValid)
+    || [data.reflectance, data.transmittance, data.reflectanceValid, data.transmittanceValid].some((values) => values.length !== data.wavelengthNm.length)) throw new Error("Fit data channels must share a non-empty wavelength grid.");
+  if (!settings.useReflectance && !settings.useTransmittance) throw new Error("Select R, T, or both channels.");
+  if (settings.useReflectance && data.reflectanceValid.filter(Boolean).length < 1) throw new Error("At least one valid reflectance point is required.");
+  if (settings.useTransmittance && data.transmittanceValid.filter(Boolean).length < 1) throw new Error("At least one valid transmittance point is required.");
+  if (settings.useReflectance && data.reflectance.some((value, index) => data.reflectanceValid[index] && !Number.isFinite(value))) throw new Error("Valid reflectance points must be finite.");
+  if (settings.useTransmittance && data.transmittance.some((value, index) => data.transmittanceValid[index] && !Number.isFinite(value))) throw new Error("Valid transmittance points must be finite.");
   const names = fittedParameters;
   const lower = names.map((name) => bounds[name][0]);
   const upper = names.map((name) => bounds[name][1]);
-  const toPhysical = (point) => Object.fromEntries(names.map((name, index) => [
+  const toPhysical = (point: number[]): NumericParameters => Object.fromEntries(names.map((name, index) => [
     name,
     isLogParameter(name)
       ? Math.exp(Math.log(lower[index]) + point[index] * (Math.log(upper[index]) - Math.log(lower[index])))
       : lower[index] + point[index] * (upper[index] - lower[index]),
   ]));
-  const objective = (point) => {
+  const objective = (point: number[]): ObjectiveResult => {
     const variable = toPhysical(point);
     const parameters = resolveParameterLinks({ ...initial, ...variable }, settings.parameterLinks);
     const evaluated = evaluateOpticalModel(data, nk, parameters, settings);
@@ -552,8 +697,8 @@ export function fitOpticalModel(data, nk, configuration, progress: (value: numbe
   const initialPoint = names.map((name, index) => isLogParameter(name)
     ? (Math.log(initial[name]) - Math.log(lower[index])) / (Math.log(upper[index]) - Math.log(lower[index]))
     : (initial[name] - lower[index]) / (upper[index] - lower[index]));
-  const sampledCandidates = (localOnly ? [] : scrambledSobolPoints(names.length, screeningPoints)).map((point, index) => {
-    let candidate;
+  const sampledCandidates: ScreeningCandidate[] = (localOnly ? [] : scrambledSobolPoints(names.length, screeningPoints)).map((point, index) => {
+    let candidate: ScreeningCandidate;
     try { candidate = { point, sobolIndex: index, ...objective(point) }; }
     catch { candidate = { point, sobolIndex: index, cost: Number.POSITIVE_INFINITY }; }
     if (index % Math.max(1, Math.floor(screeningPoints / 12)) === 0) progress(Math.round(index / screeningPoints * 45));
@@ -562,10 +707,10 @@ export function fitOpticalModel(data, nk, configuration, progress: (value: numbe
   const finiteCandidates = sampledCandidates.filter((candidate) => Number.isFinite(candidate.cost));
   if (localRefinements > 1 && !finiteCandidates.length) throw new Error("No finite Sobol screening point was found inside the parameter bounds.");
   const starts = localOnly ? [{ point: initialPoint, sobolIndex: null, cost: null }] : selectDiverseStarts(initialPoint, finiteCandidates, localRefinements);
-  let best: any = { point: initialPoint, ...objective(initialPoint) };
+  let best: RefinedCandidate = { point: initialPoint, localStart: 0, ...objective(initialPoint) };
   const refinementCount = starts.length;
-  const refinedCandidates: any[] = [];
-  const failedStarts = [];
+  const refinedCandidates: RefinedCandidate[] = [];
+  const failedStarts: Array<{ localStart: number; message: string }> = [];
   for (let index = 0; index < refinementCount; index += 1) {
     try {
       const solver = boundedTrustRegionReflective(starts[index].point, (point) => objective(point).residuals, { returnDetails: true });
@@ -577,7 +722,7 @@ export function fitOpticalModel(data, nk, configuration, progress: (value: numbe
     }
     progress(localOnly ? Math.round((index + 1) / refinementCount * 100) : 50 + Math.round((index + 1) / refinementCount * 50));
   }
-  if (!refinedCandidates.some((candidate) => distance(candidate.point, best.point) < 1e-12)) refinedCandidates.push({ localStart: 0, ...best });
+  if (!refinedCandidates.some((candidate) => distance(candidate.point, best.point) < 1e-12)) refinedCandidates.push(best);
   const finiteScreeningCosts = finiteCandidates.map((candidate) => candidate.cost).sort((a, b) => a - b);
   const optimizer = {
     method: localOnly ? "bounded trust-region reflective least squares from the supplied optimum" : "SciPy-compatible scrambled Sobol screening followed by bounded trust-region reflective least squares",
@@ -616,7 +761,7 @@ export function fitOpticalModel(data, nk, configuration, progress: (value: numbe
   return { parameters: best.parameters, evaluation: best.evaluated, cost: best.cost, diagnostics, optimizer, screeningPoints, localRefinements: refinementCount };
 }
 
-export function estimateResidualBlockLength(residuals) {
+export function estimateResidualBlockLength(residuals: number[]): number {
   if (!Array.isArray(residuals) || residuals.length < 4) return 1;
   const mean = residuals.reduce((sum, value) => sum + value, 0) / residuals.length;
   const centered = residuals.map((value) => value - mean);
@@ -634,9 +779,9 @@ export function estimateResidualBlockLength(residuals) {
   return Math.max(1, Math.min(Math.ceil(2 * integratedCorrelation), Math.max(1, Math.floor(residuals.length / 4))));
 }
 
-export function circularMovingBlockSample(pool, length, blockLength, random) {
+export function circularMovingBlockSample(pool: number[], length: number, blockLength: number, random: () => number): number[] {
   if (!pool.length || length <= 0) return [];
-  const sampled = [];
+  const sampled: number[] = [];
   const block = Math.max(1, Math.min(pool.length, Math.floor(blockLength)));
   while (sampled.length < length) {
     const start = Math.floor(random() * pool.length);
@@ -645,7 +790,7 @@ export function circularMovingBlockSample(pool, length, blockLength, random) {
   return sampled;
 }
 
-export function bootstrapFitUncertainty(data, nk, configuration, bestParameters, samples = 20, progress: (value: number) => void = () => {}, options: any = {}) {
+export function bootstrapFitUncertainty(data: FitData, nk: NkTable | null, configuration: FitConfiguration, bestParameters: NumericParameters, samples = 20, progress: (value: number) => void = () => {}, options: { seed?: number } = {}) {
   if (!Number.isInteger(samples) || samples < 5 || samples > 200) throw new Error("Bootstrap replicates must be an integer from 5 to 200.");
   const fittedParameters = configuration.fittedParameters ?? [];
   if (!fittedParameters.length) throw new Error("Bootstrap uncertainty requires fitted parameters.");
@@ -654,14 +799,14 @@ export function bootstrapFitUncertainty(data, nk, configuration, bestParameters,
     reflectance: data.reflectance.map((value, index) => data.reflectanceValid[index] ? value - baseline.reflectanceScaled[index] : Number.NaN).filter(Number.isFinite),
     transmittance: data.transmittance.map((value, index) => data.transmittanceValid[index] ? value - baseline.transmittanceScaled[index] : Number.NaN).filter(Number.isFinite),
   };
-  const seed = Number.isInteger(options.seed) ? options.seed >>> 0 : 0x6d2b79f5;
+  const seed = Number.isInteger(options.seed) ? (options.seed ?? 0) >>> 0 : 0x6d2b79f5;
   let randomState = seed;
   const random = () => { randomState |= 0; randomState = randomState + 0x6d2b79f5 | 0; let value = Math.imul(randomState ^ randomState >>> 15, 1 | randomState); value = value + Math.imul(value ^ value >>> 7, 61 | value) ^ value; return ((value ^ value >>> 14) >>> 0) / 4294967296; };
   const blockLengths = {
     reflectance: estimateResidualBlockLength(residualPools.reflectance),
     transmittance: estimateResidualBlockLength(residualPools.transmittance),
   };
-  const replicates = [];
+  const replicates: Array<ReturnType<typeof fitOpticalModel>> = [];
   for (let replicate = 0; replicate < samples; replicate += 1) {
     const sampledResiduals = {
       reflectance: circularMovingBlockSample(residualPools.reflectance, residualPools.reflectance.length, blockLengths.reflectance, random),
@@ -680,17 +825,17 @@ export function bootstrapFitUncertainty(data, nk, configuration, bestParameters,
     progress(Math.round((replicate + 1) / samples * 100));
   }
   if (replicates.length < Math.ceil(0.7 * samples)) throw new Error(`Only ${replicates.length} of ${samples} bootstrap fits converged.`);
-  const quantile = (values, probability) => { const sorted = [...values].sort((a, b) => a - b); const position = (sorted.length - 1) * probability; const lower = Math.floor(position); const fraction = position - lower; return sorted[lower] + fraction * ((sorted[lower + 1] ?? sorted[lower]) - sorted[lower]); };
-  const interval = (values) => ({ lower95: quantile(values, 0.025), median: quantile(values, 0.5), upper95: quantile(values, 0.975) });
+  const quantile = (values: number[], probability: number): number => { const sorted = [...values].sort((a, b) => a - b); const position = (sorted.length - 1) * probability; const lower = Math.floor(position); const fraction = position - lower; return sorted[lower] + fraction * ((sorted[lower + 1] ?? sorted[lower]) - sorted[lower]); };
+  const interval = (values: number[]) => ({ lower95: quantile(values, 0.025), median: quantile(values, 0.5), upper95: quantile(values, 0.975) });
   const parameterIntervals = Object.fromEntries(fittedParameters.map((name) => [name, interval(replicates.map((result) => result.parameters[name]))]));
   const parameterRows = replicates.map((result) => fittedParameters.map((name) => result.parameters[name]));
   const parameterCorrelation = correlationOfRows(parameterRows, fittedParameters);
-  const spectralInterval = (getter) => data.wavelengthNm.map((_, index) => interval(replicates.map((result) => getter(result.evaluation)[index])));
+  const spectralInterval = (getter: (evaluation: OpticalEvaluation) => number[]) => data.wavelengthNm.map((_, index) => interval(replicates.map((result) => getter(result.evaluation)[index])));
   const activeLayerId = configuration.settings.activeLayerId;
-  const activeIndex = (evaluation) => evaluation.layerIndices?.find((layer) => layer.id === activeLayerId) ?? evaluation.layerIndices?.[0] ?? { n: evaluation.n, k: evaluation.k };
+  const activeIndex = (evaluation: OpticalEvaluation): RefractiveIndex => evaluation.layerIndices?.find((layer) => layer.id === activeLayerId) ?? evaluation.layerIndices?.[0] ?? { n: evaluation.n, k: evaluation.k };
   const layerBands = Object.fromEntries((configuration.settings.layers ?? []).map((layer) => [layer.id, {
-    n: spectralInterval((evaluation) => evaluation.layerIndices.find((candidate) => candidate.id === layer.id).n),
-    k: spectralInterval((evaluation) => evaluation.layerIndices.find((candidate) => candidate.id === layer.id).k),
+    n: spectralInterval((evaluation) => evaluation.layerIndices?.find((candidate) => candidate.id === layer.id)?.n ?? evaluation.n),
+    k: spectralInterval((evaluation) => evaluation.layerIndices?.find((candidate) => candidate.id === layer.id)?.k ?? evaluation.k),
   }]));
   return {
     requestedSamples: samples,
@@ -715,15 +860,73 @@ export function bootstrapFitUncertainty(data, nk, configuration, bestParameters,
 
 export const fitTabulated = fitOpticalModel;
 
-function softL1Cost(residuals) { return residuals.reduce((sum, value) => sum + Math.sqrt(1 + value ** 2) - 1, 0); }
+function softL1Cost(residuals: number[]): number { return residuals.reduce((sum, value) => sum + Math.sqrt(1 + value ** 2) - 1, 0); }
 
-export function diagnosticsOf(data, evaluation, settings, fit: any = null) {
-  const rmse = (modeled, measured, valid) => {
+export type ConfidenceInterval = { lower95: number; upper95: number };
+export type ParameterCorrelation = { names: string[]; matrix: number[][] };
+type ShapeDiagnostic = { rmse: number; gain: number; offset: number };
+type IndexDiagnostics = {
+  overlapPoints: number;
+  rmseDeltaN: number;
+  rmseDeltaK: number;
+  weightedRmseDeltaN: number;
+  weightedRmseDeltaK: number;
+  maximumAbsoluteDeltaN: number;
+  maximumAbsoluteDeltaK: number;
+  parametersAtBounds?: string[];
+  solver?: Pick<SolverDetails, "success" | "message" | "evaluations" | "optimality">;
+  wavelengthRangeNm?: number[];
+  [name: string]: unknown;
+};
+export type AlternativeSolution = {
+  rank: number;
+  localStart: number;
+  robustCost: number;
+  relativeCostIncrease: number;
+  normalizedParameterDistanceFromBest: number;
+  parameters: NumericParameters;
+  channelMetrics: Record<string, { rmse: number; shapeRmse: number }>;
+  indexVsEllipsometry: IndexDiagnostics | Record<string, never>;
+  fittedParametersAtBounds: string[];
+};
+export type FitDiagnostics = {
+  rmseReflectance: number | null;
+  rmseTransmittance: number | null;
+  reflectanceBins: number;
+  transmittanceBins: number;
+  maximumPowerBalance: number;
+  minimumAbsorption: number;
+  normalizedJacobianCondition: number | null;
+  parametersAtBounds: string[];
+  gainsOutsideOperationalRange: string[];
+  nearEqualAlternativeMinima: number | null;
+  alternativeSolutions: AlternativeSolution[];
+  parameterStandardErrorsApproximate: Record<string, number | null>;
+  parameterConfidenceIntervals95Approximate: Record<string, ConfidenceInterval | null>;
+  parameterCorrelation: ParameterCorrelation;
+  shapeAfterAffineAlignment: Record<string, ShapeDiagnostic>;
+  indexVsEllipsometry: IndexDiagnostics | Record<string, never>;
+  regularizedTowardEllipsometry: boolean;
+  optimizer?: unknown;
+};
+type DiagnosticsFitContext = {
+  nk: NkTable | null;
+  parameters: NumericParameters;
+  bounds: ParameterBounds;
+  fittedParameters: string[];
+  refinedCandidates: RefinedCandidate[];
+  bestCost: number;
+  bestPoint: number[];
+  optimizer: unknown;
+};
+
+export function diagnosticsOf(data: FitData, evaluation: OpticalEvaluation, settings: OpticalSettings, fit: DiagnosticsFitContext | null = null): FitDiagnostics {
+  const rmse = (modeled: number[], measured: number[], valid: boolean[]): number | null => {
     const residuals = modeled.map((value, index) => valid[index] ? value - measured[index] : Number.NaN).filter(Number.isFinite);
     return residuals.length ? Math.sqrt(residuals.reduce((sum, value) => sum + value ** 2, 0) / residuals.length) : null;
   };
   const powerBalance = evaluation.reflectance.map((value, index) => value + evaluation.transmittance[index]);
-  const result: any = {
+  const result: FitDiagnostics = {
     rmseReflectance: settings.useReflectance ? rmse(evaluation.reflectanceScaled, data.reflectance, data.reflectanceValid) : null,
     rmseTransmittance: settings.useTransmittance ? rmse(evaluation.transmittanceScaled, data.transmittance, data.transmittanceValid) : null,
     reflectanceBins: data.reflectanceValid.filter(Boolean).length,
@@ -747,7 +950,7 @@ export function diagnosticsOf(data, evaluation, settings, fit: any = null) {
   for (const [channel, enabled, measured, modeled, valid] of [
     ["R", settings.useReflectance, data.reflectance, evaluation.reflectanceScaled, data.reflectanceValid],
     ["T", settings.useTransmittance, data.transmittance, evaluation.transmittanceScaled, data.transmittanceValid],
-  ]) {
+  ] as Array<[string, boolean, number[], number[], boolean[]]>) {
     if (!enabled) continue;
     const measuredValid = measured.filter((_, index) => valid[index]);
     const modeledValid = modeled.filter((_, index) => valid[index]);
@@ -782,9 +985,9 @@ export function diagnosticsOf(data, evaluation, settings, fit: any = null) {
   return result;
 }
 
-export function affineShapeResidual(modeled, measured) {
+export function affineShapeResidual(modeled: number[], measured: number[]): { residuals: number[]; gain: number; offset: number } {
   if (modeled.length !== measured.length || !modeled.length || !modeled.every(Number.isFinite) || !measured.every(Number.isFinite)) throw new Error("Shape comparison requires matching finite spectra.");
-  const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const mean = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
   const modeledMean = mean(modeled);
   const measuredMean = mean(measured);
   const centered = modeled.map((value) => value - modeledMean);
@@ -796,12 +999,12 @@ export function affineShapeResidual(modeled, measured) {
   return { residuals: modeled.map((value, index) => gain * value + offset - measured[index]), gain, offset };
 }
 
-export function fitResidualVector(data, nk, parameters, evaluation, settings) {
-  const residuals = [];
+export function fitResidualVector(data: FitData, nk: NkTable | null, parameters: NumericParameters, evaluation: OpticalEvaluation, settings: OpticalSettings): number[] {
+  const residuals: number[] = [];
   for (const [enabled, measured, modeled, valid, sigma] of [
     [settings.useReflectance, data.reflectance, evaluation.reflectanceScaled, data.reflectanceValid, settings.sigmaReflectance],
     [settings.useTransmittance, data.transmittance, evaluation.transmittanceScaled, data.transmittanceValid, settings.sigmaTransmittance],
-  ]) {
+  ] as Array<[boolean, number[], number[], boolean[], number]>) {
     if (!enabled) continue;
     const measuredValid = measured.filter((_, index) => valid[index]);
     const modeledValid = modeled.filter((_, index) => valid[index]);
@@ -829,16 +1032,26 @@ export function fitResidualVector(data, nk, parameters, evaluation, settings) {
   return residuals;
 }
 
-function indexComparison(nk, parameters, settings) {
+function indexComparison(nk: NkTable | null, parameters: NumericParameters, settings: OpticalSettings): IndexComparison | null {
   if (settings.layers?.length) {
     const layer = settings.layers.find((candidate) => candidate.id === settings.activeLayerId && candidate.nk)
       ?? settings.layers.find((candidate) => candidate.nk);
     return layer ? indexComparisonForModel(layer.nk, parametersForLayer(parameters, layer.id), layer.model, { components: layer.components, ema: layer.ema }) : null;
   }
-  return indexComparisonForModel(nk, parameters, settings.model);
+  return settings.model ? indexComparisonForModel(nk, parameters, settings.model) : null;
 }
 
-function indexComparisonForModel(nk, parameters, model, options: any = {}) {
+type IndexModelOptions = { components?: DielectricComponents; ema?: EffectiveMedium };
+type IndexComparison = {
+  wavelengthNm: number[];
+  reference: RefractiveIndex;
+  modeled: RefractiveIndex;
+  deltaN: number[];
+  deltaK: number[];
+  diagnostics: IndexDiagnostics;
+};
+
+function indexComparisonForModel(nk: NkTable | null | undefined, parameters: NumericParameters, model: OpticalModel, options: IndexModelOptions = {}): IndexComparison | null {
   if (!nk) return null;
   const selected = nk.wavelengthNm.map((value) => value >= 300 && value <= 1100);
   const wavelengthNm = nk.wavelengthNm.filter((_, index) => selected[index]);
@@ -850,9 +1063,9 @@ function indexComparisonForModel(nk, parameters, model, options: any = {}) {
   return { wavelengthNm, reference, modeled, deltaN, deltaK, diagnostics: indexDiagnostics(wavelengthNm, deltaN, deltaK) };
 }
 
-function indexDiagnostics(wavelengthNm, deltaN, deltaK) {
-  const rmse = (values) => Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
-  const diagnostics = {
+function indexDiagnostics(wavelengthNm: number[], deltaN: number[], deltaK: number[]): IndexDiagnostics {
+  const rmse = (values: number[]): number => Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
+  const diagnostics: IndexDiagnostics = {
     overlapPoints: wavelengthNm.length,
     rmseDeltaN: rmse(deltaN),
     rmseDeltaK: rmse(deltaK),
@@ -861,7 +1074,7 @@ function indexDiagnostics(wavelengthNm, deltaN, deltaK) {
     maximumAbsoluteDeltaN: Math.max(...deltaN.map(Math.abs)),
     maximumAbsoluteDeltaK: Math.max(...deltaK.map(Math.abs)),
   };
-  for (const [key, minimum, maximum] of [["Uv300To400Nm", 300, 400], ["Visible400To900Nm", 400, 900], ["Nir900To1100Nm", 900, 1100]]) {
+  for (const [key, minimum, maximum] of [["Uv300To400Nm", 300, 400], ["Visible400To900Nm", 400, 900], ["Nir900To1100Nm", 900, 1100]] as Array<[string, number, number]>) {
     const selected = wavelengthNm.map((value) => value >= minimum && value <= maximum);
     const bandN = deltaN.filter((_, index) => selected[index]);
     const bandK = deltaK.filter((_, index) => selected[index]);
@@ -873,9 +1086,9 @@ function indexDiagnostics(wavelengthNm, deltaN, deltaK) {
   return diagnostics;
 }
 
-function localSensitivity(data, nk, parameters, settings, bounds, fittedParameters) {
+function localSensitivity(data: FitData, nk: NkTable | null, parameters: NumericParameters, settings: OpticalSettings, bounds: ParameterBounds, fittedParameters: string[]) {
   const residual = fitResidualVector(data, nk, parameters, evaluateOpticalModel(data, nk, parameters, settings), settings);
-  const jacobian = residual.map(() => []);
+  const jacobian: number[][] = residual.map(() => []);
   for (const name of fittedParameters) {
     const [lower, upper] = bounds[name];
     const step = Math.max((upper - lower) * 1e-5, Math.max(1, Math.abs(parameters[name])) * 1e-7);
@@ -901,7 +1114,7 @@ function localSensitivity(data, nk, parameters, settings, bounds, fittedParamete
   if (norms.every((value) => value > Number.EPSILON)) {
     const correlation = gram.map((row, i) => row.map((value, j) => value / (norms[i] * norms[j])));
     const eigenvalues = symmetricEigenvalues(correlation).sort((a, b) => a - b);
-    if (eigenvalues[0] > Number.EPSILON) condition = Math.sqrt(eigenvalues.at(-1) / eigenvalues[0]);
+    if (eigenvalues[0] > Number.EPSILON) condition = Math.sqrt(eigenvalues[eigenvalues.length - 1] / eigenvalues[0]);
   }
   const inverse = invertMatrix(gram);
   const degreesOfFreedom = residual.length - columns;
@@ -914,38 +1127,38 @@ function localSensitivity(data, nk, parameters, settings, bounds, fittedParamete
   const parameterCorrelation = covariance ? correlationOfCovariance(covariance, fittedParameters) : { names: fittedParameters, matrix: [] };
   const confidenceIntervals95 = Object.fromEntries(fittedParameters.map((name) => {
     const error = standardErrors[name]; const [lower, upper] = bounds[name];
-    return [name, Number.isFinite(error) ? { lower95: Math.max(lower, parameters[name] - 1.96 * error), upper95: Math.min(upper, parameters[name] + 1.96 * error) } : null];
+    return [name, error !== null && Number.isFinite(error) ? { lower95: Math.max(lower, parameters[name] - 1.96 * error), upper95: Math.min(upper, parameters[name] + 1.96 * error) } : null];
   }));
   return { condition, standardErrors, confidenceIntervals95, parameterCorrelation };
 }
 
-function correlationOfCovariance(covariance, names) {
+function correlationOfCovariance(covariance: number[][], names: string[]): ParameterCorrelation {
   const deviations = covariance.map((row, index) => Math.sqrt(Math.max(0, row[index])));
   return { names, matrix: covariance.map((row, i) => row.map((value, j) => deviations[i] && deviations[j] ? Math.max(-1, Math.min(1, value / (deviations[i] * deviations[j]))) : 0)) };
 }
 
-function correlationOfRows(rows, names) {
+function correlationOfRows(rows: number[][], names: string[]): ParameterCorrelation {
   const means = names.map((_, column) => rows.reduce((sum, row) => sum + row[column], 0) / rows.length);
   const covariance = names.map((_, i) => names.map((__, j) => rows.reduce((sum, row) => sum + (row[i] - means[i]) * (row[j] - means[j]), 0) / Math.max(1, rows.length - 1)));
   return correlationOfCovariance(covariance, names);
 }
 
-function rankAlternativeMinima(data, settings, fit) {
-  const distinct = [];
-  const selectedPoints = [];
+function rankAlternativeMinima(data: FitData, settings: OpticalSettings, fit: DiagnosticsFitContext): AlternativeSolution[] {
+  const distinct: AlternativeSolution[] = [];
+  const selectedPoints: number[][] = [];
   for (const candidate of [...fit.refinedCandidates].sort((a, b) => a.cost - b.cost)) {
     if (selectedPoints.some((point) => distance(candidate.point, point) / Math.sqrt(Math.max(1, candidate.point.length)) < 1e-3)) continue;
-    const channelMetrics = {};
+    const channelMetrics: Record<string, { rmse: number; shapeRmse: number }> = {};
     for (const [channel, enabled, measured, modeled, valid] of [
       ["R", settings.useReflectance, data.reflectance, candidate.evaluated.reflectanceScaled, data.reflectanceValid],
       ["T", settings.useTransmittance, data.transmittance, candidate.evaluated.transmittanceScaled, data.transmittanceValid],
-    ]) {
+    ] as Array<[string, boolean, number[], number[], boolean[]]>) {
       if (!enabled) continue;
       const measuredValid = measured.filter((_, index) => valid[index]);
       const modeledValid = modeled.filter((_, index) => valid[index]);
       const raw = modeledValid.map((value, index) => value - measuredValid[index]);
       const shape = affineShapeResidual(modeledValid, measuredValid).residuals;
-      const rmse = (values) => Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
+      const rmse = (values: number[]): number => Math.sqrt(values.reduce((sum, value) => sum + value ** 2, 0) / values.length);
       channelMetrics[channel] = { rmse: rmse(raw), shapeRmse: rmse(shape) };
     }
     const comparison = indexComparison(fit.nk, candidate.parameters, settings);
@@ -970,7 +1183,7 @@ function rankAlternativeMinima(data, settings, fit) {
   return distinct;
 }
 
-function symmetricEigenvalues(matrix) {
+function symmetricEigenvalues(matrix: number[][]): number[] {
   const values = matrix.map((row) => [...row]);
   for (let iteration = 0; iteration < 50 * values.length ** 2; iteration += 1) {
     let p = 0; let q = 1; let largest = 0;
@@ -994,7 +1207,7 @@ function symmetricEigenvalues(matrix) {
   return values.map((row, index) => row[index]);
 }
 
-function invertMatrix(matrix) {
+function invertMatrix(matrix: number[][]): number[][] | null {
   const size = matrix.length;
   const rows = matrix.map((row, index) => [...row, ...Array.from({ length: size }, (_, column) => Number(index === column))]);
   for (let column = 0; column < size; column += 1) {
@@ -1013,11 +1226,11 @@ function invertMatrix(matrix) {
   return rows.map((row) => row.slice(size));
 }
 
-function selectDiverseStarts(initialPoint, candidates, count) {
+function selectDiverseStarts(initialPoint: number[], candidates: ScreeningCandidate[], count: number): StartCandidate[] {
   const ranked = [...candidates].sort((a, b) => a.cost - b.cost);
-  const selected = [{ point: initialPoint, sobolIndex: null, cost: null }];
+  const selected: StartCandidate[] = [{ point: initialPoint, sobolIndex: null, cost: null }];
   if (count === 1) return selected;
-  const used = new Set();
+  const used = new Set<ScreeningCandidate>();
   for (const candidate of ranked) {
     if (selected.every((chosen) => distance(candidate.point, chosen.point) / Math.sqrt(initialPoint.length) >= 0.05)) {
       selected.push(candidate); used.add(candidate);
@@ -1031,13 +1244,16 @@ function selectDiverseStarts(initialPoint, candidates, count) {
   return selected;
 }
 
-function boundedTrustRegionReflective(start, residualFunction, options: any = {}): any {
+type SolverOptions = { maximumEvaluations?: number; returnDetails?: boolean };
+function boundedTrustRegionReflective(start: number[], residualFunction: (point: number[]) => number[], options: SolverOptions & { returnDetails: true }): SolverDetails;
+function boundedTrustRegionReflective(start: number[], residualFunction: (point: number[]) => number[], options?: SolverOptions): number[];
+function boundedTrustRegionReflective(start: number[], residualFunction: (point: number[]) => number[], options: SolverOptions = {}): SolverDetails | number[] {
   const tolerance = 1e-8;
   const maximumEvaluations = options.maximumEvaluations ?? 3000;
   let evaluations = 0;
   let success = false;
   let message = "The maximum number of residual evaluations was reached.";
-  const evaluate = (point) => {
+  const evaluate = (point: number[]): number[] => {
     const residuals = residualFunction(point);
     evaluations += 1;
     if (!residuals.length || !residuals.every(Number.isFinite)) throw new Error("The optimizer produced non-finite residuals.");
@@ -1072,7 +1288,7 @@ function boundedTrustRegionReflective(start, residualFunction, options: any = {}
     const hessian = gramMatrix(transformedJacobian, diagonal);
     const theta = Math.max(0.995, 1 - optimality);
     let actualReduction = -1;
-    let accepted = null;
+    let accepted: { point: number[]; residuals: number[]; cost: number } | null = null;
     let terminate = false;
 
     while (actualReduction <= 0 && evaluations < maximumEvaluations) {
@@ -1123,7 +1339,7 @@ function boundedTrustRegionReflective(start, residualFunction, options: any = {}
   return options.returnDetails ? details : point;
 }
 
-function finiteDifferenceJacobian(point, residuals, evaluate) {
+function finiteDifferenceJacobian(point: number[], residuals: number[], evaluate: (point: number[]) => number[]): number[][] {
   const jacobian = residuals.map(() => Array(point.length).fill(0));
   const relativeStep = Math.sqrt(Number.EPSILON);
   for (let axis = 0; axis < point.length; axis += 1) {
@@ -1136,7 +1352,7 @@ function finiteDifferenceJacobian(point, residuals, evaluate) {
   return jacobian;
 }
 
-function scaleSoftL1(jacobian, residuals) {
+function scaleSoftL1(jacobian: number[][], residuals: number[]): { jacobian: number[][]; residuals: number[] } {
   const weights = residuals.map((value) => (1 + value ** 2) ** -0.75);
   return {
     jacobian: jacobian.map((row, index) => row.map((value) => value * weights[index])),
@@ -1144,15 +1360,15 @@ function scaleSoftL1(jacobian, residuals) {
   };
 }
 
-function jacobianGradient(jacobian, residuals) {
+function jacobianGradient(jacobian: number[][], residuals: number[]): number[] {
   return jacobian[0].map((_, column) => jacobian.reduce((sum, row, index) => sum + row[column] * residuals[index], 0));
 }
 
-function jacobianColumnNorms(jacobian) {
+function jacobianColumnNorms(jacobian: number[][]): number[] {
   return jacobian[0].map((_, column) => Math.sqrt(jacobian.reduce((sum, row) => sum + row[column] ** 2, 0)) || 1);
 }
 
-function colemanLiScaling(point, gradient) {
+function colemanLiScaling(point: number[], gradient: number[]): { v: number[]; derivative: number[] } {
   const v = Array(point.length).fill(1);
   const derivative = Array(point.length).fill(0);
   gradient.forEach((value, index) => {
@@ -1162,15 +1378,15 @@ function colemanLiScaling(point, gradient) {
   return { v, derivative };
 }
 
-function gramMatrix(jacobian, diagonal = []) {
+function gramMatrix(jacobian: number[][], diagonal: number[] = []): number[][] {
   const size = jacobian[0].length;
   return Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, column) => (
     jacobian.reduce((sum, values) => sum + values[row] * values[column], 0) + (row === column ? diagonal[row] ?? 0 : 0)
   )));
 }
 
-function solveTrustRegionSubproblem(hessian, gradient, radius) {
-  const solve = (regularization) => {
+function solveTrustRegionSubproblem(hessian: number[][], gradient: number[], radius: number): number[] {
+  const solve = (regularization: number): number[] | null => {
     const matrix = hessian.map((row, index) => row.map((value, column) => value + (index === column ? regularization : 0)));
     return solveLinearSystem(matrix, gradient.map((value) => -value));
   };
@@ -1189,8 +1405,8 @@ function solveTrustRegionSubproblem(hessian, gradient, radius) {
   return step ?? gradient.map(() => 0);
 }
 
-function selectReflectiveStep(point, hessian, gradient, step, transformedStep, transform, radius, theta) {
-  const quadratic = (value) => 0.5 * dot(value, matrixVector(hessian, value)) + dot(gradient, value);
+function selectReflectiveStep(point: number[], hessian: number[][], gradient: number[], step: number[], transformedStep: number[], transform: number[], radius: number, theta: number): { step: number[]; transformedStep: number[]; predictedReduction: number } {
+  const quadratic = (value: number[]): number => 0.5 * dot(value, matrixVector(hessian, value)) + dot(gradient, value);
   if (inUnitBounds(point.map((value, index) => value + step[index]))) {
     return { step, transformedStep, predictedReduction: -quadratic(transformedStep) };
   }
@@ -1227,11 +1443,11 @@ function selectReflectiveStep(point, hessian, gradient, step, transformedStep, t
     gradientCandidate = antiGradient.map((value) => value * stride);
     gradientValue = quadratic(gradientCandidate);
   }
-  const candidates = [
+  const candidates: Array<{ transformedStep: number[]; value: number }> = [
     { transformedStep: interiorTransformed, value: interiorValue },
-    { transformedStep: reflectedCandidate, value: reflectedValue },
     { transformedStep: gradientCandidate, value: gradientValue },
-  ].filter((candidate) => candidate.transformedStep);
+  ];
+  if (reflectedCandidate) candidates.push({ transformedStep: reflectedCandidate, value: reflectedValue });
   const selected = candidates.sort((a, b) => a.value - b.value)[0];
   return {
     transformedStep: selected.transformedStep,
@@ -1240,21 +1456,21 @@ function selectReflectiveStep(point, hessian, gradient, step, transformedStep, t
   };
 }
 
-function stepSizeToBounds(point, step) {
+function stepSizeToBounds(point: number[], step: number[]): { stride: number; hits: boolean[] } {
   const strides = step.map((value, index) => value > 0 ? (1 - point[index]) / value : value < 0 ? -point[index] / value : Number.POSITIVE_INFINITY);
   const stride = Math.min(...strides);
   const tolerance = 1e-12 * Math.max(1, Math.abs(stride));
   return { stride, hits: strides.map((value) => Math.abs(value - stride) <= tolerance) };
 }
 
-function positiveTrustIntersection(point, direction, radius) {
+function positiveTrustIntersection(point: number[], direction: number[], radius: number): number {
   const a = dot(direction, direction);
   const b = dot(point, direction);
   const c = dot(point, point) - radius ** 2;
   return (-b + Math.sqrt(Math.max(0, b ** 2 - a * c))) / a;
 }
 
-function minimizeQuadraticAlong(hessian, gradient, origin, direction, lower, upper) {
+function minimizeQuadraticAlong(hessian: number[][], gradient: number[], origin: number[], direction: number[], lower: number, upper: number): number {
   const hessianDirection = matrixVector(hessian, direction);
   const a = 0.5 * dot(direction, hessianDirection);
   const b = dot(direction, matrixVector(hessian, origin)) + dot(gradient, direction);
@@ -1266,13 +1482,13 @@ function minimizeQuadraticAlong(hessian, gradient, origin, direction, lower, upp
   return candidates.sort((left, right) => (a * left ** 2 + b * left) - (a * right ** 2 + b * right))[0];
 }
 
-function makeStrictlyFeasible(point) { return point.map((value) => Math.max(1e-10, Math.min(1 - 1e-10, value))); }
-function inUnitBounds(point) { return point.every((value) => value >= 0 && value <= 1); }
-function dot(left, right) { return left.reduce((sum, value, index) => sum + value * right[index], 0); }
-function vectorNorm(vector) { return Math.sqrt(dot(vector, vector)); }
-function matrixVector(matrix, vector) { return matrix.map((row) => dot(row, vector)); }
+function makeStrictlyFeasible(point: number[]): number[] { return point.map((value) => Math.max(1e-10, Math.min(1 - 1e-10, value))); }
+function inUnitBounds(point: number[]): boolean { return point.every((value) => value >= 0 && value <= 1); }
+function dot(left: number[], right: number[]): number { return left.reduce((sum, value, index) => sum + value * right[index], 0); }
+function vectorNorm(vector: number[]): number { return Math.sqrt(dot(vector, vector)); }
+function matrixVector(matrix: number[][], vector: number[]): number[] { return matrix.map((row) => dot(row, vector)); }
 
-function solveLinearSystem(matrix, vector) {
+function solveLinearSystem(matrix: number[][], vector: number[]): number[] | null {
   const size = vector.length;
   const rows = matrix.map((row, index) => [...row, vector[index]]);
   for (let column = 0; column < size; column += 1) {
@@ -1292,14 +1508,14 @@ function solveLinearSystem(matrix, vector) {
   return solution;
 }
 
-function distance(a, b) {
+function distance(a: number[], b: number[]): number {
   return Math.sqrt(a.reduce((sum, value, index) => sum + (value - b[index]) ** 2, 0));
 }
 
-function interpolate(x, y, points, outside = null) {
+function interpolate(x: number[], y: number[], points: number[], outside: number | null = null): number[] {
   return points.map((point) => {
     if (point < x[0]) return outside === null ? y[0] : outside;
-    if (point > x.at(-1)) return outside === null ? y.at(-1) : outside;
+    if (point > x[x.length - 1]) return outside === null ? y[y.length - 1] : outside;
     let low = 0;
     let high = x.length - 1;
     while (high - low > 1) {

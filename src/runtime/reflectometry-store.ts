@@ -1,5 +1,14 @@
-import { MODEL_LABELS, modelParameterSpecs } from "../scientific/models/dielectric-models.ts";
-import { parseSavedFit, SAVED_FIT_SCHEMA } from "../scientific/fitting/saved-fit.ts";
+import {
+  MODEL_LABELS,
+  modelParameterSpecs,
+  type DielectricComponents,
+  type EffectiveMedium,
+  type NkTable,
+  type NumericParameters,
+  type OpticalModel,
+  type ParameterSpecifications,
+} from "../scientific/models/dielectric-models.ts";
+import { parseSavedFit, SAVED_FIT_SCHEMA, type ParsedSavedFit } from "../scientific/fitting/saved-fit.ts";
 import {
   createSpectrum,
   createSyntheticSpectrum,
@@ -9,9 +18,20 @@ import {
   prepareFitData,
   restrictToNkRange,
 } from "../scientific/solvers/scientific-core.ts";
+import type {
+  AlternativeSolution,
+  ConfidenceInterval,
+  FitConfiguration,
+  FitData,
+  FitDiagnostics,
+  OpticalEvaluation,
+  OpticalSettings,
+  ParameterCorrelation,
+  Spectrum,
+} from "../scientific/solvers/scientific-core.ts";
 import type { ReflectometryPhase } from "../app/operation-status.ts";
 
-export const MULTILAYER_MODEL_LABELS: Record<string, string> = {
+export const MULTILAYER_MODEL_LABELS = {
   fixed: MODEL_LABELS.fixed,
   scaled: MODEL_LABELS.scaled,
   constant: MODEL_LABELS.constant,
@@ -21,18 +41,29 @@ export const MULTILAYER_MODEL_LABELS: Record<string, string> = {
   "forouhi-bloomer": MODEL_LABELS["forouhi-bloomer"],
   "kk-spline": MODEL_LABELS["kk-spline"],
   ema: MODEL_LABELS.ema,
-};
+} as const satisfies Partial<Record<OpticalModel, string>>;
 
-export const COMPONENT_LABELS: Record<string, string> = {
+export const COMPONENT_LABELS = {
   gaussian: "Gaussian",
   cody: "Cody–Lorentz",
   drude: "Drude",
   drudeSmith: "Drude–Smith",
   brendelBormann: "Brendel–Bormann",
   criticalPoint: "Critical point / Adachi",
+} as const;
+
+export type MaterialComponents = DielectricComponents & {
+  taucLorentz: number;
+  lorentz: number;
+  gaussian: boolean;
+  cody: boolean;
+  drude: boolean;
+  drudeSmith: boolean;
+  brendelBormann: boolean;
+  criticalPoint: boolean;
 };
 
-const DEFAULT_COMPONENTS = {
+const DEFAULT_COMPONENTS: MaterialComponents = {
   taucLorentz: 1,
   lorentz: 0,
   gaussian: false,
@@ -42,7 +73,86 @@ const DEFAULT_COMPONENTS = {
   brendelBormann: false,
   criticalPoint: false,
 };
-const TABLE_MODELS = new Set(["fixed", "scaled"]);
+const TABLE_MODELS = new Set<OpticalModel>(["fixed", "scaled"]);
+
+export type MaterialEma = EffectiveMedium & {
+  hostSource: string | null;
+  inclusionSource: string | null;
+};
+
+export interface OpticalMaterial {
+  id: string;
+  name: string;
+  model: OpticalModel;
+  components: MaterialComponents;
+  ema: MaterialEma;
+  nk: NkTable | null;
+  nkSource: string | null;
+  regularize: boolean;
+  links: Record<string, string>;
+  specs: ParameterSpecifications;
+  specCache: ParameterSpecifications;
+}
+
+export interface SourceInfo extends Record<string, unknown> {
+  sampleName?: string;
+  type?: string;
+}
+
+export interface BootstrapInterval extends ConfidenceInterval {
+  median: number;
+}
+
+export interface BootstrapResult {
+  requestedSamples: number;
+  successfulSamples: number;
+  seed: number;
+  method: string;
+  evidenceMode: string;
+  parameterIntervals: Record<string, BootstrapInterval>;
+  parameterCorrelation: ParameterCorrelation;
+  bands: {
+    wavelengthNm: number[];
+    reflectance: BootstrapInterval[];
+    transmittance: BootstrapInterval[];
+    layerId?: string | null;
+    n: BootstrapInterval[];
+    k: BootstrapInterval[];
+    layers: Record<string, { n: BootstrapInterval[]; k: BootstrapInterval[] }>;
+  };
+}
+
+export type RuntimeDiagnostics = FitDiagnostics & { bootstrap?: BootstrapResult | null };
+export type RuntimeOptimizer = {
+  selectedSolver: { success: boolean; message: string; evaluations: number; optimality: number | null };
+  logarithmicallySampledParameters?: string[];
+  [name: string]: unknown;
+};
+export interface RuntimeFitResult {
+  parameters: NumericParameters;
+  evaluation: OpticalEvaluation;
+  diagnostics: RuntimeDiagnostics;
+  optimizer?: RuntimeOptimizer;
+  preview: boolean;
+  configuration: FitConfiguration;
+  cost?: number;
+}
+
+export interface EditorSnapshot extends Record<string, unknown> {
+  source: SourceInfo | null;
+  spectrum: Spectrum | null;
+  layers: OpticalMaterial[];
+  substrate: OpticalMaterial;
+  activeLayerId: string | null;
+  nextLayer: number;
+  controls: Record<string, boolean | number | string>;
+}
+
+type FitWorkerMessage =
+  | { type: "progress" | "bootstrap-progress"; progress: number }
+  | { type: "bootstrap-result"; result: BootstrapResult }
+  | { type: "error"; message: string }
+  | { type: "result"; result: Omit<RuntimeFitResult, "preview" | "configuration"> };
 
 export interface ReflectometryControls {
   sampleName: string;
@@ -94,16 +204,16 @@ export interface ExportFile {
 
 export interface ReflectometrySnapshot {
   controls: ReflectometryControls;
-  layers: any[];
-  substrate: any;
+  layers: OpticalMaterial[];
+  substrate: OpticalMaterial;
   activeLayerId: string | null;
-  source: any;
+  source: SourceInfo | null;
   sourceLabel: string;
   sourceQuality: SourceQuality;
   operation: OperationState;
-  fitData: any;
-  evaluation: any;
-  fitResult: any;
+  fitData: FitData | null;
+  evaluation: OpticalEvaluation | null;
+  fitResult: RuntimeFitResult | null;
   resultStale: boolean;
   hasMeasurement: boolean;
   hasResult: boolean;
@@ -166,24 +276,24 @@ const SAVED_CONTROL_MAP: Record<string, keyof ReflectometryControls> = {
   "bootstrap-samples": "bootstrapSamples",
 };
 
-function modelLabel(model: string) {
-  return MULTILAYER_MODEL_LABELS[model] ?? MODEL_LABELS[model] ?? model;
+function modelLabel(model: string): string {
+  return Object.hasOwn(MODEL_LABELS, model) ? MODEL_LABELS[model as OpticalModel] : model;
 }
 
-function layerSpecs(model: string, thicknessNm: number, nk: any, components: any, previous: any = {}) {
+function layerSpecs(model: OpticalModel, thicknessNm: number, nk: NkTable | null, components: MaterialComponents, previous: ParameterSpecifications = {}): ParameterSpecifications {
   const referenceIndex = nk
     ? nk.wavelengthNm.reduce((best: number, value: number, index: number) => Math.abs(value - 1064) < Math.abs(nk.wavelengthNm[best] - 1064) ? index : best, 0)
     : 0;
-  const generated: any = modelParameterSpecs(model, { n: nk?.n[referenceIndex] ?? 2, k: nk?.k[referenceIndex] ?? 0.05 }, thicknessNm, components);
+  const generated = modelParameterSpecs(model, { n: nk?.n[referenceIndex] ?? 2, k: nk?.k[referenceIndex] ?? 0.05 }, thicknessNm, components);
   delete generated.rGain;
   delete generated.tGain;
-  return Object.fromEntries(Object.entries(generated).map(([name, specification]: [string, any]) => [name, previous[name] ? { ...specification, ...previous[name] } : specification]));
+  return Object.fromEntries(Object.entries(generated).map(([name, specification]) => [name, previous[name] ? { ...specification, ...previous[name] } : specification]));
 }
 
-function substrateSpecs(model: string, nk: any, components: any, previous: any = {}) {
+function substrateSpecs(model: OpticalModel, nk: NkTable | null, components: MaterialComponents, previous: ParameterSpecifications = {}): ParameterSpecifications {
   const generated = layerSpecs(model, 1000, nk, components, previous);
   delete generated.thicknessNm;
-  for (const [name, specification] of Object.entries(generated) as [string, any][]) if (!previous[name]) specification.fit = false;
+  for (const [name, specification] of Object.entries(generated)) if (!previous[name]) specification.fit = false;
   return generated;
 }
 
@@ -203,24 +313,34 @@ function csvCell(value: unknown) {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
 
+function recordOf(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function finiteInterval(value: unknown): value is BootstrapInterval {
+  const interval = recordOf(value);
+  return Boolean(interval && Number.isFinite(interval.lower95) && Number.isFinite(interval.upper95));
+}
+
 export class ReflectometryStore {
   private listeners = new Set<() => void>();
   private controls: ReflectometryControls = { ...DEFAULT_CONTROLS };
-  private spectrum: any = null;
-  private fitData: any = null;
-  private evaluation: any = null;
-  private fitResult: any = null;
+  private spectrum: Spectrum | null = null;
+  private fitData: FitData | null = null;
+  private evaluation: OpticalEvaluation | null = null;
+  private fitResult: RuntimeFitResult | null = null;
   private resultStale = false;
-  private source: any = null;
-  private layers: any[] = [];
-  private substrate: any;
+  private source: SourceInfo | null = null;
+  private layers: OpticalMaterial[] = [];
+  private substrate: OpticalMaterial;
   private activeLayerId: string | null = null;
   private nextLayer = 1;
   private worker: Worker | null = null;
-  private pendingConfiguration: any = null;
-  private history: any[] = [];
-  private future: any[] = [];
-  private lastEditorSnapshot: any = null;
+  private workerToken = 0;
+  private pendingConfiguration: FitConfiguration | null = null;
+  private history: EditorSnapshot[] = [];
+  private future: EditorSnapshot[] = [];
+  private lastEditorSnapshot: EditorSnapshot | null = null;
   private restoringHistory = false;
   private operation: OperationState = {
     phase: "needs-input",
@@ -249,6 +369,7 @@ export class ReflectometryStore {
   dispose = () => {
     this.worker?.terminate();
     this.worker = null;
+    this.workerToken += 1;
     this.listeners.clear();
   };
 
@@ -266,17 +387,17 @@ export class ReflectometryStore {
     this.setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
 
-  private makeLayer(model: string, thicknessNm: number, nk: any) {
+  private makeLayer(model: OpticalModel, thicknessNm: number, nk: NkTable | null): OpticalMaterial {
     const id = `layer${this.nextLayer++}`;
     const components = { ...DEFAULT_COMPONENTS };
     const specs = layerSpecs(model, thicknessNm, nk, components);
-    const ema = { method: "bruggeman", hostNk: null, inclusionNk: null, hostSource: null, inclusionSource: null };
+    const ema: MaterialEma = { method: "bruggeman", hostNk: null, inclusionNk: null, hostSource: null, inclusionSource: null };
     return { id, name: `Layer ${this.layers.length + 1}`, model, components, ema, nk, nkSource: null, regularize: false, links: {}, specs, specCache: { ...specs } };
   }
 
-  private makeSubstrate(model = "constant", nk: any = null) {
+  private makeSubstrate(model: OpticalModel = "constant", nk: NkTable | null = null): OpticalMaterial {
     const components = { ...DEFAULT_COMPONENTS };
-    const ema = { method: "bruggeman", hostNk: null, inclusionNk: null, hostSource: null, inclusionSource: null };
+    const ema: MaterialEma = { method: "bruggeman", hostNk: null, inclusionNk: null, hostSource: null, inclusionSource: null };
     const specs = substrateSpecs(model, nk, components);
     if (model === "constant") {
       specs.n.value = 1.46;
@@ -287,7 +408,7 @@ export class ReflectometryStore {
     return { id: "substrate", name: "Substrate", model, components, ema, nk, nkSource: null, regularize: false, links: {}, specs, specCache: { ...specs } };
   }
 
-  private rebuildLayerSpecs(material: any) {
+  private rebuildLayerSpecs(material: OpticalMaterial) {
     material.specCache = { ...material.specCache, ...material.specs };
     material.specs = material.id === "substrate"
       ? substrateSpecs(material.model, material.nk, material.components, material.specCache)
@@ -310,14 +431,14 @@ export class ReflectometryStore {
     }
   }
 
-  private synchronizeLinkedParameters(parameters: any = null) {
+  private synchronizeLinkedParameters(parameters: NumericParameters | null = null) {
     for (const layer of this.layers) {
       for (const [name, sourceKey] of Object.entries(layer.links ?? {}) as [string, string][]) {
         const separator = sourceKey.indexOf("__");
         const source = this.materialById(sourceKey.slice(0, separator));
         const sourceName = sourceKey.slice(separator + 2);
         const value = parameters?.[sourceKey] ?? source?.specs[sourceName]?.value;
-        if (Number.isFinite(value) && layer.specs[name]) {
+        if (typeof value === "number" && Number.isFinite(value) && layer.specs[name]) {
           layer.specs[name].value = value;
           layer.specs[name].fit = false;
         }
@@ -340,7 +461,8 @@ export class ReflectometryStore {
   private createSnapshot(): ReflectometrySnapshot {
     const selectedFitCount = this.selectedFitCount();
     const hasMeasurement = Boolean(this.spectrum);
-    const hasResult = Boolean(this.fitResult);
+    const fitResult = this.fitResult;
+    const hasResult = Boolean(fitResult);
     const busy = Boolean(this.worker);
     return {
       controls: this.controls,
@@ -359,8 +481,8 @@ export class ReflectometryStore {
       hasResult,
       canPreview: hasMeasurement && !busy,
       canFit: hasMeasurement && !busy && selectedFitCount > 0 && selectedFitCount <= 11,
-      canBootstrap: hasResult && !this.fitResult.preview && !this.resultStale && !busy,
-      canExport: hasResult && !this.fitResult.preview && !this.resultStale && !busy,
+      canBootstrap: Boolean(fitResult && !fitResult.preview && !this.resultStale && !busy),
+      canExport: Boolean(fitResult && !fitResult.preview && !this.resultStale && !busy),
       canUndo: this.history.length > 0 && !busy,
       canRedo: this.future.length > 0 && !busy,
       selectedFitCount,
@@ -435,22 +557,25 @@ export class ReflectometryStore {
     }
   };
 
-  private restoreSavedFit(saved: any, fileName: string) {
+  private restoreSavedFit(saved: ParsedSavedFit, fileName: string) {
     this.nextLayer = 1;
-    this.layers = saved.stack.map((entry: any) => {
+    this.layers = saved.stack.map((entry) => {
       const thicknessNm = Number.isFinite(entry.parameters.thicknessNm) ? entry.parameters.thicknessNm : 100;
       const layer = this.makeLayer(entry.opticalModel, thicknessNm, entry.nkTable);
       layer.id = entry.id;
       layer.name = entry.name;
-      for (const name of ["taucLorentz", "lorentz"]) if (Number.isInteger(entry.dielectricComponents?.[name])) layer.components[name] = Math.max(0, Math.min(5, entry.dielectricComponents[name]));
-      for (const name of Object.keys(COMPONENT_LABELS)) layer.components[name] = Boolean(entry.dielectricComponents?.[name]);
+      for (const name of ["taucLorentz", "lorentz"] as const) {
+        const count = entry.dielectricComponents?.[name];
+        if (typeof count === "number" && Number.isInteger(count)) layer.components[name] = Math.max(0, Math.min(5, count));
+      }
+      for (const name of Object.keys(COMPONENT_LABELS) as Array<keyof typeof COMPONENT_LABELS>) layer.components[name] = Boolean(entry.dielectricComponents?.[name]);
       layer.nk = entry.nkTable;
       layer.nkSource = entry.nkSource;
       layer.regularize = entry.regularizedToNk;
       layer.links = { ...entry.parameterLinks };
       if (entry.effectiveMedium) layer.ema = { ...entry.effectiveMedium };
       layer.specs = layerSpecs(layer.model, thicknessNm, layer.nk, layer.components);
-      for (const [name, specification] of Object.entries(layer.specs) as [string, any][]) {
+      for (const [name, specification] of Object.entries(layer.specs)) {
         if (entry.parameterSettings[name]) Object.assign(specification, entry.parameterSettings[name]);
         if (Number.isFinite(entry.parameters[name])) specification.value = entry.parameters[name];
       }
@@ -461,13 +586,16 @@ export class ReflectometryStore {
     const savedSubstrate = saved.substrateMaterial;
     this.substrate = this.makeSubstrate(savedSubstrate?.opticalModel ?? "constant", savedSubstrate?.nkTable ?? null);
     if (savedSubstrate) {
-      for (const name of ["taucLorentz", "lorentz"]) if (Number.isInteger(savedSubstrate.dielectricComponents?.[name])) this.substrate.components[name] = Math.max(0, Math.min(5, savedSubstrate.dielectricComponents[name]));
-      for (const name of Object.keys(COMPONENT_LABELS)) this.substrate.components[name] = Boolean(savedSubstrate.dielectricComponents?.[name]);
+      for (const name of ["taucLorentz", "lorentz"] as const) {
+        const count = savedSubstrate.dielectricComponents?.[name];
+        if (typeof count === "number" && Number.isInteger(count)) this.substrate.components[name] = Math.max(0, Math.min(5, count));
+      }
+      for (const name of Object.keys(COMPONENT_LABELS) as Array<keyof typeof COMPONENT_LABELS>) this.substrate.components[name] = Boolean(savedSubstrate.dielectricComponents?.[name]);
       this.substrate.nkSource = savedSubstrate.nkSource;
       this.substrate.regularize = savedSubstrate.regularizedToNk;
-      if (savedSubstrate.effectiveMedium) this.substrate.ema = { ...savedSubstrate.effectiveMedium };
+      if (savedSubstrate.effectiveMedium) this.substrate.ema = { ...savedSubstrate.effectiveMedium, method: savedSubstrate.effectiveMedium.method === "maxwell-garnett" ? "maxwell-garnett" : "bruggeman" };
       this.substrate.specs = substrateSpecs(this.substrate.model, this.substrate.nk, this.substrate.components);
-      for (const [name, specification] of Object.entries(this.substrate.specs) as [string, any][]) {
+      for (const [name, specification] of Object.entries(this.substrate.specs)) {
         if (savedSubstrate.parameterSettings[name]) Object.assign(specification, savedSubstrate.parameterSettings[name]);
         if (Number.isFinite(savedSubstrate.parameters[name])) specification.value = savedSubstrate.parameters[name];
       }
@@ -483,13 +611,13 @@ export class ReflectometryStore {
     this.controls = {
       ...this.controls,
       substrateThicknessUm: saved.substrate.thicknessUm,
-      incidence: saved.substrate.incidence,
+      incidence: saved.substrate.incidence === "substrate" ? "substrate" : "film",
       reflectanceGain: saved.gains.reflectance,
       transmittanceGain: saved.gains.transmittance,
     };
     if (saved.spectrum) {
       this.spectrum = saved.spectrum;
-      this.source = { ...(saved.source ?? {}), sampleName: saved.spectrum.sampleName, type: saved.source?.type ?? "restored saved fit" };
+      this.source = { ...(saved.source ?? {}), sampleName: saved.spectrum.sampleName, type: typeof saved.source?.type === "string" ? saved.source.type : "restored saved fit" };
     }
     this.sanitizeParameterLinks();
     this.synchronizeLinkedParameters();
@@ -520,40 +648,56 @@ export class ReflectometryStore {
     for (const [savedKey, controlKey] of Object.entries(SAVED_CONTROL_MAP)) {
       if (!Object.hasOwn(controls, savedKey)) continue;
       const current = next[controlKey];
-      (next as any)[controlKey] = typeof current === "boolean" ? Boolean(controls[savedKey]) : Number(controls[savedKey]);
+      Object.assign(next, { [controlKey]: typeof current === "boolean" ? Boolean(controls[savedKey]) : Number(controls[savedKey]) });
     }
     this.controls = next;
   }
 
-  private mergeSavedDiagnostics(fresh: any, saved: any) {
+  private mergeSavedDiagnostics(fresh: FitDiagnostics, saved: Record<string, unknown> | null): RuntimeDiagnostics {
     if (!saved) return fresh;
-    const validIntervals = (value: any) => value && typeof value === "object" && Object.values(value).every((interval: any) => interval === null || (Number.isFinite(interval.lower95) && Number.isFinite(interval.upper95)));
-    const validCorrelation = (value: any) => Array.isArray(value?.names) && Array.isArray(value?.matrix) && value.matrix.length === value.names.length && value.matrix.every((row: any[]) => Array.isArray(row) && row.length === value.names.length && row.every(Number.isFinite));
-    const validBand = (value: any) => Array.isArray(value) && value.length === this.fitData?.wavelengthNm.length && value.every((interval: any) => Number.isFinite(interval?.lower95) && Number.isFinite(interval?.upper95));
-    const bootstrap = saved.bootstrap;
-    const layerBands = bootstrap?.bands?.layers;
-    const validLayerBands = !layerBands || (typeof layerBands === "object" && Object.values(layerBands).every((bands: any) => validBand(bands?.n) && validBand(bands?.k)));
-    const validBootstrap = validIntervals(bootstrap?.parameterIntervals) && validCorrelation(bootstrap?.parameterCorrelation) && validBand(bootstrap?.bands?.reflectance) && validBand(bootstrap?.bands?.transmittance) && validBand(bootstrap?.bands?.n) && validBand(bootstrap?.bands?.k) && validLayerBands;
+    const validIntervals = (value: unknown): boolean => Boolean(recordOf(value) && Object.values(recordOf(value)!).every((interval) => interval === null || finiteInterval(interval)));
+    const validCorrelation = (value: unknown): value is ParameterCorrelation => {
+      const correlation = recordOf(value);
+      if (!correlation || !Array.isArray(correlation.names) || !Array.isArray(correlation.matrix)) return false;
+      const names = correlation.names;
+      return names.every((name) => typeof name === "string") && correlation.matrix.length === names.length && correlation.matrix.every((row) => Array.isArray(row) && row.length === names.length && row.every(Number.isFinite));
+    };
+    const validBand = (value: unknown): value is BootstrapInterval[] => Array.isArray(value) && value.length === this.fitData?.wavelengthNm.length && value.every(finiteInterval);
+    const bootstrap = recordOf(saved.bootstrap);
+    const bands = recordOf(bootstrap?.bands);
+    const layerBands = recordOf(bands?.layers);
+    const validLayerBands = !layerBands || Object.values(layerBands).every((value) => {
+      const layer = recordOf(value);
+      return Boolean(layer && validBand(layer.n) && validBand(layer.k));
+    });
+    const validBootstrap = Boolean(bootstrap && bands && validIntervals(bootstrap.parameterIntervals) && validCorrelation(bootstrap.parameterCorrelation) && validBand(bands.reflectance) && validBand(bands.transmittance) && validBand(bands.n) && validBand(bands.k) && validLayerBands);
+    const alternatives = Array.isArray(saved.alternativeSolutions)
+      ? saved.alternativeSolutions.filter((value) => {
+        const solution = recordOf(value);
+        const parameters = recordOf(solution?.parameters);
+        return Boolean(solution && parameters && Object.values(parameters).every(Number.isFinite));
+      }) as AlternativeSolution[]
+      : [];
     return {
       ...fresh,
-      normalizedJacobianCondition: Number.isFinite(saved.normalizedJacobianCondition) ? saved.normalizedJacobianCondition : null,
+      normalizedJacobianCondition: Number.isFinite(saved.normalizedJacobianCondition) ? Number(saved.normalizedJacobianCondition) : null,
       parametersAtBounds: Array.isArray(saved.parametersAtBounds) ? saved.parametersAtBounds.map(String) : [],
-      nearEqualAlternativeMinima: Number.isFinite(saved.nearEqualAlternativeMinima) ? saved.nearEqualAlternativeMinima : null,
-      alternativeSolutions: Array.isArray(saved.alternativeSolutions) ? saved.alternativeSolutions.filter((solution: any) => solution && typeof solution === "object" && solution.parameters && Object.values(solution.parameters).every(Number.isFinite)) : [],
-      parameterStandardErrorsApproximate: saved.parameterStandardErrorsApproximate && typeof saved.parameterStandardErrorsApproximate === "object" ? saved.parameterStandardErrorsApproximate : {},
-      parameterConfidenceIntervals95Approximate: validIntervals(saved.parameterConfidenceIntervals95Approximate) ? saved.parameterConfidenceIntervals95Approximate : {},
+      nearEqualAlternativeMinima: Number.isFinite(saved.nearEqualAlternativeMinima) ? Number(saved.nearEqualAlternativeMinima) : null,
+      alternativeSolutions: alternatives,
+      parameterStandardErrorsApproximate: recordOf(saved.parameterStandardErrorsApproximate) as Record<string, number | null> ?? {},
+      parameterConfidenceIntervals95Approximate: validIntervals(saved.parameterConfidenceIntervals95Approximate) ? saved.parameterConfidenceIntervals95Approximate as Record<string, ConfidenceInterval | null> : {},
       parameterCorrelation: validCorrelation(saved.parameterCorrelation) ? saved.parameterCorrelation : { names: [], matrix: [] },
-      bootstrap: validBootstrap ? bootstrap : null,
+      bootstrap: validBootstrap ? bootstrap as unknown as BootstrapResult : null,
     };
   }
 
-  private normalizeSavedOptimizer(saved: any) {
-    const solver = saved?.selectedSolver;
+  private normalizeSavedOptimizer(saved: Record<string, unknown> | null): RuntimeOptimizer {
+    const solver = recordOf(saved?.selectedSolver);
     return {
       ...(saved ?? {}),
-      logarithmicallySampledParameters: Array.isArray(saved?.logarithmicallySampledParameters) ? saved.logarithmicallySampledParameters : [],
-      selectedSolver: solver && typeof solver === "object"
-        ? { success: Boolean(solver.success), message: String(solver.message ?? "Saved fit loaded."), evaluations: Number.isFinite(solver.evaluations) ? solver.evaluations : 0, optimality: Number.isFinite(solver.optimality) ? solver.optimality : null }
+      logarithmicallySampledParameters: Array.isArray(saved?.logarithmicallySampledParameters) ? saved.logarithmicallySampledParameters.map(String) : [],
+      selectedSolver: solver
+        ? { success: Boolean(solver.success), message: String(solver.message ?? "Saved fit loaded."), evaluations: Number.isFinite(solver.evaluations) ? Number(solver.evaluations) : 0, optimality: Number.isFinite(solver.optimality) ? Number(solver.optimality) : null }
         : { success: true, message: "Saved fit loaded.", evaluations: 0, optimality: null },
     };
   }
@@ -567,8 +711,9 @@ export class ReflectometryStore {
   updateMaterialModel = (materialId: string, model: string) => {
     const material = this.materialById(materialId);
     if (!material || material.model === model) return;
+    if (!Object.hasOwn(MULTILAYER_MODEL_LABELS, model)) return this.showError(new Error(`Unsupported optical model: ${model}.`));
     this.edit(() => {
-      material.model = model;
+      material.model = model as keyof typeof MULTILAYER_MODEL_LABELS;
       material.regularize = false;
       this.rebuildLayerSpecs(material);
     });
@@ -577,6 +722,7 @@ export class ReflectometryStore {
   updateComponentCount = (materialId: string, component: "taucLorentz" | "lorentz", count: number) => {
     const material = this.materialById(materialId);
     if (!material) return;
+    if (!Number.isInteger(count) || count < 0 || count > 5) return this.showError(new Error("Select from 0 to 5 dielectric oscillators."));
     this.edit(() => {
       material.components[component] = count;
       this.rebuildLayerSpecs(material);
@@ -586,8 +732,9 @@ export class ReflectometryStore {
   toggleComponent = (materialId: string, component: string, checked: boolean) => {
     const material = this.materialById(materialId);
     if (!material) return;
+    if (!Object.hasOwn(COMPONENT_LABELS, component)) return this.showError(new Error(`Unsupported dielectric component: ${component}.`));
     this.edit(() => {
-      material.components[component] = checked;
+      material.components[component as keyof typeof COMPONENT_LABELS] = checked;
       if (checked && component === "drude") material.components.drudeSmith = false;
       if (checked && component === "drudeSmith") material.components.drude = false;
       this.rebuildLayerSpecs(material);
@@ -597,7 +744,8 @@ export class ReflectometryStore {
   updateEmaMethod = (materialId: string, method: string) => {
     const material = this.materialById(materialId);
     if (!material) return;
-    this.edit(() => { material.ema.method = method; });
+    if (!new Set(["bruggeman", "maxwell-garnett"]).has(method)) return this.showError(new Error(`Unsupported effective-medium method: ${method}.`));
+    this.edit(() => { material.ema.method = method === "maxwell-garnett" ? "maxwell-garnett" : "bruggeman"; });
   };
 
   loadMaterialTable = async (materialId: string, field: "nk" | "host" | "inclusion", file: File) => {
@@ -637,7 +785,10 @@ export class ReflectometryStore {
     const material = this.materialById(materialId);
     const specification = material?.specs[parameter];
     if (!specification) return;
-    this.edit(() => { specification[kind] = value; });
+    this.edit(() => {
+      if (kind === "fit") specification.fit = Boolean(value);
+      else specification[kind] = Number(value);
+    });
   };
 
   linkParameter = (materialId: string, parameter: string, source: string) => {
@@ -711,16 +862,16 @@ export class ReflectometryStore {
   }
 
   private editorSnapshot() {
-    const snapshot: any = structuredClone({
+    const snapshot: EditorSnapshot = structuredClone({
       source: this.source,
+      spectrum: this.spectrum,
       layers: this.layers,
       substrate: this.substrate,
       activeLayerId: this.activeLayerId,
       nextLayer: this.nextLayer,
       controls: { ...this.serializedControls(), "substrate-thickness": this.controls.substrateThicknessUm, incidence: this.controls.incidence },
     });
-    snapshot.spectrum = this.spectrum;
-    snapshot.layers.forEach((layer: any, index: number) => {
+    snapshot.layers.forEach((layer, index) => {
       layer.nk = this.layers[index].nk;
       layer.ema.hostNk = this.layers[index].ema.hostNk;
       layer.ema.inclusionNk = this.layers[index].ema.inclusionNk;
@@ -751,7 +902,7 @@ export class ReflectometryStore {
     this.future = [];
   }
 
-  private restoreHistorySnapshot(snapshot: any) {
+  private restoreHistorySnapshot(snapshot: EditorSnapshot) {
     this.restoringHistory = true;
     this.spectrum = snapshot.spectrum;
     this.source = snapshot.source;
@@ -773,18 +924,22 @@ export class ReflectometryStore {
 
   undo = () => {
     if (!this.history.length) return;
-    this.future.push(this.lastEditorSnapshot);
-    this.restoreHistorySnapshot(this.history.pop());
+    if (this.lastEditorSnapshot) this.future.push(this.lastEditorSnapshot);
+    const snapshot = this.history.pop();
+    if (snapshot) this.restoreHistorySnapshot(snapshot);
   };
 
   redo = () => {
     if (!this.future.length) return;
-    this.history.push(this.lastEditorSnapshot);
-    this.restoreHistorySnapshot(this.future.pop());
+    if (this.lastEditorSnapshot) this.history.push(this.lastEditorSnapshot);
+    const snapshot = this.future.pop();
+    if (snapshot) this.restoreHistorySnapshot(snapshot);
   };
 
-  restoreAutosave = (snapshot: any) => {
-    if (!snapshot?.layers?.length || !snapshot.substrate) return this.showError(new Error("The saved session is incomplete."));
+  restoreAutosave = (value: Record<string, unknown>) => {
+    const candidate = value as Partial<EditorSnapshot>;
+    if (!Array.isArray(candidate.layers) || !candidate.layers.length || !candidate.substrate || !candidate.controls) return this.showError(new Error("The saved session is incomplete."));
+    const snapshot = candidate as EditorSnapshot;
     this.restoringHistory = true;
     this.spectrum = snapshot.spectrum ?? null;
     this.source = snapshot.source ?? null;
@@ -804,11 +959,11 @@ export class ReflectometryStore {
     this.setStatus("Previous session restored. Preview the model or run a new fit.", this.spectrum ? "ready" : "needs-input");
   };
 
-  private configuration() {
+  private configuration(): FitConfiguration {
     if (!this.layers.length) throw new Error("Add at least one layer.");
     if (!this.controls.useReflectance && !this.controls.useTransmittance) throw new Error("Select R, T, or both channels.");
-    const initial: any = { rGain: this.numberValue(this.controls.reflectanceGain, "R gain", 0.1, 10), tGain: this.numberValue(this.controls.transmittanceGain, "T gain", 0.1, 10) };
-    const bounds: any = { rGain: [0.1, 10], tGain: [0.1, 10] };
+    const initial: NumericParameters = { rGain: this.numberValue(this.controls.reflectanceGain, "R gain", 0.1, 10), tGain: this.numberValue(this.controls.transmittanceGain, "T gain", 0.1, 10) };
+    const bounds: Record<string, [number, number]> = { rGain: [0.1, 10], tGain: [0.1, 10] };
     const fittedParameters: string[] = [];
     if (this.controls.fitReflectanceGain && this.controls.useReflectance) fittedParameters.push("rGain");
     if (this.controls.fitTransmittanceGain && this.controls.useTransmittance) fittedParameters.push("tGain");
@@ -827,7 +982,7 @@ export class ReflectometryStore {
     const substrateThicknessUm = this.numberValue(this.controls.substrateThicknessUm, "Substrate thickness", 10, 1e6);
     const minimumSubstrateThicknessUm = this.numberValue(this.controls.wavelengthMaxNm, "Maximum wavelength", 196, 3000) / 100;
     if (substrateThicknessUm < minimumSubstrateThicknessUm) throw new Error(`Substrate thickness must be at least ${format(minimumSubstrateThicknessUm, 3)} µm (10× the maximum wavelength).`);
-    const settings = {
+    const settings: OpticalSettings = {
       layers: this.layers.map(({ id, name, model, components, ema, nk, regularize }) => ({ id, name, model, components, ema, nk, regularize })),
       activeLayerId: this.activeLayerId,
       substrate: { model: this.substrate.model, components: this.substrate.components, ema: this.substrate.ema, nk: this.substrate.nk, regularize: this.substrate.regularize },
@@ -845,12 +1000,12 @@ export class ReflectometryStore {
     return { settings, initial, bounds, fittedParameters };
   }
 
-  private validateMaterial(material: any, initial: any, bounds: any, fittedParameters: string[]) {
+  private validateMaterial(material: OpticalMaterial, initial: NumericParameters, bounds: Record<string, [number, number]>, fittedParameters: string[]) {
     const prefix = material.id === "substrate" ? "Substrate" : material.name;
     if (TABLE_MODELS.has(material.model) && !material.nk) throw new Error(`${prefix}: ${MODEL_LABELS[material.model]} requires an n,k table.`);
     if (material.model === "composite" && !material.components.taucLorentz && !material.components.lorentz && !Object.keys(COMPONENT_LABELS).some((name) => material.components[name])) throw new Error(`${prefix}: select at least one dielectric component.`);
     if (material.model === "ema" && (!material.ema.hostNk || !material.ema.inclusionNk)) throw new Error(`${prefix}: load both EMA constituent n,k tables.`);
-    for (const [name, specification] of Object.entries(material.specs) as [string, any][]) {
+    for (const [name, specification] of Object.entries(material.specs)) {
       const key = `${material.id}__${name}`;
       const { value, minimum, maximum } = specification;
       if (![value, minimum, maximum].every(Number.isFinite) || minimum >= maximum || value < minimum || value > maximum) throw new Error(`${prefix}: ${specification.label} must have a finite value inside valid bounds.`);
@@ -870,21 +1025,21 @@ export class ReflectometryStore {
       sampleSnrMinimum: this.numberValue(this.controls.sampleSnrMinimum, "Minimum sample SNR", 0, 100),
       subtractBackground: this.controls.subtractBackground,
     });
-    for (const layer of this.layers.filter((candidate) => TABLE_MODELS.has(candidate.model))) data = restrictToNkRange(data, layer.nk);
+    for (const layer of this.layers.filter((candidate) => TABLE_MODELS.has(candidate.model))) if (layer.nk) data = restrictToNkRange(data, layer.nk);
     for (const layer of this.layers.filter((candidate) => candidate.model === "ema")) {
-      data = restrictToNkRange(data, layer.ema.hostNk);
-      data = restrictToNkRange(data, layer.ema.inclusionNk);
+      if (layer.ema.hostNk) data = restrictToNkRange(data, layer.ema.hostNk);
+      if (layer.ema.inclusionNk) data = restrictToNkRange(data, layer.ema.inclusionNk);
     }
-    if (TABLE_MODELS.has(this.substrate.model)) data = restrictToNkRange(data, this.substrate.nk);
+    if (TABLE_MODELS.has(this.substrate.model) && this.substrate.nk) data = restrictToNkRange(data, this.substrate.nk);
     if (this.substrate.model === "ema") {
-      data = restrictToNkRange(data, this.substrate.ema.hostNk);
-      data = restrictToNkRange(data, this.substrate.ema.inclusionNk);
+      if (this.substrate.ema.hostNk) data = restrictToNkRange(data, this.substrate.ema.hostNk);
+      if (this.substrate.ema.inclusionNk) data = restrictToNkRange(data, this.substrate.ema.inclusionNk);
     }
     this.fitData = data;
     return data;
   }
 
-  private validateChannels(data: any, settings: any) {
+  private validateChannels(data: FitData, settings: OpticalSettings) {
     if (settings.useReflectance && data.reflectanceValid.filter(Boolean).length < 10) throw new Error("Fewer than 10 reflectance bins pass the masks.");
     if (settings.useTransmittance && data.transmittanceValid.filter(Boolean).length < 10) throw new Error("Fewer than 10 transmittance bins pass the masks; disable T or revise the SNR threshold.");
   }
@@ -911,14 +1066,14 @@ export class ReflectometryStore {
       const config = this.configuration();
       const fitData = this.prepareCurrentData();
       this.validateChannels(fitData, config.settings);
-      if (!config.fittedParameters.length) throw new Error("Select at least one parameter to fit.");
+      if (!config.fittedParameters?.length) throw new Error("Select at least one parameter to fit.");
       const screeningPoints = this.integerValue(this.controls.screeningPoints, "Sobol points", 64, 4096);
       if (screeningPoints & (screeningPoints - 1)) throw new Error("Sobol points must be a power of two.");
       const localRefinements = this.integerValue(this.controls.localRefinements, "Local refinements", 1, 50);
       this.pushHistory();
       this.pendingConfiguration = config;
       this.startFitWorker(`Screening ${screeningPoints} Sobol points…`);
-      this.worker!.postMessage({ fitData, nk: null, configuration: { ...config, screeningPoints, localRefinements } });
+      this.worker!.postMessage({ operation: "fit", fitData, nk: null, configuration: { ...config, screeningPoints, localRefinements } });
     } catch (error) {
       this.showError(error);
     }
@@ -936,27 +1091,33 @@ export class ReflectometryStore {
   };
 
   private startFitWorker(message: string) {
-    this.worker?.terminate();
-    this.worker = new Worker(new URL("../scientific/workers/fit-worker.ts", import.meta.url), { type: "module" });
-    this.worker.addEventListener("message", this.handleWorkerMessage);
-    this.worker.addEventListener("error", (event) => this.finishFitError(event.message));
+    this.stopFitWorker(false);
+    const token = this.workerToken;
+    const worker = new Worker(new URL("../scientific/workers/fit-worker.ts", import.meta.url), { type: "module" });
+    this.worker = worker;
+    worker.addEventListener("message", (event) => this.handleWorkerMessage(event, token));
+    worker.addEventListener("error", (event) => this.finishFitError(event.message, token));
     this.operation = { phase: "fitting", busy: true, message, progress: 0 };
     this.publish();
   }
 
-  private handleWorkerMessage = ({ data }: MessageEvent<any>) => {
+  private handleWorkerMessage = ({ data }: MessageEvent<FitWorkerMessage>, token: number) => {
+    if (token !== this.workerToken) return;
     if (data.type === "progress") return this.setStatus(`Fitting parameters… ${data.progress}%`, "fitting", data.progress);
     if (data.type === "bootstrap-progress") return this.setStatus(`Bootstrap refits… ${data.progress}%`, "fitting", data.progress);
     if (data.type === "bootstrap-result") {
       this.stopFitWorker(false);
+      if (!this.fitResult) return;
       this.fitResult.diagnostics.bootstrap = data.result;
       this.setStatus(`Bootstrap complete: ${data.result.successfulSamples} of ${data.result.requestedSamples} refits converged.`, "bootstrap-success");
       return;
     }
-    if (data.type === "error") return this.finishFitError(data.message);
+    if (data.type === "error") return this.finishFitError(data.message, token);
     if (data.type !== "result") return;
+    const configuration = this.pendingConfiguration;
     this.stopFitWorker(false);
-    this.fitResult = { ...data.result, configuration: this.pendingConfiguration };
+    if (!configuration) return this.showError(new Error("The fit configuration is no longer available."));
+    this.fitResult = { ...data.result, preview: false, configuration };
     this.pendingConfiguration = null;
     this.evaluation = data.result.evaluation;
     for (const material of [...this.layers, this.substrate]) {
@@ -970,12 +1131,14 @@ export class ReflectometryStore {
     this.controls = { ...this.controls, reflectanceGain: data.result.parameters.rGain, transmittanceGain: data.result.parameters.tGain };
     this.resultStale = false;
     this.commitHistorySnapshot(false);
-    this.setStatus(data.result.optimizer.selectedSolver.success ? "Fit complete." : `Fit stopped: ${data.result.optimizer.selectedSolver.message}`, data.result.optimizer.selectedSolver.success ? "fit-success" : "error");
+    const solver = data.result.optimizer?.selectedSolver;
+    this.setStatus(solver?.success !== false ? "Fit complete." : `Fit stopped: ${solver.message}`, solver?.success !== false ? "fit-success" : "error");
   };
 
   private stopFitWorker(publish = true) {
     this.worker?.terminate();
     this.worker = null;
+    this.workerToken += 1;
     if (publish) this.publish();
   }
 
@@ -989,7 +1152,8 @@ export class ReflectometryStore {
     );
   };
 
-  private finishFitError(message: string) {
+  private finishFitError(message: string, token: number) {
+    if (token !== this.workerToken) return;
     this.stopFitWorker(false);
     this.pendingConfiguration = null;
     this.showError(new Error(message));
@@ -1042,7 +1206,7 @@ export class ReflectometryStore {
 
   private selectedFitCount() {
     return [...this.layers, this.substrate].reduce(
-      (sum, material) => sum + Object.entries(material.specs).filter(([name, specification]: [string, any]) => specification.fit && !material.links?.[name]).length,
+      (sum, material) => sum + Object.entries(material.specs).filter(([name, specification]) => specification.fit && !material.links?.[name]).length,
       Number(this.controls.fitReflectanceGain && this.controls.useReflectance) + Number(this.controls.fitTransmittanceGain && this.controls.useTransmittance),
     );
   }
@@ -1063,7 +1227,10 @@ export class ReflectometryStore {
   }
 
   private exportPayload() {
-    if (!this.fitResult || this.fitResult.preview) throw new Error("Run a fit before exporting results.");
+    const fitResult = this.fitResult;
+    const evaluation = this.evaluation;
+    const fitData = this.fitData;
+    if (!fitResult || fitResult.preview || !evaluation?.substrateIndex || !fitData) throw new Error("Run a fit before exporting results.");
     return {
       schema: SAVED_FIT_SCHEMA,
       application: { name: "Reflectometry", version: "4.0.0", url: "https://jorpago2.github.io/reflectometry/" },
@@ -1081,42 +1248,45 @@ export class ReflectometryStore {
         nkSource: layer.nkSource,
         nkTable: layer.nk,
         regularizedToNk: layer.regularize,
-        parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, this.fitResult.parameters[`${layer.id}__${name}`]])),
-        parameterSettings: Object.fromEntries(Object.entries(layer.specs).map(([name, specification]: [string, any]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
+        parameters: Object.fromEntries(Object.keys(layer.specs).map((name) => [name, fitResult.parameters[`${layer.id}__${name}`]])),
+        parameterSettings: Object.fromEntries(Object.entries(layer.specs).map(([name, specification]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
         parameterLinks: { ...layer.links },
       })),
       substrate: {
-        refractiveIndex: { n: this.evaluation.substrateIndex.n[Math.floor(this.fitData.wavelengthNm.length / 2)], k: this.evaluation.substrateIndex.k[Math.floor(this.fitData.wavelengthNm.length / 2)] },
+        refractiveIndex: { n: evaluation.substrateIndex.n[Math.floor(fitData.wavelengthNm.length / 2)], k: evaluation.substrateIndex.k[Math.floor(fitData.wavelengthNm.length / 2)] },
         opticalModel: this.substrate.model,
         dielectricComponents: this.substrate.model === "composite" ? { ...this.substrate.components } : null,
         effectiveMedium: this.substrate.model === "ema" ? { method: this.substrate.ema.method, hostSource: this.substrate.ema.hostSource, inclusionSource: this.substrate.ema.inclusionSource, hostNk: this.substrate.ema.hostNk, inclusionNk: this.substrate.ema.inclusionNk } : null,
         nkSource: this.substrate.nkSource,
         nkTable: this.substrate.nk,
         regularizedToNk: this.substrate.regularize,
-        parameters: Object.fromEntries(Object.keys(this.substrate.specs).map((name) => [name, this.fitResult.parameters[`substrate__${name}`]])),
-        parameterSettings: Object.fromEntries(Object.entries(this.substrate.specs).map(([name, specification]: [string, any]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
+        parameters: Object.fromEntries(Object.keys(this.substrate.specs).map((name) => [name, fitResult.parameters[`substrate__${name}`]])),
+        parameterSettings: Object.fromEntries(Object.entries(this.substrate.specs).map(([name, specification]) => [name, { minimum: specification.minimum, maximum: specification.maximum, fit: specification.fit, uncertainty: specification.uncertainty ?? null }])),
         thicknessUm: this.controls.substrateThicknessUm,
         incidence: this.controls.incidence,
       },
-      gains: { reflectance: this.fitResult.parameters.rGain, transmittance: this.fitResult.parameters.tGain },
-      diagnostics: this.fitResult.diagnostics,
-      optimizer: this.fitResult.optimizer,
+      gains: { reflectance: fitResult.parameters.rGain, transmittance: fitResult.parameters.tGain },
+      diagnostics: fitResult.diagnostics,
+      optimizer: fitResult.optimizer,
       assumptions: ["normal incidence", "homogeneous isotropic coherent layers", "finite phase-incoherent dispersive substrate", "Beer–Lambert substrate attenuation", "incoherent rear-surface returns"],
     };
   }
 
   createExport = (kind: "json" | "spectra" | "nk"): ExportFile => {
-    this.exportPayload();
+    const payload = this.exportPayload();
+    const fitData = this.fitData;
+    const evaluation = this.evaluation;
+    if (!fitData || !evaluation?.layerIndices || !evaluation.substrateIndex) throw new Error("Run a fit before exporting results.");
     const base = safeName(this.source?.sampleName);
-    if (kind === "json") return { content: JSON.stringify(this.exportPayload(), null, 2), name: `${base}-multilayer-fit.json`, type: "application/json;charset=utf-8" };
+    if (kind === "json") return { content: JSON.stringify(payload, null, 2), name: `${base}-multilayer-fit.json`, type: "application/json;charset=utf-8" };
     if (kind === "spectra") {
       const header = "wavelength_nm,reflectance_data,transmittance_data,reflectance_valid,transmittance_valid,reflectance_model,transmittance_model,reflectance_residual,transmittance_residual";
-      const rows = this.fitData.wavelengthNm.map((wavelength: number, index: number) => [wavelength, this.fitData.reflectance[index], this.fitData.transmittance[index], this.fitData.reflectanceValid[index], this.fitData.transmittanceValid[index], this.evaluation.reflectanceScaled[index], this.evaluation.transmittanceScaled[index], this.fitData.reflectanceValid[index] ? this.evaluation.reflectanceScaled[index] - this.fitData.reflectance[index] : "", this.fitData.transmittanceValid[index] ? this.evaluation.transmittanceScaled[index] - this.fitData.transmittance[index] : ""].join(","));
+      const rows = fitData.wavelengthNm.map((wavelength, index) => [wavelength, fitData.reflectance[index], fitData.transmittance[index], fitData.reflectanceValid[index], fitData.transmittanceValid[index], evaluation.reflectanceScaled[index], evaluation.transmittanceScaled[index], fitData.reflectanceValid[index] ? evaluation.reflectanceScaled[index] - fitData.reflectance[index] : "", fitData.transmittanceValid[index] ? evaluation.transmittanceScaled[index] - fitData.transmittance[index] : ""].join(","));
       return { content: `${[header, ...rows].join("\n")}\n`, name: `${base}-multilayer-spectra.csv`, type: "text/csv;charset=utf-8" };
     }
     const header = "layer_order,layer_id,layer_name,model,wavelength_nm,n,k";
-    const materials = [...this.evaluation.layerIndices, { id: "substrate", name: "Substrate", model: this.substrate.model, ...this.evaluation.substrateIndex }];
-    const rows = materials.flatMap((layer: any, order: number) => this.fitData.wavelengthNm.map((wavelength: number, index: number) => [order + 1, layer.id, csvCell(layer.name), layer.model, wavelength, layer.n[index], layer.k[index]].join(",")));
+    const materials = [...evaluation.layerIndices, { id: "substrate", name: "Substrate", model: this.substrate.model, ...evaluation.substrateIndex }];
+    const rows = materials.flatMap((layer, order) => fitData.wavelengthNm.map((wavelength, index) => [order + 1, layer.id, csvCell(layer.name), layer.model, wavelength, layer.n[index], layer.k[index]].join(",")));
     return { content: `${[header, ...rows].join("\n")}\n`, name: `${base}-multilayer-nk.csv`, type: "text/csv;charset=utf-8" };
   };
 }

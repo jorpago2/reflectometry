@@ -67,7 +67,8 @@ test("ships one English-only material-agnostic React interface", async () => {
   assert.match(fit, /state\.canBootstrap/);
 
   assert.match(results, /<Tabs>/);
-  for (const tab of ["Overview", "Fit quality", "Optical n,k"]) assert.match(results, new RegExp(`<Tab>${tab}<`));
+  assert.match(results, /<Tab>Overview</);
+  for (const tab of ["Fit quality", "Optical n,k"]) assert.match(results, new RegExp(`<Tab aria-label="${tab}"`));
   assert.equal([...results.matchAll(/<TabPanel className="results-tab-panel[^>]*>/g)].length, 3);
   assert.match(results, /plotId="rt-chart"/);
   assert.match(results, /plotId="residual-chart"/);

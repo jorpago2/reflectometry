@@ -2,8 +2,9 @@ import { Accordion, AccordionItem, Button, Checkbox, CheckboxGroup, NumberInput,
 import { ArrowRight } from "@carbon/react/icons";
 import { useReflectometry } from "../../app/reflectometry-context.ts";
 
-function numberValue(event: any, data: any) {
-  return Number(data?.value ?? event?.target?.value);
+function numberValue(event: unknown, data: { value?: string | number } | undefined) {
+  const target = event && typeof event === "object" && "target" in event ? event.target : null;
+  return Number(data?.value ?? (target instanceof HTMLInputElement ? target.value : undefined));
 }
 
 export default function FitPanel({ advanced, onRun }: { advanced: boolean; onRun?: () => void }) {

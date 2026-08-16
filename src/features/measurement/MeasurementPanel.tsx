@@ -19,21 +19,23 @@ const EMPTY_FILES: MeasurementFiles = {
   referenceReflectance: null,
 };
 
-function numberValue(event: any, data: any) {
-  return Number(data?.value ?? event?.target?.value);
+function numberValue(event: unknown, data: { value?: string | number } | undefined) {
+  const target = event && typeof event === "object" && "target" in event ? event.target : null;
+  return Number(data?.value ?? (target instanceof HTMLInputElement ? target.value : undefined));
 }
 
 function FileControl({ id, label, file, onSelect }: { id: string; label: string; file: File | null; onSelect: (file: File | null) => void }) {
+  const actionLabel = label.replace(" signal", "").replace(" table", "");
   return (
     <div className="measurement-file">
       <span className="measurement-file__label">{label}</span>
       <FileUploaderButton
         id={id}
-        labelText={file ? "Replace file" : "Choose file"}
+        labelText={`${file ? "Replace" : "Choose"} ${actionLabel}`}
         accept={[".txt", "text/plain"]}
         buttonKind="tertiary"
         size="sm"
-        onChange={(event: any) => onSelect(event.target.files?.[0] ?? null)}
+        onChange={(event: React.ChangeEvent<HTMLInputElement>) => onSelect(event.target.files?.[0] ?? null)}
       />
       <span className="measurement-file__name">{file?.name ?? "No file selected"}</span>
     </div>
@@ -72,7 +74,7 @@ export default function MeasurementPanel({ advanced }: { advanced: boolean }) {
             accept={[".json", "application/json"]}
             buttonKind="tertiary"
             size="sm"
-            onChange={(event: any) => {
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
               const file = event.target.files?.[0];
               if (file) void actions.loadSavedFit(file);
             }}
