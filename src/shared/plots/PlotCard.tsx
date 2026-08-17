@@ -104,7 +104,6 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
   const plotRef = useRef<HTMLDivElement>(null);
   const plotlyRef = useRef<PlotlyApi | null>(null);
   const [compactToolbar, setCompactToolbar] = useState(false);
-  const [themeRevision, setThemeRevision] = useState(0);
   const legend = useMemo<ScientificPlotLegendItem[]>(() => series.filter((entry) => entry.label).map((entry) => ({
     id: entry.label!,
     label: entry.label!,
@@ -112,12 +111,6 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
     style: entry.points && entry.line === false ? "dot" : entry.dash ? "dash" : "line",
   })), [series]);
   const plotStatistics = useMemo(() => collectPlotStatistics(title, series, x, xLabel, yLabel), [series, title, x, xLabel, yLabel]);
-
-  useEffect(() => {
-    const updateTheme = () => setThemeRevision((current) => current + 1);
-    window.addEventListener("scientific-ui:theme-applied", updateTheme);
-    return () => window.removeEventListener("scientific-ui:theme-applied", updateTheme);
-  }, []);
 
   useEffect(() => {
     const chart = plotRef.current;
@@ -161,13 +154,6 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
       margin: compactToolbar ? { l: 52, r: 8, t: 40, b: 52 } : { l: 68, r: 20, t: 56, b: 56 },
       uirevision: plotId,
       showlegend: false,
-      theme: {
-        background: token("--plot-background", "#ffffff"),
-        text: token("--plot-text", "#525252"),
-        textSecondary: token("--plot-text", "#525252"),
-        grid: token("--plot-grid", "#e0e0e0"),
-        axis: token("--plot-axis", "#8d8d8d"),
-      },
       xTitle: xLabel,
       yTitle: yLabel,
       overrides: { yaxis: {
@@ -203,7 +189,7 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
       plotRoot?.removeListener?.("plotly_relayout", syncPlotlyMode);
       if (plotlyRef.current) plotlyRef.current.purge(chart);
     };
-  }, [compactToolbar, minimumY, plotId, plotStatistics, series, symmetricY, themeRevision, x, xLabel, yLabel]);
+  }, [compactToolbar, minimumY, plotId, plotStatistics, series, symmetricY, x, xLabel, yLabel]);
 
   const syncTogglesAfterInteraction = (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
     const target = event.target instanceof Element ? event.target.closest(".modebar-btn") : null;

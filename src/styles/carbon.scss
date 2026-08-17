@@ -1,16 +1,11 @@
-@use "@carbon/react/scss/colors" as colors;
 @use "@carbon/react/scss/spacing" as spacing;
 @use "@carbon/react/scss/type" as type;
 
 :root {
-  --color-plot-r: #{colors.$blue-60};
-  --color-plot-t: #{colors.$teal-50};
+  --color-plot-r: #0072b2;
+  --color-plot-t: #d55e00;
   --color-plot-r-band: color-mix(in srgb, var(--color-plot-r) 14%, transparent);
   --color-plot-t-band: color-mix(in srgb, var(--color-plot-t) 14%, transparent);
-  --plot-background: var(--cds-layer-01);
-  --plot-grid: var(--cds-border-subtle);
-  --plot-axis: var(--cds-border-strong);
-  --plot-text: var(--cds-text-secondary);
 }
 
 html,
