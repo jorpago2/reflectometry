@@ -43,33 +43,6 @@ body {
 .full { inline-size: 100%; max-inline-size: none; }
 .model-note { margin: 0; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
 
-/* Product navigation: Carbon buttons, product-specific rail composition. */
-.workflow-navigation {
-  position: fixed;
-  z-index: 6500;
-  inset-block: var(--scientific-ui-header-block-size) var(--scientific-ui-status-block-size);
-  inset-inline-start: 0;
-  inline-size: var(--scientific-ui-rail-inline-size);
-  border-inline-end: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer-01);
-}
-
-.workflow-navigation ul { display: flex; flex-direction: column; margin: 0; padding: spacing.$spacing-05 0; list-style: none; }
-.workflow-navigation li { min-inline-size: 0; }
-.workflow-navigation .cds--btn {
-  inline-size: 100%;
-  max-inline-size: none;
-  justify-content: flex-start;
-  gap: spacing.$spacing-05;
-  padding-inline: spacing.$spacing-05;
-  border-inline-start: 2px solid transparent;
-  color: var(--cds-text-primary);
-}
-.workflow-navigation .cds--btn.is-active {
-  border-inline-start-color: var(--cds-border-interactive);
-  background: var(--cds-layer-selected);
-}
-
 .reflectometry-workspace,
 .results { min-inline-size: 0; min-block-size: 0; block-size: 100%; }
 .results { container-type: inline-size; background: var(--cds-background); }
@@ -107,11 +80,6 @@ body {
 .material-file__label { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 .measurement-file__name,
 .material-file__source { grid-column: 1 / -1; overflow: hidden; color: var(--cds-text-secondary); text-overflow: ellipsis; white-space: nowrap; @include type.type-style("helper-text-01"); }
-.measurement-file .cds--file__container,
-.material-file .cds--file__container { margin: 0; }
-.measurement-file .cds--btn,
-.material-file .cds--btn { min-inline-size: 0; max-inline-size: 100%; }
-
 .channel-row { display: grid; gap: spacing.$spacing-03; }
 .gain-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: spacing.$spacing-04; padding: spacing.$spacing-04; background: var(--cds-layer-02); }
 .fit-count { margin: 0; color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
@@ -127,7 +95,6 @@ body {
 .material-editor { display: grid; gap: spacing.$spacing-05; min-inline-size: 0; padding-block-end: spacing.$spacing-04; }
 .material-editor__flags { display: grid; gap: spacing.$spacing-03; }
 .stack-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: spacing.$spacing-02; }
-.stack-toolbar .cds--btn { inline-size: 100%; max-inline-size: none; }
 .stack-editor__substrate-heading { display: flex; align-items: center; gap: spacing.$spacing-03; margin-block: spacing.$spacing-06 spacing.$spacing-04; }
 .stack-editor__substrate-heading > span { display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; background: var(--cds-layer-accent); color: var(--cds-text-secondary); }
 .stack-editor__substrate-heading p,
@@ -164,7 +131,6 @@ body {
 .parameter-row__identity { display: flex; min-inline-size: 0; align-items: center; gap: spacing.$spacing-02; flex-wrap: wrap; }
 .parameter-row__identity > span { display: flex; min-inline-size: 0; align-items: baseline; gap: spacing.$spacing-02; }
 .parameter-row__identity small { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
-.parameter-row__identity .cds--select { flex-basis: 100%; }
 .parameter-row__uncertainty { display: grid; gap: spacing.$spacing-01; font-variant-numeric: tabular-nums; }
 .parameter-row__uncertainty span { color: var(--cds-text-secondary); @include type.type-style("label-01"); }
 
@@ -224,37 +190,6 @@ body {
 .fit-solution span { color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
 .provenance { margin-block-start: spacing.$spacing-05; }
 
-.reflectometry-outcome .scientific-status {
-  max-inline-size: 100%;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-.reflectometry-outcome .scientific-status__indicator,
-.reflectometry-outcome .scientific-status__content { flex: 1 1 auto; max-inline-size: 100%; }
-.reflectometry-outcome .scientific-status__content { flex-basis: 100%; }
-.reflectometry-outcome .scientific-status__content span {
-  overflow: visible;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-  white-space: normal;
-}
-.reflectometry-outcome .scientific-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.reflectometry-outcome .scientific-metric { grid-column: auto; min-inline-size: 0; }
-
-.result-column > .scientific-metric-grid,
-.diagnostics > .scientific-metric-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.result-column > .scientific-metric-grid > .scientific-metric,
-.diagnostics > .scientific-metric-grid > .scientific-metric { grid-column: auto; min-inline-size: 0; }
-.scientific-metric dd { min-inline-size: 0; flex-wrap: wrap; column-gap: spacing.$spacing-03; }
-.scientific-metric__value,
-.scientific-metric__unit { overflow-wrap: anywhere; }
-
-@container (max-width: 52rem) {
-  .reflectometry-outcome .scientific-outcome-summary__action-column { grid-column: 1 / -1; }
-  .result-column > .scientific-metric-grid,
-  .diagnostics > .scientific-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 @container (min-width: 64rem) {
   .overview-panel { grid-template-columns: minmax(19rem, 5fr) minmax(0, 11fr); align-items: start; }
   .overview-panel .stack-card { grid-column: 1; grid-row: 1; }
@@ -266,16 +201,6 @@ body {
 }
 
 @media (max-width: 65.99rem) {
-  .workflow-navigation {
-    inset-block: auto 0;
-    inline-size: 100%;
-    block-size: var(--scientific-ui-mobile-nav-total-block-size);
-    border-block-start: 1px solid var(--cds-border-subtle);
-    border-inline-end: 0;
-  }
-  .workflow-navigation ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); block-size: 100%; padding: 0; }
-  .workflow-navigation .cds--btn { block-size: 100%; flex-direction: column-reverse; justify-content: center; gap: spacing.$spacing-02; padding: spacing.$spacing-02; border-block-start: 2px solid transparent; border-inline-start: 0; @include type.type-style("label-01"); }
-  .workflow-navigation .cds--btn.is-active { border-block-start-color: var(--cds-border-interactive); }
   .configuration-panel-body { padding: spacing.$spacing-04; }
   .results-content { padding: spacing.$spacing-04; }
   .plot-card,
@@ -284,7 +209,6 @@ body {
 }
 
 @container (max-width: 38rem) {
-  .configuration-panel-body .cds--accordion__content { padding-inline: spacing.$spacing-04; }
   .field-grid,
   .stack-editor__scope,
   .component-editor__counts { grid-template-columns: 1fr; }
@@ -306,14 +230,6 @@ body {
   .fit-solution { grid-template-columns: 1fr; }
   .model-guide__body dl { grid-template-columns: minmax(0, 1fr); gap: spacing.$spacing-02; }
   .model-guide__body dd:not(:last-child) { margin-block-end: spacing.$spacing-03; }
-  .result-column > .scientific-metric-grid,
-  .diagnostics > .scientific-metric-grid { grid-template-columns: minmax(0, 1fr); }
-  .reflectometry-outcome .scientific-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .reflectometry-outcome .scientific-metric { grid-column: auto; }
-}
-
-@container (max-width: 22rem) {
-  .reflectometry-outcome .scientific-metric-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 25rem) {
@@ -324,30 +240,13 @@ body {
   .gain-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 25.875rem) {
-  .reflectometry-shell .scientific-header__compact-product,
-  .reflectometry-shell .scientific-header__compact-separator { display: none; }
-  .reflectometry-shell .scientific-header__context { justify-content: flex-start; }
-}
-
-@media (max-width: 41.99rem) {
-  .status-row > .cds--css-grid { display: flex; inline-size: 100%; padding: 0; }
-  .status-row .scientific-status-bar__status { min-inline-size: 0; flex: 1 1 auto; }
-  .status-row .scientific-status-bar__metadata { display: flex; flex: 0 0 auto; gap: 0; padding: 0; }
-  .status-row .scientific-autosave-status { display: none; }
-}
-
 @media print {
   html,
   body { block-size: auto; }
   #root { position: static; }
   .workflow-navigation,
-  .scientific-app-header,
-  .scientific-status-bar,
   .configuration-panel-shell,
-  .chart-reset { display: none !important; }
-  .scientific-workbench { inline-size: 100% !important; block-size: auto !important; margin: 0 !important; overflow: visible !important; }
-  .scientific-workbench__stage { block-size: auto !important; overflow: visible !important; }
+  .chart-reset { display: none; }
 }
 
-[hidden] { display: none !important; }
+[hidden] { display: none; }

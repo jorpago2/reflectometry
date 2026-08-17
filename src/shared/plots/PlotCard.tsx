@@ -62,6 +62,44 @@ function scheduleToolbarToggleState(root: Element) {
   window.requestAnimationFrame(() => window.requestAnimationFrame(() => syncToolbarToggleState(root)));
 }
 
+type PlotStatistics = {
+  maximumAbsolute: number;
+  summary: string;
+};
+
+function collectPlotStatistics(title: string, series: PlotSeries[], x: number[], xLabel: string, yLabel: string): PlotStatistics {
+  let maximumAbsolute = 1e-12;
+  const seriesSummaries = series.map((entry, index) => {
+    const finite = [entry.values, entry.lower, entry.upper]
+      .filter((values): values is number[] => Boolean(values))
+      .flatMap((values) => values.filter(Number.isFinite));
+    const label = entry.label ?? (entry.band
+      ? `${entry.color === "r" ? "R" : "T"} uncertainty band`
+      : `Series ${index + 1}`);
+    if (!finite.length) return `${label}: no finite ${yLabel} values`;
+    let minimum = Number.POSITIVE_INFINITY;
+    let maximum = Number.NEGATIVE_INFINITY;
+    for (const value of finite) {
+      minimum = Math.min(minimum, value);
+      maximum = Math.max(maximum, value);
+      maximumAbsolute = Math.max(maximumAbsolute, Math.abs(value));
+    }
+    return `${label}: ${formatPlotNumber(minimum)} to ${formatPlotNumber(maximum)} ${yLabel}`;
+  });
+  const finiteX = x.filter(Number.isFinite);
+  const domain = finiteX.length
+    ? `${finiteX.length} finite samples from ${formatPlotNumber(Math.min(...finiteX))} to ${formatPlotNumber(Math.max(...finiteX))} ${xLabel}`
+    : `no finite ${xLabel} samples`;
+  return {
+    maximumAbsolute,
+    summary: `${title}: ${domain}. ${seriesSummaries.join("; ")}.`,
+  };
+}
+
+function formatPlotNumber(value: number): string {
+  return Number.isFinite(value) ? value.toPrecision(4) : "not finite";
+}
+
 export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLabel, yLabel, minimumY, symmetricY }: PlotCardProps) {
   const plotRef = useRef<HTMLDivElement>(null);
   const plotlyRef = useRef<PlotlyApi | null>(null);
@@ -73,6 +111,7 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
     color: entry.color === "r" ? "var(--color-plot-r)" : "var(--color-plot-t)",
     style: entry.points && entry.line === false ? "dot" : entry.dash ? "dash" : "line",
   })), [series]);
+  const plotStatistics = useMemo(() => collectPlotStatistics(title, series, x, xLabel, yLabel), [series, title, x, xLabel, yLabel]);
 
   useEffect(() => {
     const updateTheme = () => setThemeRevision((current) => current + 1);
@@ -117,8 +156,6 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
       marker: { color: colors[entry.color], size: entry.points ? 5 : 0, symbol: entry.marker === "square" ? "square" : "circle" },
       hovertemplate: `${entry.label}: %{y:.4g}<extra></extra>`,
     }]);
-    const values = series.flatMap((entry) => [entry.values, entry.lower, entry.upper].filter(Boolean).flat() as number[]).filter(Number.isFinite);
-    const maximumAbsolute = Math.max(1e-12, ...values.map(Math.abs));
     const layout = createScientificPlotlyLayout({
       height: 330,
       margin: compactToolbar ? { l: 52, r: 8, t: 40, b: 52 } : { l: 68, r: 20, t: 56, b: 56 },
@@ -135,7 +172,7 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
       yTitle: yLabel,
       overrides: { yaxis: {
         title: { text: yLabel },
-        ...(symmetricY ? { range: [-maximumAbsolute * 1.08, maximumAbsolute * 1.08] } : {}),
+        ...(symmetricY ? { range: [-plotStatistics.maximumAbsolute * 1.08, plotStatistics.maximumAbsolute * 1.08] } : {}),
         ...(!symmetricY && minimumY != null ? { rangemode: "tozero" } : {}),
       } },
     });
@@ -166,7 +203,7 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
       plotRoot?.removeListener?.("plotly_relayout", syncPlotlyMode);
       if (plotlyRef.current) plotlyRef.current.purge(chart);
     };
-  }, [compactToolbar, minimumY, plotId, series, symmetricY, themeRevision, x, xLabel, yLabel]);
+  }, [compactToolbar, minimumY, plotId, plotStatistics, series, symmetricY, themeRevision, x, xLabel, yLabel]);
 
   const syncTogglesAfterInteraction = (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
     const target = event.target instanceof Element ? event.target.closest(".modebar-btn") : null;
@@ -184,13 +221,14 @@ export default function PlotCard({ eyebrow, title, plotId, label, series, x, xLa
       instructions={<span id={`${plotId}-help`}>{compactToolbar ? "Tap to inspect · Pinch or choose Zoom · Drag to pan" : "Hover to inspect · Wheel or +/- to zoom · Drag or ←/→ to pan"}</span>}
       actions={<Button className="chart-reset" kind="ghost" size="lg" type="button" onClick={() => { if (plotRef.current && plotlyRef.current) void plotlyRef.current.relayout(plotRef.current, { "xaxis.autorange": true, "yaxis.autorange": true }); }}>Reset view</Button>}
     >
+      <span id={`${plotId}-summary`} className="scientific-visually-hidden">{plotStatistics.summary}</span>
       <div
         ref={plotRef}
         className="plotly-chart scientific-plot-surface"
         tabIndex={0}
         role="img"
         aria-label={label}
-        aria-describedby={`${plotId}-help`}
+        aria-describedby={`${plotId}-help ${plotId}-summary`}
         onClickCapture={syncTogglesAfterInteraction}
         onKeyUpCapture={syncTogglesAfterInteraction}
       />

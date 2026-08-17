@@ -57,8 +57,12 @@ export default function WorkspaceView() {
     window.requestAnimationFrame(() => lastTriggerRef.current?.focus());
   };
 
-  const togglePanel = (section: WorkflowSection, trigger: HTMLButtonElement) => {
-    lastTriggerRef.current = trigger;
+  const togglePanel = (section: WorkflowSection | null, trigger: HTMLButtonElement | null) => {
+    if (trigger) lastTriggerRef.current = trigger;
+    if (!section) {
+      closePanel();
+      return;
+    }
     const opening = activeSection !== section;
     setActiveSection(opening ? section : null);
     if (opening && isOverlayLayout) window.requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>(".scientific-task-panel__heading h2")?.focus());

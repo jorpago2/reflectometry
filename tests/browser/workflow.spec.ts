@@ -122,6 +122,30 @@ test('advanced layer controls, confirmation modal and keyboard closing remain op
   await expectNoPageOverflow(page)
 })
 
+test('shared configuration rail preserves expanded state and keyboard navigation', async ({ page }) => {
+  await page.goto('./')
+  const navigation = page.getByRole('navigation', { name: 'Configuration tools' })
+  const data = navigation.getByRole('button', { name: 'Data', exact: true })
+  const layers = navigation.getByRole('button', { name: 'Layer stack', exact: true })
+  const fit = navigation.getByRole('button', { name: 'Fit', exact: true })
+  await expect(navigation.getByRole('button')).toHaveCount(3)
+
+  await data.focus()
+  await data.press('ArrowRight')
+  await expect(layers).toBeFocused()
+  await layers.press('Enter')
+  await expect(layers).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('complementary', { name: 'Layer stack' })).toBeVisible()
+  await layers.press('End')
+  await expect(fit).toBeFocused()
+  await fit.press('Enter')
+  await expect(fit).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('complementary', { name: 'Fit' })).toBeVisible()
+  await fit.press('Escape')
+  await expect(page.getByRole('complementary', { name: 'Fit' })).toBeHidden()
+  await expect(fit).toBeFocused()
+})
+
 test('invalid processing settings surface a React error notification', async ({ page }) => {
   await loadAndPreview(page)
   await page.getByRole('button', { name: 'Data', exact: true }).click()

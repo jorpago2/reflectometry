@@ -51,8 +51,11 @@ test("ships one English-only material-agnostic React interface", async () => {
   assert.match(navigation, /label: "Data"/);
   assert.match(navigation, /label: "Layer stack"/);
   assert.match(navigation, /label: "Fit"/);
-  assert.match(navigation, /onClick=\{/);
-  assert.doesNotMatch(ui, /ScientificToolRail|TabsVertical|TabListVertical|mobileView|DisclosurePanel/);
+  assert.match(navigation, /<ScientificToolRail/);
+  assert.match(navigation, /activeId=\{activeSection\}/);
+  assert.match(navigation, /expandedId=\{activeSection\}/);
+  assert.match(navigation, /registerItemRef=/);
+  assert.doesNotMatch(ui, /TabsVertical|TabListVertical|mobileView|DisclosurePanel/);
 
   for (const component of ["Accordion", "Checkbox", "FileUploaderButton", "NumberInput", "TextInput"]) assert.match(measurement, new RegExp(`<${component}\\b`));
   for (const component of ["Accordion", "Checkbox", "FileUploaderButton", "IconButton", "Modal", "NumberInput", "RadioButton", "Select", "TextInput", "Toggletip"]) assert.match(layers, new RegExp(`\\b${component}\\b`));

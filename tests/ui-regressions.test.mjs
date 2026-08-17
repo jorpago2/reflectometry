@@ -42,6 +42,9 @@ test("keeps responsive panels and floating actions inside their owning React vie
   assert.match(plot, /Plotly\.react/);
   assert.match(plot, /ResizeObserver/);
   assert.match(plot, /plotlyRef\.current\.purge/);
+  assert.match(plot, /collectPlotStatistics/);
+  assert.match(plot, /scientific-visually-hidden/);
+  assert.match(plot, /aria-describedby=\{`\$\{plotId\}-help \$\{plotId\}-summary`\}/);
   assert.match(plot, /onClick=\{\(\) =>/);
   assert.doesNotMatch(plot, /document\.(?:getElementById|querySelector|querySelectorAll|createElement)|appendChild|replaceChildren|textContent\s*=|innerHTML\s*=|classList\.(?:add|remove|toggle)/);
 
@@ -57,7 +60,7 @@ test("keeps responsive panels and floating actions inside their owning React vie
   assert.match(styles, /\.table-scroll \{[^}]*overflow-x: auto;/s);
   assert.match(styles, /\.parameter-row \{ display: grid; grid-template-columns: 3\.5rem/);
   assert.match(styles, /\.parameter-row,\n {2}\.parameter-row:has\(> :nth-child\(3\):last-child\) \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.workflow-navigation \{/);
+  assert.doesNotMatch(styles, /\.workflow-navigation\s+(?:ul|li|\.cds--btn)/);
   assert.match(styles, /@media \(max-width: 65\.99rem\)/);
   assert.match(styles, /@container \(max-width: 38rem\)/);
   assert.match(styles, /\.plotly-chart \{[^}]*block-size: 330px;/s);
