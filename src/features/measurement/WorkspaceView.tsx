@@ -33,7 +33,7 @@ function ConfigurationModeControl({ mode, onChange }: { mode: ConfigurationMode;
   return (
     <div className="configuration-mode">
       <span>Configuration detail</span>
-      <ContentSwitcher aria-label="Configuration detail" selectedIndex={mode === "basic" ? 0 : 1} size="sm" onChange={({ name }) => onChange(name === "advanced" ? "advanced" : "basic")}>
+      <ContentSwitcher className="scientific-content-switcher scientific-content-switcher--sm" aria-label="Configuration detail" selectedIndex={mode === "basic" ? 0 : 1} size="sm" onChange={({ name }) => onChange(name === "advanced" ? "advanced" : "basic")}>
         <Switch name="basic" text="Basic" />
         <Switch name="advanced" text="Advanced" />
       </ContentSwitcher>
