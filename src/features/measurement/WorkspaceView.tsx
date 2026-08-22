@@ -1,4 +1,4 @@
-import { ContentSwitcher, Switch } from "@carbon/react";
+import { ContentSwitcher, ProgressIndicator, ProgressStep, Switch } from "@carbon/react";
 import {
   ScientificAppShell,
   ScientificAutosaveStatus,
@@ -38,6 +38,31 @@ function ConfigurationModeControl({ mode, onChange }: { mode: ConfigurationMode;
         <Switch name="advanced" text="Advanced" />
       </ContentSwitcher>
       <p>{mode === "basic" ? "Core workflow and parameter values." : "Bounds, processing, optimizer and model guidance."}</p>
+    </div>
+  );
+}
+
+function WorkflowProgress({ state }: { state: ReturnType<typeof useReflectometry>[0] }) {
+  const uncertaintyReady = Boolean(state.fitResult?.diagnostics.bootstrap);
+  const operationFailed = state.operation.phase === "error";
+  const currentIndex = operationFailed || state.operation.busy
+    ? 1
+    : state.resultStale
+      ? 2
+      : state.fitResult
+        ? state.fitResult.preview ? 2 : 3
+        : state.hasMeasurement
+          ? 1
+          : 0;
+
+  return (
+    <div className="workflow-progress">
+      <ProgressIndicator aria-label="Reflectometry workflow" currentIndex={currentIndex} spaceEqually>
+        <ProgressStep label="Configure" description={state.hasMeasurement ? "Measurement loaded" : "Load a measurement"} />
+        <ProgressStep label="Execute" description={state.operation.busy ? state.operation.message : state.hasResult ? "Evaluation available" : "Preview or run a fit"} invalid={operationFailed} />
+        <ProgressStep label="Results" description={state.resultStale ? "Outdated · recalculate" : state.hasResult ? (state.fitResult?.preview ? "Preview · not fitted" : "Fit available") : "Awaiting evaluation"} invalid={state.resultStale} />
+        <ProgressStep label="Validate" description={state.fitResult?.preview ? "Fit required for uncertainty" : uncertaintyReady ? "Bootstrap available" : state.fitResult ? "Review diagnostics" : "Review after fit"} />
+      </ProgressIndicator>
     </div>
   );
 }
@@ -135,6 +160,7 @@ export default function WorkspaceView() {
     >
       <div id="reflectometry-workspace" className="reflectometry-workspace" tabIndex={-1}>
         <section className="results scientific-stage" aria-label="Fit results" aria-hidden={overlayPanelOpen || undefined} inert={overlayPanelOpen}>
+          <WorkflowProgress state={state} />
           <ResultsWorkspace />
         </section>
       </div>

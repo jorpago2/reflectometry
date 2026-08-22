@@ -1,5 +1,5 @@
 import { Accordion, AccordionItem, Button, InlineNotification, Tab, TabList, TabPanel, TabPanels, Tabs } from "@carbon/react";
-import { ScientificMetricGrid } from "@jorpago2/scientific-ui";
+import { ScientificMetricGrid, ScientificModelScope } from "@jorpago2/scientific-ui";
 import { useMemo } from "react";
 import { useReflectometry } from "../../app/reflectometry-context.ts";
 import PlotCard, { type PlotSeries } from "../../shared/plots/PlotCard.tsx";
@@ -105,6 +105,27 @@ function FitQuality() {
   </div>;
 }
 
+function ResultEvidenceNote() {
+  const [state] = useReflectometry();
+  const bootstrap = state.fitResult?.diagnostics.bootstrap;
+  const kind = state.resultStale ? "warning" : state.fitResult?.preview ? "info" : bootstrap ? "success" : "info";
+  const title = state.resultStale
+    ? "Displayed result is stale"
+    : state.fitResult?.preview
+      ? "Deterministic preview — not an optimized fit"
+      : bootstrap
+        ? "Fit and uncertainty are current"
+        : "Fit result is current; uncertainty is not estimated";
+  const subtitle = state.resultStale
+    ? "Configuration changed after this evaluation. Preview or run the fit again before interpreting or exporting it."
+    : state.fitResult?.preview
+      ? "The curves show the configured model at its starting parameters. It is useful for checking the stack, but it is not evidence of fitted parameters."
+      : bootstrap
+        ? `${bootstrap.successfulSamples} of ${bootstrap.requestedSamples} bootstrap refits succeeded; inspect intervals and correlations before reporting values.`
+        : "Residuals and diagnostics are available. Run the bootstrap from Fit when uncertainty is needed for reporting.";
+  return <InlineNotification className="result-evidence-note" kind={kind} lowContrast hideCloseButton title={title} subtitle={subtitle} />;
+}
+
 export default function ResultsWorkspace() {
   const [state, actions] = useReflectometry();
   const plots = useMemo(() => {
@@ -144,13 +165,17 @@ export default function ResultsWorkspace() {
     {state.operation.phase === "error" && <InlineNotification className="runtime-notification" hideCloseButton kind="error" lowContrast title="The calculation needs attention" subtitle={state.operation.message.replace(/^Error:\s*/, "")} />}
     {!state.hasResult || !plots ? <ResultsEmpty /> : <div className="results-content">
       <ResultsOutcome />
+      <ResultEvidenceNote />
       <Tabs>
         <TabList contained fullWidth className="results-tab-list" aria-label="Result views">
           <Tab>Overview</Tab><Tab aria-label="Fit quality">Quality</Tab><Tab aria-label="Optical n,k">n,k</Tab>
         </TabList>
         <TabPanels>
           <TabPanel className="results-tab-panel overview-panel">
-            <PlotCard title="Reflectance and transmittance" plotId="rt-chart" label="Interactive reflectance and transmittance spectra" x={plots.x} series={plots.rt} xLabel="Wavelength (nm)" yLabel="Reflectance / transmittance" minimumY={0} />
+            <div className="result-plot-group">
+              <PlotCard title="Reflectance and transmittance" plotId="rt-chart" label="Interactive reflectance and transmittance spectra" x={plots.x} series={plots.rt} xLabel="Wavelength (nm)" yLabel="R / T (fraction)" minimumY={0} />
+              <p className="result-method-note">R and T are dimensionless fractions on the measured wavelength grid; invalid masked bins are omitted from the data markers.</p>
+            </div>
             <StackDiagram />
           </TabPanel>
           <TabPanel className="results-tab-panel">
@@ -159,7 +184,13 @@ export default function ResultsWorkspace() {
           </TabPanel>
           <TabPanel className="results-tab-panel">
             <PlotCard eyebrow={plots.activeLabel} title="Complex refractive index" plotId="nk-chart" label="Interactive active-layer refractive index" x={plots.x} series={plots.nk} xLabel="Wavelength (nm)" yLabel="Optical constants, n and k" minimumY={0} />
-            <section className="provenance"><Accordion size="sm"><AccordionItem title="Model assumptions and scope"><p>Normal incidence; homogeneous isotropic coherent layers; finite phase-incoherent dispersive substrate with Beer–Lambert attenuation and incoherent rear-surface returns. Surface roughness, gradients, anisotropy, scattering and oblique incidence are not included.</p></AccordionItem></Accordion></section>
+            <section className="provenance">
+              <ScientificModelScope
+                model="Coherent transfer-matrix evaluation of homogeneous optical layers at normal incidence."
+                assumptions={["Complex refractive index n + ik; wavelength in nm", "Finite phase-incoherent dispersive substrate with Beer–Lambert attenuation", "Reflectance and transmittance are dimensionless fractions"]}
+                limits={["Surface roughness, gradients, anisotropy and scattering are excluded", "Fit quality does not prove model uniqueness; inspect residuals and parameter correlations"]}
+              />
+            </section>
           </TabPanel>
         </TabPanels>
       </Tabs>

@@ -134,10 +134,13 @@ body {
 
 .results-content { inline-size: 100%; min-inline-size: 0; padding: spacing.$spacing-05; }
 .runtime-notification { position: sticky; z-index: 10; inset-block-start: 0; inline-size: 100%; max-inline-size: none; }
+.result-evidence-note { inline-size: 100%; max-inline-size: none; margin-block: spacing.$spacing-04 0; }
 .results-empty { inline-size: min(42rem, calc(100% - 2 * #{spacing.$spacing-05})); margin: auto; }
 .results-tab-panel { min-inline-size: 0; padding-block: spacing.$spacing-05; }
 .overview-panel,
 .result-column { display: grid; gap: spacing.$spacing-05; }
+.result-plot-group { display: grid; gap: spacing.$spacing-03; min-inline-size: 0; }
+.result-method-note { margin: 0; color: var(--cds-text-secondary); @include type.type-style("helper-text-01"); }
 .plot-card,
 .stack-card,
 .diagnostics { min-inline-size: 0; padding: spacing.$spacing-05; background: var(--cds-layer-01); }
@@ -188,6 +191,11 @@ body {
 .fit-solution span { color: var(--cds-text-secondary); @include type.type-style("body-compact-01"); }
 .provenance { margin-block-start: spacing.$spacing-05; }
 
+.workflow-progress {
+  inline-size: min(calc(100% - #{2 * spacing.$spacing-05}), 76rem);
+  margin: spacing.$spacing-05 auto 0;
+}
+
 @container (min-width: 64rem) {
   .overview-panel { grid-template-columns: minmax(19rem, 5fr) minmax(0, 11fr); align-items: start; }
   .overview-panel .stack-card { grid-column: 1; grid-row: 1; }
@@ -204,6 +212,7 @@ body {
   .plot-card,
   .stack-card,
   .diagnostics { padding: spacing.$spacing-04; }
+  .workflow-progress { inline-size: min(calc(100% - #{2 * spacing.$spacing-04}), 76rem); margin-block-start: spacing.$spacing-04; }
 }
 
 @container (max-width: 38rem) {
