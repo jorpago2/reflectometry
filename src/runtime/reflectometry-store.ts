@@ -194,6 +194,9 @@ export interface SourceQuality {
   wavelengthMaximumNm: number;
   reflectanceCount: number;
   transmittanceCount: number;
+  reflectanceAvailable: boolean;
+  transmittanceAvailable: boolean;
+  evaluated: boolean;
 }
 
 export interface ExportFile {
@@ -448,6 +451,13 @@ export class ReflectometryStore {
 
   private sourceQuality(): SourceQuality {
     const wavelengths = this.fitData?.wavelengthNm ?? this.spectrum?.wavelengthNm ?? [];
+    const reflectanceAvailable = Boolean(this.spectrum
+      && this.spectrum.sampleReflectanceCounts.some(Number.isFinite)
+      && this.spectrum.reflectanceReferenceCounts.some(Number.isFinite)
+      && this.spectrum.referenceReflectance.some(Number.isFinite));
+    const transmittanceAvailable = Boolean(this.spectrum
+      && this.spectrum.sampleTransmittanceCounts.some(Number.isFinite)
+      && this.spectrum.transmittanceReferenceCounts.some(Number.isFinite));
     return {
       ready: Boolean(this.spectrum),
       pointCount: wavelengths.length,
@@ -455,6 +465,9 @@ export class ReflectometryStore {
       wavelengthMaximumNm: wavelengths.at(-1) ?? 0,
       reflectanceCount: this.fitData?.reflectanceValid?.filter(Boolean).length ?? 0,
       transmittanceCount: this.fitData?.transmittanceValid?.filter(Boolean).length ?? 0,
+      reflectanceAvailable,
+      transmittanceAvailable,
+      evaluated: Boolean(this.fitData),
     };
   }
 

@@ -46,10 +46,11 @@ function UncertaintyPanel() {
   const bootstrap = diagnostics.bootstrap;
   const intervals = bootstrap?.parameterIntervals ?? diagnostics.parameterConfidenceIntervals95Approximate ?? {};
   const correlation = bootstrap?.parameterCorrelation ?? diagnostics.parameterCorrelation;
+  const intervalLabel = bootstrap ? "Bootstrap 95% parameter intervals" : "Approximate 95% parameter intervals from the local Jacobian";
   return <div className="uncertainty-content">
     <p>{bootstrap ? `${bootstrap.method}; ${bootstrap.successfulSamples}/${bootstrap.requestedSamples} successful refits. Evidence mode: ${bootstrap.evidenceMode === "reporting-support" ? "reporting support" : "exploratory"}.` : "Approximate 95% intervals and correlations from the local Jacobian. Run the bootstrap before reporting uncertainty."}</p>
-    {Object.keys(intervals).length > 0 && <div className="table-scroll" tabIndex={0} aria-label="Approximate 95% parameter intervals">
-      <table className="scientific-data-table"><caption className="visually-hidden">Approximate 95% parameter intervals</caption><thead><tr><th scope="col">Parameter</th><th scope="col">Lower 95%</th><th scope="col">Estimate</th><th scope="col">Upper 95%</th></tr></thead><tbody>
+    {Object.keys(intervals).length > 0 && <div className="table-scroll" tabIndex={0} aria-label={intervalLabel}>
+      <table className="scientific-data-table"><caption className="visually-hidden">{intervalLabel}</caption><thead><tr><th scope="col">Parameter</th><th scope="col">Lower 95%</th><th scope="col">Estimate</th><th scope="col">Upper 95%</th></tr></thead><tbody>
         {Object.entries(intervals).map(([name, interval]) => interval && <tr key={name}><th scope="row">{actions.parameterLabel(name)}</th><td>{format(interval.lower95, 5)}</td><td>{format(result.parameters[name] ?? ("median" in interval ? interval.median : null), 5)}</td><td>{format(interval.upper95, 5)}</td></tr>)}
       </tbody></table>
     </div>}

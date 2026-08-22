@@ -24,6 +24,24 @@ function numberValue(event: unknown, data: { value?: string | number } | undefin
   return Number(data?.value ?? (target instanceof HTMLInputElement ? target.value : undefined));
 }
 
+function channelCheck({
+  available,
+  evaluated,
+  selected,
+  count,
+}: {
+  available: boolean;
+  evaluated: boolean;
+  selected: boolean;
+  count: number;
+}) {
+  if (!available) return { state: "not-run" as const, value: "Absent" };
+  if (!selected) return { state: "not-run" as const, value: "Not selected" };
+  if (!evaluated) return { state: "not-run" as const, value: "Not evaluated" };
+  if (count < 10) return { state: "warning" as const, value: `${count} valid bins · insufficient (10 required)` };
+  return { state: "passed" as const, value: `${count} valid bins` };
+}
+
 function FileControl({ id, label, file, onSelect }: { id: string; label: string; file: File | null; onSelect: (file: File | null) => void }) {
   const actionLabel = label.replace(" signal", "").replace(" table", "");
   return (
@@ -47,6 +65,8 @@ export default function MeasurementPanel({ advanced }: { advanced: boolean }) {
   const [files, setFiles] = useState<MeasurementFiles>(EMPTY_FILES);
   const quality = state.sourceQuality;
   const setFile = (key: keyof MeasurementFiles, file: File | null) => setFiles((current) => ({ ...current, [key]: file }));
+  const reflectance = channelCheck({ available: quality.reflectanceAvailable, evaluated: quality.evaluated, selected: state.controls.useReflectance, count: quality.reflectanceCount });
+  const transmittance = channelCheck({ available: quality.transmittanceAvailable, evaluated: quality.evaluated, selected: state.controls.useTransmittance, count: quality.transmittanceCount });
 
   return <>
     <div className="configuration-summary">
@@ -60,8 +80,8 @@ export default function MeasurementPanel({ advanced }: { advanced: boolean }) {
       checks={[
         { id: "samples", label: "Spectral samples", state: quality.ready ? quality.pointCount >= 10 ? "passed" : "warning" : "not-run", value: quality.ready ? quality.pointCount : "—" },
         { id: "coverage", label: "Wavelength coverage", state: quality.ready && quality.wavelengthMaximumNm > quality.wavelengthMinimumNm ? "passed" : quality.ready ? "warning" : "not-run", value: quality.ready && quality.wavelengthMaximumNm > quality.wavelengthMinimumNm ? `${quality.wavelengthMinimumNm.toFixed(0)}–${quality.wavelengthMaximumNm.toFixed(0)} nm` : "Not available" },
-        { id: "reflectance", label: "Reflectance channel", state: quality.reflectanceCount >= 10 ? "passed" : quality.ready ? "not-run" : "not-run", value: quality.reflectanceCount ? `${quality.reflectanceCount} valid bins` : "Checked on preview" },
-        { id: "transmittance", label: "Transmittance channel", state: quality.transmittanceCount >= 10 ? "passed" : quality.ready ? "not-run" : "not-run", value: quality.transmittanceCount ? `${quality.transmittanceCount} valid bins` : "Checked on preview" },
+        { id: "reflectance", label: "Reflectance channel", state: reflectance.state, value: reflectance.value },
+        { id: "transmittance", label: "Transmittance channel", state: transmittance.state, value: transmittance.value },
       ]}
     />
     <Button className="full" kind="tertiary" type="button" disabled={state.operation.busy} onClick={actions.loadSyntheticExample}>{state.source?.type === "generated locally" ? "Reload synthetic example" : "Use synthetic example"}</Button>

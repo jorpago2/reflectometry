@@ -5,12 +5,13 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("keeps responsive panels and floating actions inside their owning React viewport", async () => {
-  const [workspace, statusBar, styles, plot, results] = await Promise.all([
+  const [workspace, statusBar, styles, plot, results, measurement] = await Promise.all([
     read("src/features/measurement/WorkspaceView.tsx"),
     read("src/features/results/ResultsStatusBar.tsx"),
     read("src/styles/carbon.scss"),
     read("src/shared/plots/PlotCard.tsx"),
     read("src/features/results/ResultsWorkspace.tsx"),
+    read("src/features/measurement/MeasurementPanel.tsx"),
   ]);
 
   assert.match(workspace, /useRef<HTMLElement>/);
@@ -51,8 +52,15 @@ test("keeps responsive panels and floating actions inside their owning React vie
   assert.match(results, /state\.layers\.map/);
   assert.match(results, /state\.controls\.substrateThicknessUm/);
   assert.match(results, /data-correlation=\{value >= 0 \? "positive" : "negative"\}/);
+  assert.match(results, /intervalLabel = bootstrap \? "Bootstrap 95% parameter intervals"/);
+  assert.match(results, /aria-label=\{intervalLabel\}/);
   assert.match(results, /style=\{\{ "--correlation-strength"/);
   assert.doesNotMatch(results, /document\.|createElement|replaceChildren|textContent\s*=|innerHTML\s*=|\.click\(\)/);
+
+  assert.match(measurement, /reflectanceAvailable/);
+  assert.match(measurement, /transmittanceAvailable/);
+  assert.match(measurement, /Not evaluated/);
+  assert.match(measurement, /insufficient \(10 required\)/);
 
   assert.match(styles, /\.configuration-panel-body \{[^}]*overflow-y: auto;/s);
   assert.match(styles, /\.results-content \{[^}]*min-inline-size: 0;/s);

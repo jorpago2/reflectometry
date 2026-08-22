@@ -35,6 +35,30 @@ test("keeps preview explicit and preserves the previous result when configuratio
   }
 });
 
+test("tracks channel presence separately from evaluated fit bins", () => {
+  const store = new ReflectometryStore();
+  try {
+    const empty = store.getSnapshot().sourceQuality;
+    assert.equal(empty.reflectanceAvailable, false);
+    assert.equal(empty.transmittanceAvailable, false);
+    assert.equal(empty.evaluated, false);
+
+    store.loadSyntheticExample();
+    const loaded = store.getSnapshot().sourceQuality;
+    assert.equal(loaded.reflectanceAvailable, true);
+    assert.equal(loaded.transmittanceAvailable, true);
+    assert.equal(loaded.evaluated, false, "available channels are not evaluated before preview or fit");
+
+    store.preview();
+    const evaluated = store.getSnapshot().sourceQuality;
+    assert.equal(evaluated.evaluated, true);
+    assert.ok(evaluated.reflectanceCount >= 10);
+    assert.ok(evaluated.transmittanceCount >= 10);
+  } finally {
+    store.dispose();
+  }
+});
+
 test("keeps layer history and parameter links inside the runtime state", () => {
   const store = new ReflectometryStore();
   try {

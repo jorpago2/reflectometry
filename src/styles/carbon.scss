@@ -4,6 +4,9 @@
 :root {
   --color-plot-r: #0072b2;
   --color-plot-t: #d55e00;
+  --plot-background: #ffffff;
+  --plot-grid: #d9dee4;
+  --plot-axis: #1f2933;
   --color-plot-r-band: color-mix(in srgb, var(--color-plot-r) 14%, transparent);
   --color-plot-t-band: color-mix(in srgb, var(--color-plot-t) 14%, transparent);
 }
