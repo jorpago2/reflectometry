@@ -8,6 +8,8 @@ export default function ResultsOutcome() {
   const [snapshot, actions] = useReflectometry();
   const state = operationScientificState(snapshot.operation, snapshot.hasMeasurement);
   const source = snapshot.sourceQuality;
+  const inputError = Object.values(snapshot.processingErrors)[0]
+    ?? (!snapshot.controls.useReflectance && !snapshot.controls.useTransmittance ? "Select reflectance, transmittance, or both fit channels." : undefined);
 
   useScientificResultTransition({
     state,
@@ -36,8 +38,8 @@ export default function ResultsOutcome() {
         { id: "fit-channels", label: "Usable channels", value: `${source.reflectanceCount ? "R" : ""}${source.reflectanceCount && source.transmittanceCount ? " + " : ""}${source.transmittanceCount ? "T" : ""}` },
       ] : []}
       actions={[
-        { id: "fit", label: snapshot.operation.busy ? "Fit running…" : "Run fit", emphasis: "primary", disabled: !snapshot.canFit, disabledReason: !snapshot.hasMeasurement ? "Load measurement data before fitting." : undefined, onClick: actions.fit },
-        { id: "preview", label: "Preview model", emphasis: "secondary", collapseAt: "never", disabled: !snapshot.canPreview, disabledReason: !snapshot.hasMeasurement ? "Load measurement data before previewing." : undefined, onClick: actions.preview },
+        { id: "fit", label: snapshot.operation.busy ? "Fit running…" : "Run fit", emphasis: "primary", disabled: !snapshot.canFit, disabledReason: !snapshot.hasMeasurement ? "Load measurement data before fitting." : inputError, onClick: actions.fit },
+        { id: "preview", label: "Preview model", emphasis: "secondary", collapseAt: "never", disabled: !snapshot.canPreview, disabledReason: !snapshot.hasMeasurement ? "Load measurement data before previewing." : inputError, onClick: actions.preview },
       ]}
     />
   );

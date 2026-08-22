@@ -10,12 +10,13 @@ function numberValue(event: unknown, data: { value?: string | number } | undefin
 export default function FitPanel({ advanced, onRun }: { advanced: boolean; onRun?: () => void }) {
   const [state, actions] = useReflectometry();
   const controls = state.controls;
+  const channelsInvalid = !controls.useReflectance && !controls.useTransmittance;
   const run = () => {
     actions.fit();
     onRun?.();
   };
   return <>
-    <CheckboxGroup className="channel-row" legendText="Fit channels" orientation="vertical">
+    <CheckboxGroup className="channel-row" legendText="Fit channels" orientation="vertical" invalid={channelsInvalid} invalidText="Select reflectance, transmittance, or both channels.">
       <Checkbox id="use-r" labelText="Fit reflectance (R)" checked={controls.useReflectance} onChange={(_event, { checked }) => actions.updateControl("useReflectance", checked)} />
       <Checkbox id="use-t" labelText="Fit transmittance (T)" checked={controls.useTransmittance} onChange={(_event, { checked }) => actions.updateControl("useTransmittance", checked)} />
       <Checkbox id="prefer-shape" labelText="Prefer spectral shape" checked={controls.preferSpectralShape} onChange={(_event, { checked }) => actions.updateControl("preferSpectralShape", checked)} />
@@ -52,7 +53,13 @@ export default function FitPanel({ advanced, onRun }: { advanced: boolean; onRun
         </div>
       </AccordionItem>
     </Accordion>}
-    <p className={`fit-count${state.selectedFitCount > 11 ? " fit-count--warning" : ""}`}>{state.selectedFitCount} / 11 fitted parameters selected.</p>
+    <p className={`fit-count${state.selectedFitCount === 0 || state.selectedFitCount > 11 ? " fit-count--warning" : ""}`}>
+      {state.selectedFitCount === 0
+        ? "Select at least one fitted parameter."
+        : state.selectedFitCount > 11
+          ? `${state.selectedFitCount} fitted parameters selected; the maximum is 11.`
+          : `${state.selectedFitCount} / 11 fitted parameters selected.`}
+    </p>
     <Button className="full" kind="primary" renderIcon={ArrowRight} type="button" disabled={!state.canFit} onClick={run}>Run fit</Button>
   </>;
 }

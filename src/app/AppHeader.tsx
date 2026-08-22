@@ -8,13 +8,18 @@ export default function AppHeader() {
   const [state, actions] = useReflectometry();
   const scientificState = operationScientificState(state.operation, state.hasMeasurement);
   const label = operationLabel(state.operation, state.hasMeasurement);
+  const processingError = Object.values(state.processingErrors)[0];
   const fitDisabledReason = !state.hasMeasurement
     ? "Load measurement data before fitting."
-    : state.selectedFitCount === 0
-      ? "Select at least one fitted parameter."
-      : state.selectedFitCount > 11
-        ? "Select at most 11 fitted parameters."
-        : undefined;
+    : processingError
+      ? processingError
+      : !state.controls.useReflectance && !state.controls.useTransmittance
+        ? "Select reflectance, transmittance, or both fit channels."
+        : state.selectedFitCount === 0
+          ? "Select at least one fitted parameter."
+          : state.selectedFitCount > 11
+            ? "Select at most 11 fitted parameters."
+            : undefined;
 
   useScientificShortcut(useMemo(() => ({
     id: "reflectometry:cancel-fit",

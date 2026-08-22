@@ -64,6 +64,7 @@ export default function MeasurementPanel({ advanced }: { advanced: boolean }) {
   const [state, actions] = useReflectometry();
   const [files, setFiles] = useState<MeasurementFiles>(EMPTY_FILES);
   const quality = state.sourceQuality;
+  const errors = state.processingErrors;
   const setFile = (key: keyof MeasurementFiles, file: File | null) => setFiles((current) => ({ ...current, [key]: file }));
   const reflectance = channelCheck({ available: quality.reflectanceAvailable, evaluated: quality.evaluated, selected: state.controls.useReflectance, count: quality.reflectanceCount });
   const transmittance = channelCheck({ available: quality.transmittanceAvailable, evaluated: quality.evaluated, selected: state.controls.useTransmittance, count: quality.transmittanceCount });
@@ -119,11 +120,11 @@ export default function MeasurementPanel({ advanced }: { advanced: boolean }) {
       {advanced && <AccordionItem title="Measurement processing" open>
         <div className="accordion-content">
           <div className="field-grid">
-            <NumberInput id="wavelength-min" label="Minimum λ" helperText="nm" value={state.controls.wavelengthMinNm} min={195} max={2500} step={10} onChange={(event, data) => actions.updateControl("wavelengthMinNm", numberValue(event, data))} />
-            <NumberInput id="wavelength-max" label="Maximum λ" helperText="nm" value={state.controls.wavelengthMaxNm} min={200} max={3000} step={10} onChange={(event, data) => actions.updateControl("wavelengthMaxNm", numberValue(event, data))} />
-            <NumberInput id="reference-threshold" label="Reference threshold" helperText="%" value={state.controls.referenceThresholdPercent} min={0} max={99} step={1} onChange={(event, data) => actions.updateControl("referenceThresholdPercent", numberValue(event, data))} />
-            <NumberInput id="bin-width" label="Median bin" helperText="nm" value={state.controls.binWidthNm} min={0.1} max={100} step={0.5} onChange={(event, data) => actions.updateControl("binWidthNm", numberValue(event, data))} />
-            <NumberInput id="sample-snr" label="Minimum sample SNR" helperText="σ" value={state.controls.sampleSnrMinimum} min={0} max={100} step={0.5} onChange={(event, data) => actions.updateControl("sampleSnrMinimum", numberValue(event, data))} />
+            <NumberInput id="wavelength-min" label="Minimum λ" helperText="nm" value={state.controls.wavelengthMinNm} min={195} max={2500} step={10} invalid={Boolean(errors.wavelengthMinNm)} invalidText={errors.wavelengthMinNm} onChange={(event, data) => actions.updateControl("wavelengthMinNm", numberValue(event, data))} />
+            <NumberInput id="wavelength-max" label="Maximum λ" helperText="nm" value={state.controls.wavelengthMaxNm} min={200} max={3000} step={10} invalid={Boolean(errors.wavelengthMaxNm)} invalidText={errors.wavelengthMaxNm} onChange={(event, data) => actions.updateControl("wavelengthMaxNm", numberValue(event, data))} />
+            <NumberInput id="reference-threshold" label="Reference threshold" helperText="%" value={state.controls.referenceThresholdPercent} min={0} max={99} step={1} invalid={Boolean(errors.referenceThresholdPercent)} invalidText={errors.referenceThresholdPercent} onChange={(event, data) => actions.updateControl("referenceThresholdPercent", numberValue(event, data))} />
+            <NumberInput id="bin-width" label="Median bin" helperText="nm" value={state.controls.binWidthNm} min={0.1} max={100} step={0.5} invalid={Boolean(errors.binWidthNm)} invalidText={errors.binWidthNm} onChange={(event, data) => actions.updateControl("binWidthNm", numberValue(event, data))} />
+            <NumberInput id="sample-snr" label="Minimum sample SNR" helperText="σ" value={state.controls.sampleSnrMinimum} min={0} max={100} step={0.5} invalid={Boolean(errors.sampleSnrMinimum)} invalidText={errors.sampleSnrMinimum} onChange={(event, data) => actions.updateControl("sampleSnrMinimum", numberValue(event, data))} />
           </div>
           <Checkbox id="subtract-background" labelText="Subtract 195–250 nm background" checked={state.controls.subtractBackground} onChange={(_event, { checked }) => actions.updateControl("subtractBackground", checked)} />
         </div>

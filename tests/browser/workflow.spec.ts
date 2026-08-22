@@ -146,7 +146,7 @@ test('shared configuration rail preserves expanded state and keyboard navigation
   await expect(fit).toBeFocused()
 })
 
-test('invalid processing settings surface a React error notification', async ({ page }) => {
+test('invalid processing settings are identified before execution', async ({ page }) => {
   await loadAndPreview(page)
   await page.getByRole('button', { name: 'Data', exact: true }).click()
   const panel = page.getByRole('complementary', { name: 'Measurement' })
@@ -154,19 +154,12 @@ test('invalid processing settings surface a React error notification', async ({ 
   const minimum = panel.getByRole('spinbutton', { name: 'Minimum λ' })
   await minimum.fill('1200')
   await minimum.press('Tab')
+  await expect(minimum).toHaveAttribute('aria-invalid', 'true')
+  await expect(panel.getByText('Minimum wavelength must be lower than maximum wavelength.', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Fit' })).toBeDisabled()
   await panel.getByRole('button', { name: 'Close' }).click()
-  await page.getByRole('button', { name: 'Preview model' }).click()
-  await expect(page.getByText('The calculation needs attention')).toBeVisible()
-  await expect(page.getByText('The wavelength range, bin width, and SNR must be valid.', { exact: true }).first()).toBeVisible()
-  const outcomeGeometry = await page.locator('.reflectometry-outcome').evaluate((node) => {
-    const status = node.querySelector<HTMLElement>('.scientific-status')
-    return {
-      outcomeOverflow: node.scrollWidth - node.clientWidth,
-      statusOverflow: status ? status.scrollWidth - status.clientWidth : Number.POSITIVE_INFINITY,
-    }
-  })
-  expect(outcomeGeometry.outcomeOverflow).toBeLessThanOrEqual(1)
-  expect(outcomeGeometry.statusOverflow).toBeLessThanOrEqual(1)
+  await expect(page.getByRole('region', { name: 'Optical fit outcome' }).getByRole('button', { name: 'Preview model' })).toBeDisabled()
+  await expect(page.getByText('The calculation needs attention')).toHaveCount(0)
   await expectNoPageOverflow(page)
 })
 
@@ -248,9 +241,11 @@ test('mobile results keep one scroll owner, visible actions and fitted tabs', as
     documentHeight: document.documentElement.scrollHeight,
     viewportHeight: document.documentElement.clientHeight,
     metricRows: new Set([...document.querySelectorAll('.reflectometry-outcome .scientific-metric')].map((node) => Math.round(node.getBoundingClientRect().top))).size,
+    metricWidths: [...document.querySelectorAll('.reflectometry-outcome .scientific-metric')].map((node) => node.getBoundingClientRect().width),
   }))
   expect(layout.documentHeight - layout.viewportHeight).toBeLessThanOrEqual(1)
-  expect(layout.metricRows).toBe(1)
+  expect(layout.metricRows).toBe(2)
+  expect(layout.metricWidths[2]).toBeGreaterThan(layout.metricWidths[0] * 1.9)
   await expectNoPageOverflow(page)
 })
 

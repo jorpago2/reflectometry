@@ -145,7 +145,7 @@ export default function ResultsWorkspace() {
     {!state.hasResult || !plots ? <ResultsEmpty /> : <div className="results-content">
       <ResultsOutcome />
       <Tabs>
-        <TabList contained className="results-tab-list cds--tabs--full-width" aria-label="Result views">
+        <TabList contained fullWidth className="results-tab-list" aria-label="Result views">
           <Tab>Overview</Tab><Tab aria-label="Fit quality">Quality</Tab><Tab aria-label="Optical n,k">n,k</Tab>
         </TabList>
         <TabPanels>

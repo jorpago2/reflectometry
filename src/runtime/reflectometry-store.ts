@@ -180,6 +180,30 @@ export interface ReflectometryControls {
   bootstrapSamples: number;
 }
 
+export type ProcessingControlErrors = Partial<Record<
+  "wavelengthMinNm" | "wavelengthMaxNm" | "referenceThresholdPercent" | "binWidthNm" | "sampleSnrMinimum",
+  string
+>>;
+
+export function getProcessingControlErrors(controls: Pick<
+  ReflectometryControls,
+  "wavelengthMinNm" | "wavelengthMaxNm" | "referenceThresholdPercent" | "binWidthNm" | "sampleSnrMinimum"
+>): ProcessingControlErrors {
+  const errors: ProcessingControlErrors = {};
+  const within = (value: number, minimum: number, maximum: number) => Number.isFinite(value) && value >= minimum && value <= maximum;
+  if (!within(controls.wavelengthMinNm, 195, 2500)) errors.wavelengthMinNm = "Enter a minimum wavelength from 195 to 2500 nm.";
+  if (!within(controls.wavelengthMaxNm, 200, 3000)) errors.wavelengthMaxNm = "Enter a maximum wavelength from 200 to 3000 nm.";
+  if (!errors.wavelengthMinNm && !errors.wavelengthMaxNm && controls.wavelengthMinNm >= controls.wavelengthMaxNm) {
+    const message = "Minimum wavelength must be lower than maximum wavelength.";
+    errors.wavelengthMinNm = message;
+    errors.wavelengthMaxNm = message;
+  }
+  if (!within(controls.referenceThresholdPercent, 0, 99)) errors.referenceThresholdPercent = "Enter a reference threshold from 0 to 99%.";
+  if (!within(controls.binWidthNm, 0.1, 100)) errors.binWidthNm = "Enter a median bin width from 0.1 to 100 nm.";
+  if (!within(controls.sampleSnrMinimum, 0, 100)) errors.sampleSnrMinimum = "Enter a minimum sample SNR from 0 to 100 σ.";
+  return errors;
+}
+
 export interface OperationState {
   phase: ReflectometryPhase;
   busy: boolean;
@@ -213,6 +237,7 @@ export interface ReflectometrySnapshot {
   source: SourceInfo | null;
   sourceLabel: string;
   sourceQuality: SourceQuality;
+  processingErrors: ProcessingControlErrors;
   operation: OperationState;
   fitData: FitData | null;
   evaluation: OpticalEvaluation | null;
@@ -477,6 +502,8 @@ export class ReflectometryStore {
     const fitResult = this.fitResult;
     const hasResult = Boolean(fitResult);
     const busy = Boolean(this.worker);
+    const processingErrors = getProcessingControlErrors(this.controls);
+    const controlsValid = Object.keys(processingErrors).length === 0 && (this.controls.useReflectance || this.controls.useTransmittance);
     return {
       controls: this.controls,
       layers: this.layers,
@@ -485,6 +512,7 @@ export class ReflectometryStore {
       source: this.source,
       sourceLabel: this.source ? `${this.source.sampleName ?? "Measurement"} · ${this.source.type ?? "local data"}` : "No measurement loaded",
       sourceQuality: this.sourceQuality(),
+      processingErrors,
       operation: { ...this.operation, busy },
       fitData: this.fitData,
       evaluation: this.evaluation,
@@ -492,8 +520,8 @@ export class ReflectometryStore {
       resultStale: this.resultStale,
       hasMeasurement,
       hasResult,
-      canPreview: hasMeasurement && !busy,
-      canFit: hasMeasurement && !busy && selectedFitCount > 0 && selectedFitCount <= 11,
+      canPreview: hasMeasurement && !busy && controlsValid,
+      canFit: hasMeasurement && !busy && controlsValid && selectedFitCount > 0 && selectedFitCount <= 11,
       canBootstrap: Boolean(fitResult && !fitResult.preview && !this.resultStale && !busy),
       canExport: Boolean(fitResult && !fitResult.preview && !this.resultStale && !busy),
       canUndo: this.history.length > 0 && !busy,

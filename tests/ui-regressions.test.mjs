@@ -50,6 +50,8 @@ test("keeps responsive panels and floating actions inside their owning React vie
   assert.doesNotMatch(plot, /document\.(?:getElementById|querySelector|querySelectorAll|createElement)|appendChild|replaceChildren|textContent\s*=|innerHTML\s*=|classList\.(?:add|remove|toggle)/);
 
   assert.match(results, /state\.layers\.map/);
+  assert.match(results, /<TabList contained fullWidth/);
+  assert.doesNotMatch(results, /cds--tabs--full-width/);
   assert.match(results, /state\.controls\.substrateThicknessUm/);
   assert.match(results, /data-correlation=\{value >= 0 \? "positive" : "negative"\}/);
   assert.match(results, /intervalLabel = bootstrap \? "Bootstrap 95% parameter intervals"/);

@@ -59,6 +59,28 @@ test("tracks channel presence separately from evaluated fit bins", () => {
   }
 });
 
+test("blocks execution and exposes field errors for invalid processing controls", () => {
+  const store = new ReflectometryStore();
+  try {
+    store.loadSyntheticExample();
+    store.updateControl("wavelengthMinNm", 1500);
+    const invalidRange = store.getSnapshot();
+    assert.equal(invalidRange.canPreview, false);
+    assert.equal(invalidRange.canFit, false);
+    assert.equal(invalidRange.processingErrors.wavelengthMinNm, "Minimum wavelength must be lower than maximum wavelength.");
+    assert.equal(invalidRange.processingErrors.wavelengthMaxNm, "Minimum wavelength must be lower than maximum wavelength.");
+
+    store.updateControl("wavelengthMinNm", 300);
+    store.updateControl("useReflectance", false);
+    store.updateControl("useTransmittance", false);
+    const noChannels = store.getSnapshot();
+    assert.equal(noChannels.canPreview, false);
+    assert.equal(noChannels.canFit, false);
+  } finally {
+    store.dispose();
+  }
+});
+
 test("keeps layer history and parameter links inside the runtime state", () => {
   const store = new ReflectometryStore();
   try {
